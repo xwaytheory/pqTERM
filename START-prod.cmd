@@ -6,8 +6,8 @@ if not exist node_modules (
   call npm install
   call npm run rebuild
 )
-if not exist out\main\index.js (
-  echo [pq] build...
+if not exist out\renderer\index.html (
+  echo [pq] build UI...
   call npm run build
 )
 set PQ_MODE=prod

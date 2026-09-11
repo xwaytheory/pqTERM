@@ -16,6 +16,7 @@ process.on('unhandledRejection', (reason) => {
 })
 import { join } from 'path'
 import { homedir } from 'os'
+import { existsSync } from 'fs'
 import type {
   AppSnapshot,
   EngineId,
@@ -99,16 +100,38 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show())
+  const reveal = () => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) mainWindow.show()
+  }
+  mainWindow.on('ready-to-show', reveal)
+  mainWindow.webContents.on('did-finish-load', reveal)
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    console.error('[pq] load fail', code, desc, url)
+    reveal()
+  })
+  setTimeout(reveal, 2500)
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    const html = join(__dirname, '../renderer/index.html')
+    if (existsSync(html)) {
+      void mainWindow.loadFile(html)
+    } else {
+      void mainWindow.loadURL(
+        'data:text/html;charset=utf-8,' +
+          encodeURIComponent(
+            `<html><body style="background:#07080a;color:#39ffb6;font-family:Consolas,monospace;padding:40px">
+             <h1>pq</h1><p>brak zbudowanego UI (out/renderer).</p>
+             <p>odpal <b>pq-dev</b> albo w katalogu projektu: npm run build</p>
+             </body></html>`
+          )
+      )
+    }
   }
 }
 

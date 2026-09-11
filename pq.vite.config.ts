@@ -10,12 +10,22 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {
+    root: resolve('src/renderer'),
+    base: './',
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
         '@shared': resolve('src/shared')
       }
     },
-    plugins: [react()]
+    plugins: [
+      react(),
+      {
+        name: 'pq-html',
+        transformIndexHtml(html: string) {
+          return html.replace(/ crossorigin/g, '')
+        }
+      }
+    ]
   }
 })
