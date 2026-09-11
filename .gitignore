@@ -1,0 +1,12 @@
+node_modules
+out
+dist
+release
+.pq
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+*.local.json
+google-oauth.local.json
