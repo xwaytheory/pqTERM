@@ -21,7 +21,7 @@ Nie commituj z katalogu, z którego leci akurat `npm run dev` w tym samym drzewi
 3. Sklonuj **private** repo:
 
 ```bat
-git clone https://github.com/TWOJ_LOGIN/pq.git
+git clone https://github.com/xwaytheory/pq.git
 cd pq
 npm install
 npm run rebuild
