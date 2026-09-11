@@ -19,6 +19,21 @@ if (!existsSync(distPq) || hostName !== 'pq.exe') {
   if (stamped.status) process.exit(stamped.status)
 }
 
+const vite = join(root, 'node_modules', 'vite', 'bin', 'vite.js')
+const mode = process.argv[2] || 'dev'
+if (mode === 'build' || mode === 'preview') {
+  const phone = spawnSync(process.execPath, [vite, 'build', '--config', 'phone.vite.config.ts'], {
+    cwd: root,
+    stdio: 'inherit'
+  })
+  if (phone.status) process.exit(phone.status)
+} else {
+  spawn(process.execPath, [vite, 'build', '--watch', '--config', 'phone.vite.config.ts'], {
+    cwd: root,
+    stdio: 'inherit'
+  })
+}
+
 const bin = join(root, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js')
 const child = spawn(process.execPath, [bin, ...process.argv.slice(2), '-c', 'pq.vite.config.ts'], {
   cwd: root,

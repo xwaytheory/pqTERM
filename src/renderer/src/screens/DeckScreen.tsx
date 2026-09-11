@@ -6,9 +6,10 @@ import Sidebar from '../components/Sidebar'
 import TerminalPane from '../components/TerminalPane'
 import NewWorkspaceModal from '../components/NewWorkspaceModal'
 import ProvidersModal from '../components/ProvidersModal'
+import RemotePanel from '../components/RemotePanel'
 
 export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
-  const [modal, setModal] = useState<'new' | 'providers' | null>(null)
+  const [modal, setModal] = useState<'new' | 'providers' | 'remote' | null>(null)
   const [focus, setFocus] = useState<string | null>(null)
   const [renameNonce, setRenameNonce] = useState(0)
   const [usage, setUsage] = useState<UsageMap>({})
@@ -121,6 +122,9 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           </button>
           <button className="dockbtn" title="sync engines" onClick={() => window.pq.sync.start()}>
             ↻
+          </button>
+          <button className="dockbtn" title="telefon / remote" onClick={() => setModal('remote')}>
+            ◯
           </button>
           <div className="sp" />
           {snap.user?.picture ? (
@@ -279,6 +283,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           onClose={() => setModal(null)}
         />
       ) : null}
+      {modal === 'remote' ? <RemotePanel onClose={() => setModal(null)} /> : null}
     </>
   )
 }

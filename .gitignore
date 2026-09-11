@@ -11,3 +11,7 @@ Thumbs.db
 .env.*
 *.local.json
 google-oauth.local.json
+android/.gradle
+android/build
+android/app/build
+android/local.properties

@@ -243,3 +243,11 @@ export function gridTemplate(layout: LayoutId): { cols: number; rows: number } {
       return { cols: 3, rows: 3 }
   }
 }
+
+export interface RemoteInfo {
+  enabled: boolean
+  pin: string
+  port: number
+  urls: string[]
+  clients: number
+}

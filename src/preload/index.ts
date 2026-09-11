@@ -8,6 +8,7 @@ import type {
   SyncEvent,
   BoardSnapshot,
   PanePatch,
+  RemoteInfo,
   UsageMap,
   UserSession,
   Workspace
@@ -36,6 +37,12 @@ const pq = {
     version: () => invoke('app:version') as Promise<string>,
     info: () => invoke('app:info') as Promise<{ mode: 'dev' | 'prod'; name: string }>,
     toggleSidebar: () => invoke('app:toggleSidebar') as Promise<void>
+  },
+  remote: {
+    info: () => invoke('remote:info') as Promise<RemoteInfo>,
+    start: () => invoke('remote:start') as Promise<RemoteInfo>,
+    stop: () => invoke('remote:stop') as Promise<RemoteInfo>,
+    regenPin: () => invoke('remote:regenPin') as Promise<RemoteInfo>
   },
   sync: {
     start: () => invoke('sync:start') as Promise<void>,

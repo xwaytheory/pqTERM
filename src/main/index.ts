@@ -21,6 +21,7 @@ import { EngineSync } from './sync'
 import { BoardHub } from './board'
 import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
+import { RemoteHub, type RemoteCommand } from './remote'
 
 app.setName('pq')
 process.title = 'pq'
@@ -53,6 +54,7 @@ let state: AppSnapshot = {
 }
 const board = new BoardHub()
 let bridge: PaneBridge
+let remote: RemoteHub
 const ptys = new PtyManager(() => mainWindow, {
   extraEnv: (paneId) => {
     const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
@@ -62,8 +64,14 @@ const ptys = new PtyManager(() => mainWindow, {
       ...(bridge ? bridge.envFor(paneId, slot) : {})
     }
   },
-  onOutput: (paneId, data) => board.onOutput(paneId, data),
-  onExit: (paneId) => board.paneEnd(paneId)
+  onOutput: (paneId, data) => {
+    board.onOutput(paneId, data)
+    remote?.pushTerm(paneId, data)
+  },
+  onExit: (paneId) => {
+    board.paneEnd(paneId)
+    remote?.pushExit(paneId, 0)
+  }
 })
 const syncer = new EngineSync(() => mainWindow)
 const usage = new UsageHub()
@@ -183,6 +191,126 @@ bridge = new PaneBridge({
 })
 bridge.start()
 
+async function dispatchRemote(cmd: RemoteCommand): Promise<unknown> {
+  const a = cmd.a || []
+  switch (cmd.m) {
+    case 'state':
+      return { ...state, google: { clientId: '', clientSecret: '' } }
+    case 'workspaces.select': {
+      const id = (a[0] as string | null) ?? null
+      if (state.activeWorkspaceId && state.activeWorkspaceId !== id) {
+        ptys.killWorkspace(state.activeWorkspaceId)
+      }
+      state.activeWorkspaceId = id
+      persist()
+      attachBoard()
+      return id
+    }
+    case 'workspaces.remove': {
+      const id = String(a[0])
+      ptys.killWorkspace(id)
+      state.workspaces = state.workspaces.filter((w) => w.id !== id)
+      if (state.activeWorkspaceId === id) {
+        state.activeWorkspaceId = state.workspaces[0]?.id ?? null
+      }
+      persist()
+      attachBoard()
+      return true
+    }
+    case 'workspaces.create': {
+      const input = a[0] as {
+        title: string
+        cwd: string
+        layout: LayoutId
+        engines: EngineId[]
+      }
+      const enabled = new Set(state.providers.filter((p) => p.enabled).map((p) => p.id))
+      const engines = (input.engines || []).filter((e) => enabled.has(e) || e === 'shell')
+      const ws: Workspace = {
+        id: newId(),
+        title: input.title.trim() || 'untitled',
+        cwd: input.cwd.trim() || homedir(),
+        layout: input.layout,
+        panes: emptyPanes(input.layout, engines),
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+      state.workspaces = [ws, ...state.workspaces]
+      state.activeWorkspaceId = ws.id
+      persist()
+      attachBoard()
+      return ws
+    }
+    case 'workspaces.setPane': {
+      const workspaceId = String(a[0])
+      const paneId = String(a[1])
+      const patch = a[2] as PanePatch
+      state.workspaces = state.workspaces.map((w) => {
+        if (w.id !== workspaceId) return w
+        return touchWorkspace({
+          ...w,
+          panes: w.panes.map((p) => {
+            if (p.id !== paneId) return p
+            const engine = patch.engine !== undefined ? patch.engine : p.engine
+            const titleLocked = patch.titleLocked !== undefined ? patch.titleLocked : p.titleLocked
+            let title = p.title
+            if (patch.title !== undefined) title = patch.title
+            else if (patch.engine !== undefined && !p.titleLocked) {
+              title = engine ? specById(engine).name : 'idle'
+            }
+            return {
+              ...p,
+              engine,
+              model: patch.model !== undefined ? patch.model : p.model,
+              title,
+              titleLocked
+            }
+          })
+        })
+      })
+      persist()
+      return true
+    }
+    case 'term.write':
+      ptys.write(String(a[0]), String(a[1] ?? ''))
+      return true
+    case 'term.clear': {
+      const workspaceId = String(a[0])
+      const paneId = String(a[1])
+      ptys.kill(paneId)
+      state.workspaces = state.workspaces.map((w) => {
+        if (w.id !== workspaceId) return w
+        return touchWorkspace({
+          ...w,
+          panes: w.panes.map((p) =>
+            p.id === paneId
+              ? { ...p, engine: null, title: 'idle', titleLocked: false, model: undefined }
+              : p
+          )
+        })
+      })
+      persist()
+      board.paneEnd(paneId)
+      return true
+    }
+    case 'panes.fill': {
+      const input = (a[0] || {}) as { engine: string; prompt?: string; skipPaneId?: string }
+      const ws = activeWs()
+      const skip = input.skipPaneId
+        ? (ws?.panes.findIndex((p) => p.id === input.skipPaneId) ?? -1) + 1
+        : 0
+      return fillPanes(input.engine, input.prompt ?? '', skip)
+    }
+    default:
+      throw new Error(`unknown ${cmd.m}`)
+  }
+}
+
+remote = new RemoteHub(join(__dirname, '..', '..'), {
+  snapshot: () => state,
+  dispatch: dispatchRemote
+})
+
 function attachBoard(): void {
   const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
   if (ws?.cwd) board.attach(ws.cwd)
@@ -192,6 +320,7 @@ function attachBoard(): void {
 function persist(): void {
   saveState(state)
   mainWindow?.webContents.send('state:changed', state)
+  remote?.pushState()
 }
 
 function newId(): string {
@@ -544,6 +673,10 @@ function registerIpc(): void {
   ipcMain.handle('sync:start', () => syncer.start())
   ipcMain.handle('sync:last', () => syncer.last)
   ipcMain.handle('usage:get', () => usage.snapshot())
+  ipcMain.handle('remote:info', () => remote.info())
+  ipcMain.handle('remote:start', () => remote.start())
+  ipcMain.handle('remote:stop', () => remote.stop())
+  ipcMain.handle('remote:regenPin', () => remote.regenPin())
   ipcMain.handle(
     'panes:fill',
     async (_e, input: { engine: string; prompt?: string; skipPaneId?: string }) => {
@@ -582,5 +715,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   usage.stop()
   bridge.stop()
+  remote.stop()
   ptys.killAll()
 })
