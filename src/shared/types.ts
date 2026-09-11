@@ -249,5 +249,8 @@ export interface RemoteInfo {
   pin: string
   port: number
   urls: string[]
+  wanUrl: string | null
+  tunnel: 'off' | 'starting' | 'up' | 'error'
+  tunnelError: string
   clients: number
 }

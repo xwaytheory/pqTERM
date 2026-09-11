@@ -87,7 +87,7 @@ export default function App() {
     return (
       <div className="boot">
         <div className="brand">pq</div>
-        <p>Laptop jest źródłem. Wpisz PIN z pq na komputerze.</p>
+        <p>Wpisz PIN z panelu TELEFON. Zobaczysz te same workspace’y co na laptopie.</p>
         <input
           className="pin"
           inputMode="numeric"

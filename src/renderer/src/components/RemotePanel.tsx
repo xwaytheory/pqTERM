@@ -4,6 +4,7 @@ import type { RemoteInfo } from '../../../shared/types'
 export default function RemotePanel({ onClose }: { onClose: () => void }) {
   const [info, setInfo] = useState<RemoteInfo | null>(null)
   const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState('')
 
   async function refresh() {
     setInfo(await window.pq.remote.info())
@@ -11,9 +12,19 @@ export default function RemotePanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     void refresh()
-    const t = setInterval(() => void refresh(), 2000)
+    const t = setInterval(() => void refresh(), 1500)
     return () => clearInterval(t)
   }, [])
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(text)
+      setTimeout(() => setCopied(''), 1200)
+    } catch {
+      /* ignore */
+    }
+  }
 
   if (!info) return null
 
@@ -22,34 +33,58 @@ export default function RemotePanel({ onClose }: { onClose: () => void }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>TELEFON</h2>
         <div className="sub">
-          laptop jest źródłem. telefon tylko steruje — te same workspace’y, te same TUI, na żywo.
+          telefon widzi te same workspace’y co ten laptop. wybierasz okno, piszesz prompt — wykonuje
+          się tutaj, na żywo.
         </div>
         <div className="hint">
           {info.enabled ? (
             <>
               <div>
-                PIN <b style={{ color: 'var(--green)', fontSize: 22, letterSpacing: '0.2em' }}>{info.pin}</b>
+                most:{' '}
+                {info.tunnel === 'up' && info.wanUrl ? (
+                  <b style={{ color: 'var(--green)' }}>live</b>
+                ) : info.tunnel === 'starting' ? (
+                  'stawiam…'
+                ) : info.tunnel === 'error' ? (
+                  <span style={{ color: '#ff5c7a' }}>{info.tunnelError || 'padł'}</span>
+                ) : (
+                  'wyłączony'
+                )}
               </div>
-              <div style={{ marginTop: 10 }}>otwórz na telefonie (Chrome / apka pq):</div>
-              {info.urls.length ? (
-                info.urls.map((u) => (
-                  <div key={u}>
-                    <code>{u}</code>
-                  </div>
-                ))
+              <div style={{ marginTop: 14 }}>
+                PIN{' '}
+                <b style={{ color: 'var(--green)', fontSize: 22, letterSpacing: '0.2em' }}>{info.pin}</b>
+              </div>
+              {info.wanUrl ? (
+                <button
+                  className="ghost"
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    marginTop: 12,
+                    padding: '10px 12px',
+                    wordBreak: 'break-all'
+                  }}
+                  onClick={() => void copy(info.wanUrl || '')}
+                >
+                  <code>{info.wanUrl}</code>
+                  <div className="sub">{copied === info.wanUrl ? 'skopiowane' : 'kliknij — wklej to w apce'}</div>
+                </button>
               ) : (
-                <div>brak adresu LAN</div>
+                <div style={{ marginTop: 10 }}>czekam na publiczny adres…</div>
               )}
-              <div style={{ marginTop: 10 }}>
-                w domu: ten sam Wi-Fi. w podróży: Tailscale na laptopie i telefonie, potem adres Tailscale
-                z listy.
+              <div style={{ marginTop: 12 }}>
+                1. w apce pq na telefonie wklej adres i PIN.
+                <br />
+                2. zobaczysz te same workspace’y.
+                <br />
+                3. wejdź w okno, napisz, send — leci tutaj.
               </div>
-              <div>
-                połączone telefony: {info.clients}
-              </div>
+              <div style={{ marginTop: 10 }}>laptop i pq zostają włączone. telefony: {info.clients}</div>
             </>
           ) : (
-            <>włącz, żeby telefon widział workspace’y z tego pq. laptop musi zostać włączony.</>
+            <>włącz most. dostaniesz adres i PIN. telefon łączy się z dowolnego miejsca.</>
           )}
         </div>
         <div className="modal-actions">
@@ -57,22 +92,17 @@ export default function RemotePanel({ onClose }: { onClose: () => void }) {
             zamknij
           </button>
           {info.enabled ? (
-            <>
-              <button className="ghost" onClick={() => void window.pq.remote.regenPin().then(setInfo)}>
-                nowy PIN
-              </button>
-              <button
-                className="ghost"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true)
-                  setInfo(await window.pq.remote.stop())
-                  setBusy(false)
-                }}
-              >
-                wyłącz
-              </button>
-            </>
+            <button
+              className="ghost"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                setInfo(await window.pq.remote.stop())
+                setBusy(false)
+              }}
+            >
+              wyłącz
+            </button>
           ) : (
             <button
               className="primary"
@@ -87,7 +117,7 @@ export default function RemotePanel({ onClose }: { onClose: () => void }) {
                 }
               }}
             >
-              włącz remote
+              włącz telefon
             </button>
           )}
         </div>

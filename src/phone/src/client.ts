@@ -2,11 +2,29 @@ import type { AppSnapshot, EngineId, LayoutId, PanePatch } from '@shared/types'
 
 type Handler = (msg: Record<string, unknown>) => void
 
+function readToken(): string {
+  try {
+    const q = new URLSearchParams(location.search).get('token')
+    if (q) {
+      localStorage.setItem('pq-token', q)
+      const u = new URL(location.href)
+      u.searchParams.delete('token')
+      history.replaceState({}, '', u.pathname + u.search + u.hash)
+      return q
+    }
+  } catch {
+    /* ignore */
+  }
+  return localStorage.getItem('pq-token') || ''
+}
+
 export class RemoteClient {
   private ws: WebSocket | null = null
   private token = ''
   private seq = 1
   private pending = new Map<string, { ok: (v: unknown) => void; fail: (e: Error) => void }>()
+  private wantOpen = false
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   onEvent: Handler | null = null
 
   get ready(): boolean {
@@ -26,24 +44,32 @@ export class RemoteClient {
     return this.token
   }
 
-  connect(token = localStorage.getItem('pq-token') || ''): Promise<AppSnapshot> {
+  connect(token = readToken()): Promise<AppSnapshot> {
+    this.wantOpen = true
     this.token = token
+    return this.open(true)
+  }
+
+  private open(first: boolean): Promise<AppSnapshot> {
     if (!this.token) return Promise.reject(new Error('brak tokenu'))
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
     const url = `${proto}://${location.host}/ws?token=${encodeURIComponent(this.token)}`
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(url)
       this.ws = ws
-      const t = setTimeout(() => reject(new Error('timeout')), 8000)
+      const t = setTimeout(() => reject(new Error('timeout')), first ? 20000 : 12000)
       ws.onmessage = (ev) => {
         const msg = JSON.parse(String(ev.data)) as Record<string, unknown>
+        if (msg.e === 'ping') return
         if (msg.e === 'hello') {
           clearTimeout(t)
           if (typeof msg.token === 'string') {
             this.token = msg.token
             localStorage.setItem('pq-token', this.token)
           }
-          resolve(msg.snapshot as AppSnapshot)
+          const snap = msg.snapshot as AppSnapshot
+          this.onEvent?.({ e: 'state', snapshot: snap })
+          resolve(snap)
           return
         }
         if (msg.id && this.pending.has(String(msg.id))) {
@@ -61,8 +87,17 @@ export class RemoteClient {
       }
       ws.onclose = () => {
         this.ws = null
+        if (this.wantOpen) this.armReconnect()
       }
     })
+  }
+
+  private armReconnect(): void {
+    if (this.reconnectTimer || !this.wantOpen || !this.token) return
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      void this.open(false).catch(() => this.armReconnect())
+    }, 2500)
   }
 
   call(m: string, a: unknown[] = []): Promise<unknown> {
@@ -110,6 +145,11 @@ export class RemoteClient {
   }
 
   disconnect(): void {
+    this.wantOpen = false
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     this.ws?.close()
     this.ws = null
   }

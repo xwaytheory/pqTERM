@@ -306,7 +306,11 @@ async function dispatchRemote(cmd: RemoteCommand): Promise<unknown> {
   }
 }
 
-remote = new RemoteHub(join(__dirname, '..', '..'), {
+const userDataDir = join(app.getPath('appData'), runningDev() ? 'pq-dev' : 'pq')
+remote = new RemoteHub({
+  rootDir: join(__dirname, '..', '..'),
+  persistFile: join(userDataDir, 'remote.json'),
+  binDir: join(userDataDir, 'bin'),
   snapshot: () => state,
   dispatch: dispatchRemote
 })
@@ -675,7 +679,7 @@ function registerIpc(): void {
   ipcMain.handle('usage:get', () => usage.snapshot())
   ipcMain.handle('remote:info', () => remote.info())
   ipcMain.handle('remote:start', () => remote.start())
-  ipcMain.handle('remote:stop', () => remote.stop())
+  ipcMain.handle('remote:stop', () => remote.stop(true))
   ipcMain.handle('remote:regenPin', () => remote.regenPin())
   ipcMain.handle(
     'panes:fill',
@@ -701,6 +705,7 @@ app.whenReady().then(() => {
   usage.onChange((m) => mainWindow?.webContents.send('usage:changed', m))
   attachBoard()
   usage.start()
+  void remote.restore().catch((err) => console.error('[pq] remote', err))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
