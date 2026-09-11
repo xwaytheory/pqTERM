@@ -1,12 +1,13 @@
 import { execFile } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { join, relative, sep } from 'path'
 import type { BoardNote, BoardPane, BoardSnapshot, EngineId } from '../shared/types'
 
 const FILE_RE =
   /(?:[A-Za-z]:[\\/])?(?:[\w.+-]+[\\/])+[\w.+-]+\.[A-Za-z0-9]{1,8}|[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|rs|go|cs|java|kt|md|json|toml|yml|yaml|css|html|vue|php|rb|sql|xml)/g
 
-const SKIP = /node_modules|\.git\\|\/\.git\/|\.pq\\|dist\\|out\\|release\\/i
+const SKIP =
+  /node_modules|\.git\\|\/\.git\/|\.pq\\|dist\\|out\\|release\\|AppData|\\bun\\|\.(exe|dll|cmd|bat|sys)$/i
 
 function stripAnsi(s: string): string {
   return s
@@ -57,9 +58,9 @@ export class BoardHub {
   attach(cwd: string): void {
     this.cwd = cwd
     this.ensureDir()
-    this.writeInstructions()
     this.ensureGitignore()
-    this.patchAgentsFile()
+    this.unpatchAgentsFile()
+    this.dropInstructions()
     this.flush()
     if (!this.timer) {
       this.timer = setInterval(() => {
@@ -87,6 +88,13 @@ export class BoardHub {
       files: new Map(),
       tail: ''
     })
+    void this.flush()
+  }
+
+  paneTitle(paneId: string, title: string): void {
+    const p = this.panes.get(paneId)
+    if (!p) return
+    p.title = title
     void this.flush()
   }
 
@@ -123,15 +131,8 @@ export class BoardHub {
     return this.cwd ? join(this.cwd, '.pq', 'BOARD.md') : ''
   }
 
-  extraEnv(paneId: string): NodeJS.ProcessEnv {
-    if (!this.cwd) return {}
-    return {
-      PQ: '1',
-      PQ_WORKSPACE: this.cwd,
-      PQ_PANE_ID: paneId,
-      PQ_BOARD: join(this.cwd, '.pq', 'BOARD.md'),
-      PQ_INSTRUCTIONS: join(this.cwd, '.pq', 'INSTRUCTIONS.md')
-    }
+  extraEnv(_paneId: string): NodeJS.ProcessEnv {
+    return {}
   }
 
   private dir(): string {
@@ -170,7 +171,7 @@ export class BoardHub {
           notes.push({
             relation: 'overlap',
             engines: [a.engine, b.engine],
-            detail: `${a.engine} i ${b.engine} ruszają te same pliki: ${share.slice(0, 6).join(', ')}. Jeden implementuje, drugi czeka albo recenzuje — nie nadpisujcie się.`
+            detail: `${a.title} i ${b.title}: ${share.slice(0, 6).join(', ')}`
           })
           continue
         }
@@ -181,23 +182,10 @@ export class BoardHub {
           notes.push({
             relation: 'related',
             engines: [a.engine, b.engine],
-            detail: `${a.engine} i ${b.engine} pracują w ${topShare.join(', ')} — czytajcie nawzajem BOARD i dzielcie pliki, albo jeden robi review.`
-          })
-        } else {
-          notes.push({
-            relation: 'independent',
-            engines: [a.engine, b.engine],
-            detail: `${a.engine} i ${b.engine} nie nachodzą na te same ścieżki — mogą iść równolegle.`
+            detail: `${a.title} i ${b.title} w ${topShare.join(', ')}`
           })
         }
       }
-    }
-    if (!live.length && panes.filter((p) => p.alive).length > 1) {
-      notes.push({
-        relation: 'independent',
-        engines: panes.filter((p) => p.alive).map((p) => p.engine),
-        detail: 'Kilka pane’ów live, jeszcze bez claimów na pliki — wolno startować, ale najpierw przeczytaj BOARD.'
-      })
     }
     return notes.slice(0, 12)
   }
@@ -231,7 +219,6 @@ export class BoardHub {
     this.last = snap
     this.writeMarkdown(snap)
     this.writeJson(snap)
-    this.writeTails()
     this.onChange?.(snap)
   }
 
@@ -243,14 +230,14 @@ export class BoardHub {
       `workspace: \`${s.cwd}\``,
       `updated: ${new Date(s.updatedAt).toISOString()}`,
       '',
-      'Zasada: zanim edytujesz plik, przeczytaj tę tablicę. Jeśli inny pane trzyma ten plik — czekaj, recenzuj, albo weź inny kawałek. Jeśli notes mówią independent — działaj swobodnie.',
+      '_podgląd operatora — agenty tego nie dostają do promptu_',
       '',
       '## panes'
     ]
     if (!live.length) lines.push('_brak żywych agentów_')
     for (const p of live) {
       lines.push(
-        `- **${p.engine}** \`${p.paneId.slice(0, 8)}\` files: ${p.files.length ? p.files.map((f) => '`' + f + '`').join(', ') : '(jeszcze nic)'}`
+        `- **${p.title}** (${p.engine}) files: ${p.files.length ? p.files.map((f) => '`' + f + '`').join(', ') : '—'}`
       )
     }
     lines.push('', '## git')
@@ -261,16 +248,8 @@ export class BoardHub {
       for (const n of s.notes) {
         lines.push(`- **${n.relation}** · ${n.detail}`)
       }
-    } else lines.push('_brak_')
-    lines.push(
-      '',
-      '## jak pomagać',
-      '- overlap → jeden kodzi, drugi czyta diff / testy, nie zapisuje tych samych plików.',
-      '- related → podzielcie pliki w tym katalogu na głos (dopisz claim tutaj poprzez pracę; pq sam wyłapie ścieżki z TUI).',
-      '- independent → pełny YOLO na swoim wycinku.',
-      `- logi ogonów: \`.pq/panes/<id>.log\``,
-      ''
-    )
+    } else lines.push('_brak nachodzenia_')
+    lines.push('')
     writeFileSync(this.boardPath(), lines.join('\n'), 'utf8')
   }
 
@@ -278,31 +257,12 @@ export class BoardHub {
     writeFileSync(join(this.dir(), 'board.json'), JSON.stringify(s, null, 2), 'utf8')
   }
 
-  private writeTails(): void {
-    const pdir = join(this.dir(), 'panes')
-    mkdirSync(pdir, { recursive: true })
-    for (const p of this.panes.values()) {
-      const name = `${p.engine}-${p.paneId.slice(0, 8)}.log`
-      writeFileSync(join(pdir, name), p.tail.slice(-6000), 'utf8')
+  private dropInstructions(): void {
+    try {
+      unlinkSync(join(this.dir(), 'INSTRUCTIONS.md'))
+    } catch {
+      /* ignore */
     }
-  }
-
-  private writeInstructions(): void {
-    const body = `pq — koordynacja agentów w jednym workspace.
-
-Jesteś jednym z kilku CLI w siatce pq (Grok, OpenCode, Omp, Claude, …).
-Nie jesteś sam.
-
-OBOWIĄZKOWO na starcie i przed większą edycją:
-1. Przeczytaj \`.pq/BOARD.md\` (albo \`.pq/board.json\`).
-2. Sprawdź sekcję notes: overlap / related / independent.
-3. Jeśli overlap na Twoich plikach — NIE nadpisuj. Albo poczekaj, albo zrób review, albo weź inne pliki.
-4. Jeśli independent — pracuj dalej, nie blokuj innych.
-5. Ogon wyjścia innych pane’ów: \`.pq/panes/*.log\` (wgląd, nie zgadywanie).
-
-Zmienne: PQ_BOARD, PQ_PANE_ID, PQ_WORKSPACE, PQ_INSTRUCTIONS.
-`
-    writeFileSync(join(this.dir(), 'INSTRUCTIONS.md'), body, 'utf8')
   }
 
   private ensureGitignore(): void {
@@ -317,29 +277,17 @@ Zmienne: PQ_BOARD, PQ_PANE_ID, PQ_WORKSPACE, PQ_INSTRUCTIONS.
     }
   }
 
-  private patchAgentsFile(): void {
+  private unpatchAgentsFile(): void {
     const marker = '<!-- pq:board -->'
     const end = '<!-- /pq:board -->'
-    const block = `${marker}
-## pq
-To repo jest otwarte w siatce pq (kilka agentów naraz).
-Zanim edytujesz pliki: przeczytaj \`.pq/BOARD.md\`.
-Overlap → nie zapisuj tych samych plików co inny pane. Related → podzielcie katalog. Independent → działaj.
-${end}
-`
     const target = join(this.cwd, 'AGENTS.md')
     try {
-      if (!existsSync(target)) {
-        writeFileSync(target, block, 'utf8')
-        return
-      }
+      if (!existsSync(target)) return
       const cur = readFileSync(target, 'utf8')
-      if (cur.includes(marker)) {
-        const next = cur.replace(new RegExp(`${marker}[\\s\\S]*?${end}`, 'm'), block.trim())
-        if (next !== cur) writeFileSync(target, next, 'utf8')
-        return
-      }
-      writeFileSync(target, `${cur.trimEnd()}\n\n${block}`, 'utf8')
+      if (!cur.includes(marker)) return
+      const next = cur.replace(new RegExp(`\\n*${marker}[\\s\\S]*?${end}\\s*`, 'm'), '\n').trim()
+      if (!next) unlinkSync(target)
+      else writeFileSync(target, `${next}\n`, 'utf8')
     } catch {
       /* ignore */
     }

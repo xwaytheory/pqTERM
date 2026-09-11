@@ -7,6 +7,8 @@ import type {
   ProviderInfo,
   SyncEvent,
   BoardSnapshot,
+  PanePatch,
+  UsageMap,
   UserSession,
   Workspace
 } from '../shared/types'
@@ -42,6 +44,14 @@ const pq = {
       const fn = (_: unknown, ev: SyncEvent) => cb(ev)
       ipcRenderer.on('sync:event', fn)
       return () => ipcRenderer.removeListener('sync:event', fn)
+    }
+  },
+  usage: {
+    get: () => invoke('usage:get') as Promise<UsageMap>,
+    onChange: (cb: (m: UsageMap) => void) => {
+      const fn = (_: unknown, m: UsageMap) => cb(m)
+      ipcRenderer.on('usage:changed', fn)
+      return () => ipcRenderer.removeListener('usage:changed', fn)
     }
   },
   board: {
@@ -85,11 +95,12 @@ const pq = {
     pickFolder: () => invoke('workspaces:pickFolder') as Promise<string | null>,
     setLayout: (id: string, layout: LayoutId) =>
       invoke('workspaces:setLayout', id, layout) as Promise<void>,
-    setPane: (
-      workspaceId: string,
-      paneId: string,
-      patch: { engine: EngineId | null; model?: string; title?: string }
-    ) => invoke('workspaces:setPane', workspaceId, paneId, patch) as Promise<void>
+    setPane: (workspaceId: string, paneId: string, patch: PanePatch) =>
+      invoke('workspaces:setPane', workspaceId, paneId, patch) as Promise<void>
+  },
+  panes: {
+    fill: (input: { engine: string; prompt?: string; skipPaneId?: string }) =>
+      invoke('panes:fill', input) as Promise<number[]>
   },
   terminals: {
     spawn: (input: {

@@ -86,10 +86,12 @@ export default function Sidebar({
                   {w.cwd}
                 </div>
                 {expanded &&
-                  w.panes.map((p, i) => (
+                  w.panes.map((p) => (
                     <div
                       key={p.id}
-                      className={p.engine ? 'pane-link' : 'pane-link idle'}
+                      className={`${p.engine ? 'pane-link' : 'pane-link idle'}${
+                        w.zoomedPaneId === p.id ? ' zoomed' : ''
+                      }`}
                       onClick={() => {
                         select(w)
                         focusPane(w.id, p.id)
@@ -97,7 +99,7 @@ export default function Sidebar({
                     >
                       <span className="dot" style={{ background: color(p.engine) }} />
                       <span>
-                        {p.engine ? p.title : `slot ${i + 1}`}
+                        {p.engine ? p.title : 'idle'}
                         {p.model ? ` · ${p.model}` : ''}
                       </span>
                     </div>
@@ -107,20 +109,19 @@ export default function Sidebar({
           })
         )}
       </div>
-      {board && board.panes.some((p) => p.alive) ? (
+      {board && board.notes.length ? (
         <div className="coord">
           <div className="side-head">
             <span>COORD</span>
-            <span className="meta">{board.notes.filter((n) => n.relation === 'overlap').length} overlap</span>
+            <span className="meta">
+              {board.notes.filter((n) => n.relation === 'overlap').length} overlap
+            </span>
           </div>
           {board.notes.slice(0, 5).map((n, i) => (
             <div key={i} className={`coord-note ${n.relation}`}>
               <b>{n.relation}</b> {n.detail}
             </div>
           ))}
-          <div className="cwd" title={board.boardPath}>
-            {board.boardPath}
-          </div>
         </div>
       ) : null}
     </aside>

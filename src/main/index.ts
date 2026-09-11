@@ -8,16 +8,19 @@ import type {
   EngineId,
   GoogleOAuthConfig,
   LayoutId,
+  PanePatch,
   Workspace
 } from '../shared/types'
-import { paneCount } from '../shared/types'
+import { ENGINE_ORDER, looksLikePathTitle, paneCount } from '../shared/types'
 import { loadState, saveState, touchWorkspace } from './store'
 import { applyEmailMatch, scanProviders } from './providers'
 import { signInWithGoogle, openGoogleConsole } from './auth'
 import { PtyManager } from './pty-manager'
-import { specById } from './engines'
+import { ENGINE_SPECS, specById } from './engines'
 import { EngineSync } from './sync'
 import { BoardHub } from './board'
+import { UsageHub } from './usage'
+import { PaneBridge } from './bridge'
 
 app.setName('pq')
 process.title = 'pq'
@@ -49,12 +52,136 @@ let state: AppSnapshot = {
   sidebarOpen: true
 }
 const board = new BoardHub()
+let bridge: PaneBridge
 const ptys = new PtyManager(() => mainWindow, {
-  extraEnv: (paneId) => board.extraEnv(paneId),
+  extraEnv: (paneId) => {
+    const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
+    const slot = (ws?.panes.findIndex((p) => p.id === paneId) ?? -1) + 1
+    return {
+      ...board.extraEnv(paneId),
+      ...(bridge ? bridge.envFor(paneId, slot) : {})
+    }
+  },
   onOutput: (paneId, data) => board.onOutput(paneId, data),
   onExit: (paneId) => board.paneEnd(paneId)
 })
 const syncer = new EngineSync(() => mainWindow)
+const usage = new UsageHub()
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+async function waitAlive(paneId: string, ms = 14000): Promise<boolean> {
+  const t0 = Date.now()
+  while (Date.now() - t0 < ms) {
+    if (ptys.alive(paneId)) return true
+    await sleep(150)
+  }
+  return ptys.alive(paneId)
+}
+
+function parseEngine(raw: string): EngineId | null {
+  const s = raw.trim().toLowerCase().replace(/[\s_-]+/g, '')
+  if ((ENGINE_ORDER as string[]).includes(raw.trim().toLowerCase())) {
+    return raw.trim().toLowerCase() as EngineId
+  }
+  const hit = ENGINE_SPECS.find(
+    (e) => e.id === s || e.name.toLowerCase().replace(/[\s_-]+/g, '') === s
+  )
+  return hit?.id ?? null
+}
+
+function activeWs() {
+  return state.workspaces.find((w) => w.id === state.activeWorkspaceId) ?? null
+}
+
+async function fillPanes(engineRaw: string, prompt: string, skipSlot: number): Promise<number[]> {
+  const ws = activeWs()
+  const engine = parseEngine(engineRaw)
+  if (!ws || !engine) return []
+  const spec = specById(engine)
+  const targets = ws.panes
+    .map((p, i) => ({ p, slot: i + 1 }))
+    .filter((t) => t.slot !== skipSlot && !t.p.engine)
+  if (targets.length) {
+    state.workspaces = state.workspaces.map((w) => {
+      if (w.id !== ws.id) return w
+      const ids = new Set(targets.map((t) => t.p.id))
+      return touchWorkspace({
+        ...w,
+        panes: w.panes.map((p) =>
+          ids.has(p.id) ? { ...p, engine, title: spec.name, titleLocked: false } : p
+        )
+      })
+    })
+    persist()
+  }
+  const spawned: number[] = []
+  await Promise.all(
+    targets.map(async (t) => {
+      if (await waitAlive(t.p.id)) spawned.push(t.slot)
+    })
+  )
+  spawned.sort((a, b) => a - b)
+  if (prompt.trim()) {
+    if (spawned.length) await sleep(2500)
+    const fresh = activeWs()
+    const payload = /[\r\n]$/.test(prompt) ? prompt : `${prompt}\r`
+    for (const p of fresh?.panes ?? []) {
+      if (skipSlot && fresh!.panes[skipSlot - 1]?.id === p.id) continue
+      if (p.engine !== engine) continue
+      if (!ptys.alive(p.id)) await waitAlive(p.id, 4000)
+      ptys.write(p.id, payload)
+    }
+  }
+  return spawned
+}
+
+bridge = new PaneBridge({
+  list: () => {
+    const ws = activeWs()
+    if (!ws) return []
+    return ws.panes.map((p, i) => ({
+      slot: i + 1,
+      paneId: p.id,
+      engine: p.engine,
+      title: p.title
+    }))
+  },
+  spawn: async (slot, engineRaw) => {
+    const ws = activeWs()
+    const engine = parseEngine(engineRaw)
+    if (!ws || !engine) return null
+    const pane = ws.panes[slot - 1]
+    if (!pane) return null
+    const spec = specById(engine)
+    state.workspaces = state.workspaces.map((w) => {
+      if (w.id !== ws.id) return w
+      return touchWorkspace({
+        ...w,
+        panes: w.panes.map((p) =>
+          p.id === pane.id ? { ...p, engine, title: spec.name, titleLocked: false } : p
+        )
+      })
+    })
+    persist()
+    await waitAlive(pane.id)
+    return pane.id
+  },
+  write: async (slot, text) => {
+    const ws = activeWs()
+    const pane = ws?.panes[slot - 1]
+    if (!pane?.engine) return false
+    if (!ptys.alive(pane.id)) await waitAlive(pane.id)
+    await sleep(400)
+    const payload = /[\r\n]$/.test(text) ? text : `${text}\r`
+    ptys.write(pane.id, payload)
+    return true
+  },
+  fill: fillPanes
+})
+bridge.start()
 
 function attachBoard(): void {
   const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
@@ -74,7 +201,7 @@ function newId(): string {
 function emptyPanes(layout: LayoutId, engines: EngineId[] = []): Workspace['panes'] {
   const n = paneCount(layout)
   return Array.from({ length: n }, (_, i) => {
-    const engine = engines[i] ?? null
+    const engine = engines.length ? engines[i % engines.length] : null
     return {
       id: newId(),
       engine,
@@ -278,31 +405,34 @@ function registerIpc(): void {
     attachBoard()
   })
 
-  ipcMain.handle(
-    'workspaces:setPane',
-    (
-      _e,
-      workspaceId: string,
-      paneId: string,
-      patch: { engine: EngineId | null; model?: string; title?: string }
-    ) => {
-      state.workspaces = state.workspaces.map((w) => {
-        if (w.id !== workspaceId) return w
-        return touchWorkspace({
-          ...w,
-          panes: w.panes.map((p) => {
-            if (p.id !== paneId) return p
-            const engine = patch.engine
-            const title =
-              patch.title ??
-              (engine ? specById(engine).name : 'idle')
-            return { ...p, engine, model: patch.model, title }
-          })
+  ipcMain.handle('workspaces:setPane', (_e, workspaceId: string, paneId: string, patch: PanePatch) => {
+    state.workspaces = state.workspaces.map((w) => {
+      if (w.id !== workspaceId) return w
+      return touchWorkspace({
+        ...w,
+        panes: w.panes.map((p) => {
+          if (p.id !== paneId) return p
+          const engine = patch.engine !== undefined ? patch.engine : p.engine
+          const titleLocked = patch.titleLocked !== undefined ? patch.titleLocked : p.titleLocked
+          let title = p.title
+          if (patch.title !== undefined) {
+            title = patch.title
+          } else if (patch.engine !== undefined && !p.titleLocked) {
+            title = engine ? specById(engine).name : 'idle'
+          }
+          if (patch.title !== undefined) board.paneTitle(paneId, title)
+          return {
+            ...p,
+            engine,
+            model: patch.model !== undefined ? patch.model : p.model,
+            title,
+            titleLocked
+          }
         })
       })
-      persist()
-    }
-  )
+    })
+    persist()
+  })
 
   ipcMain.handle('workspaces:setLayout', (_e, id: string, layout: LayoutId) => {
     const ws = state.workspaces.find((w) => w.id === id)
@@ -318,8 +448,9 @@ function registerIpc(): void {
         panes.push({ id: newId(), engine: null, title: `pane ${panes.length + 1}` })
       }
     }
+    const zoomedPaneId = panes.some((p) => p.id === ws.zoomedPaneId) ? ws.zoomedPaneId : null
     state.workspaces = state.workspaces.map((w) =>
-      w.id === id ? touchWorkspace({ ...w, layout, panes }) : w
+      w.id === id ? touchWorkspace({ ...w, layout, panes, zoomedPaneId }) : w
     )
     persist()
   })
@@ -346,17 +477,6 @@ function registerIpc(): void {
         ...(spec.args ?? []),
         ...(input.model && spec.modelFlag ? spec.modelFlag(input.model) : [])
       ]
-      mainWindow?.webContents.send(
-        'term:data',
-        input.paneId,
-        `\x1b[90m[pq] sync ${input.engine}…\x1b[0m\r\n`
-      )
-      await syncer.ensure(input.engine)
-      mainWindow?.webContents.send(
-        'term:data',
-        input.paneId,
-        `\x1b[90m[pq] spawn ${input.engine}\x1b[0m\r\n`
-      )
       ptys.spawn({
         paneId: input.paneId,
         workspaceId: input.workspaceId,
@@ -371,20 +491,24 @@ function registerIpc(): void {
         if (w.id !== input.workspaceId) return w
         return touchWorkspace({
           ...w,
-          panes: w.panes.map((p) =>
-            p.id === input.paneId
-              ? {
-                  ...p,
-                  engine: input.engine,
-                  title: spec.name,
-                  model
-                }
-              : p
-          )
+          panes: w.panes.map((p) => {
+            if (p.id !== input.paneId) return p
+            const keep =
+              p.titleLocked && p.title.trim() && !looksLikePathTitle(p.title) ? p.title : spec.name
+            return {
+              ...p,
+              engine: input.engine,
+              title: keep,
+              model
+            }
+          })
         })
       })
       persist()
-      board.paneStart(input.paneId, input.engine, spec.name)
+      const live = state.workspaces
+        .find((w) => w.id === input.workspaceId)
+        ?.panes.find((p) => p.id === input.paneId)
+      board.paneStart(input.paneId, input.engine, live?.title || spec.name)
       return { id: input.paneId }
     }
   )
@@ -405,7 +529,9 @@ function registerIpc(): void {
       return touchWorkspace({
         ...w,
         panes: w.panes.map((p) =>
-          p.id === paneId ? { ...p, engine: null, title: 'idle', model: undefined } : p
+          p.id === paneId
+            ? { ...p, engine: null, title: 'idle', titleLocked: false, model: undefined }
+            : p
         )
       })
     })
@@ -417,6 +543,17 @@ function registerIpc(): void {
   ipcMain.handle('board:get', () => board.snapshot())
   ipcMain.handle('sync:start', () => syncer.start())
   ipcMain.handle('sync:last', () => syncer.last)
+  ipcMain.handle('usage:get', () => usage.snapshot())
+  ipcMain.handle(
+    'panes:fill',
+    async (_e, input: { engine: string; prompt?: string; skipPaneId?: string }) => {
+      const ws = activeWs()
+      const skip = input.skipPaneId
+        ? (ws?.panes.findIndex((p) => p.id === input.skipPaneId) ?? -1) + 1
+        : 0
+      return fillPanes(input.engine, input.prompt ?? '', skip)
+    }
+  )
 }
 
 app.whenReady().then(() => {
@@ -428,15 +565,9 @@ app.whenReady().then(() => {
   registerIpc()
   createWindow()
   board.setListener((snap) => mainWindow?.webContents.send('board:changed', snap))
+  usage.onChange((m) => mainWindow?.webContents.send('usage:changed', m))
   attachBoard()
-  const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
-  const priority = (ws?.panes.map((p) => p.engine).filter((id): id is EngineId => Boolean(id)) ??
-    []) as EngineId[]
-  void syncer.start(priority).then(() => {
-    state.providers = scanProviders(state.user?.email, state.providers)
-    saveState(state)
-    mainWindow?.webContents.send('state:changed', state)
-  })
+  usage.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -448,4 +579,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => ptys.killAll())
+app.on('before-quit', () => {
+  usage.stop()
+  bridge.stop()
+  ptys.killAll()
+})

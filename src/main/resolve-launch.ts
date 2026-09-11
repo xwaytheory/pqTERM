@@ -111,6 +111,11 @@ export function yoloEnv(engine: EngineId): Record<string, string> {
       }
     case 'hermes':
       return { HERMES_YOLO_MODE: '1' }
+    case 'grok':
+      return { GROK_FOLDER_TRUST: '0' }
+    case 'gemini':
+    case 'qwen':
+      return { GEMINI_CLI_TRUST_WORKSPACE: 'true' }
     default:
       return {}
   }

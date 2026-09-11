@@ -18,11 +18,7 @@ export default function NewWorkspaceModal({
   const usable = providers.filter((p) => p.id !== 'shell' && p.enabled)
 
   function toggle(id: EngineId) {
-    setEngines((cur) => {
-      if (cur.includes(id)) return cur.filter((x) => x !== id)
-      if (cur.length >= layout) return cur
-      return [...cur, id]
-    })
+    setEngines((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))
   }
 
   async function pick() {
@@ -77,7 +73,10 @@ export default function NewWorkspaceModal({
             </button>
           ))}
         </div>
-        <label className="f">START ENGINES ({engines.length}/{layout})</label>
+        <label className="f">SILNIKI NA START</label>
+        <div className="sub" style={{ marginTop: -8 }}>
+          jeden silnik = wszystkie {layout} okna. kilka silników = rozłożą się w kółko.
+        </div>
         <div className="chips">
           {usable.map((p) => (
             <button
@@ -90,6 +89,18 @@ export default function NewWorkspaceModal({
             </button>
           ))}
         </div>
+        {engines.length ? (
+          <div className="hint" style={{ marginTop: 8 }}>
+            {Array.from({ length: layout }, (_, i) => {
+              const id = engines[i % engines.length]
+              return usable.find((p) => p.id === id)?.name ?? id
+            }).join(' · ')}
+          </div>
+        ) : (
+          <div className="hint" style={{ marginTop: 8 }}>
+            bez wyboru — {layout} puste sloty, silnik klikasz w pane.
+          </div>
+        )}
         {err ? <div className="err">{err}</div> : null}
         <div className="modal-actions">
           <button className="ghost" onClick={onClose}>

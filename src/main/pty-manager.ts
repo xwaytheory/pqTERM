@@ -5,6 +5,8 @@ import type { IPty } from 'node-pty'
 import { specById } from './engines'
 import type { EngineId } from '../shared/types'
 import { resolveLaunch, sanitizeEnv, yoloEnv } from './resolve-launch'
+import { trustWorkspace } from './trust'
+import { runningDev } from './env'
 
 let pty: typeof import('node-pty') | null = null
 
@@ -32,7 +34,9 @@ function envFor(
   if (engine) Object.assign(env, yoloEnv(engine))
   if (extraEnv) Object.assign(env, extraEnv)
   const extras = [
+    extraEnv?.PQ_BIN || '',
     extraPath ? dirname(extraPath) : '',
+    `${homedir()}\\AppData\\Roaming\\${runningDev() ? 'pq-dev' : 'pq'}\\bin`,
     `${homedir()}\\.grok\\bin`,
     `${homedir()}\\AppData\\Roaming\\npm`,
     `${homedir()}\\AppData\\Local\\hermes\\bin`,
@@ -82,6 +86,11 @@ export class PtyManager {
     extraArgs?: string[]
   }): void {
     this.kill(opts.paneId)
+    try {
+      trustWorkspace(opts.cwd || homedir())
+    } catch {
+      /* ignore */
+    }
     const np = loadPty()
     const spec = specById(opts.engine)
     const target = opts.resolvedPath || spec.binaries[0]
@@ -185,5 +194,10 @@ export class PtyManager {
 
   killAll(): void {
     for (const id of [...this.sessions.keys()]) this.kill(id)
+  }
+
+  alive(paneId: string): boolean {
+    const s = this.sessions.get(paneId)
+    return Boolean(s?.alive && !exitedInternally(s.proc))
   }
 }
