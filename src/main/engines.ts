@@ -45,6 +45,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     hint: 'Oh My Pi — open-source terminal coding agent',
     extraPathDirs: ['%APPDATA%\\npm'],
     npmPackage: '@oh-my-pi/pi-coding-agent',
+    selfUpdate: ['update', '--force'],
     modelFlag: (id) => ['--model', id],
     models: [
       { id: 'anthropic/claude-sonnet-4', name: 'Sonnet 4' },

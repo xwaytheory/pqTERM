@@ -11,10 +11,16 @@ function npmCmd(): string {
 }
 
 function run(file: string, args: string[], timeout = 180000): Promise<{ ok: boolean }> {
+  let exec = file
+  let execArgs = args
+  if (/\.(cmd|bat)$/i.test(file)) {
+    exec = process.env.ComSpec || 'cmd.exe'
+    execArgs = ['/d', '/s', '/c', [q(file), ...args.map(q)].join(' ')]
+  }
   return new Promise((resolve) => {
     execFile(
-      file,
-      args,
+      exec,
+      execArgs,
       {
         windowsHide: true,
         timeout,
@@ -28,6 +34,11 @@ function run(file: string, args: string[], timeout = 180000): Promise<{ ok: bool
       (err) => resolve({ ok: !err })
     )
   })
+}
+
+function q(s: string): string {
+  if (/[\s"]/.test(s)) return `"${s.replace(/"/g, '\\"')}"`
+  return s
 }
 
 export class EngineSync {
@@ -80,21 +91,19 @@ export class EngineSync {
     if (spec.npmPackage) {
       const r = await run(npmCmd(), ['install', '-g', `${spec.npmPackage}@latest`])
       this.emit({ line: `pq · ${spec.id} npm ${r.ok ? 'ok' : 'warn'}` })
-      return
     }
     if (spec.pipPackage) {
       const r = await run('python', ['-m', 'pip', 'install', '-U', spec.pipPackage])
       this.emit({ line: `pq · ${spec.id} pip ${r.ok ? 'ok' : 'warn'}` })
-      return
     }
     if (spec.selfUpdate) {
-      const bin = knownLaunch(spec.id as EngineId, [])?.spawnFile
-      if (!bin) {
+      const launch = knownLaunch(spec.id as EngineId, spec.selfUpdate)
+      if (!launch) {
         this.emit({ line: `pq · ${spec.id} missing — skip self-update` })
         return
       }
-      const r = await run(bin, spec.selfUpdate, 120000)
-      this.emit({ line: `pq · ${spec.id} update ${r.ok ? 'ok' : 'warn'}` })
+      const r = await run(launch.spawnFile, launch.args, 180000)
+      this.emit({ line: `pq · ${spec.id} ${spec.selfUpdate[0]} ${r.ok ? 'ok' : 'warn'}` })
     }
   }
 }

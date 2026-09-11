@@ -36,6 +36,7 @@ import { productName } from './env'
 
 app.setName(productName())
 process.title = productName()
+app.setAppUserModelId(productName() === 'pq-dev' ? 'pq.dev' : 'pq.app')
 
 let mainWindow: BrowserWindow | null = null
 let state: AppSnapshot = {
@@ -406,7 +407,7 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
-  app.setAppUserModelId(productName())
+  app.setAppUserModelId(productName() === 'pq-dev' ? 'pq.dev' : 'pq.app')
   state = loadState()
   state.providers = scanProviders(state.user?.email, state.providers)
   saveState(state)
