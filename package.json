@@ -12,6 +12,8 @@
     "preview": "node scripts/pq.cjs preview",
     "start": "node scripts/pq.cjs preview",
     "rebuild": "node scripts/rebuild.cjs",
+    "stamp": "node scripts/stamp-host.cjs",
+    "shortcuts": "node scripts/make-shortcuts.cjs",
     "postinstall": "node scripts/rebuild.cjs"
   },
   "build": {

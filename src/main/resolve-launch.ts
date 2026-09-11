@@ -68,9 +68,13 @@ export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: str
       const script = firstExisting([
         join(npm, 'node_modules', '@oh-my-pi', 'pi-coding-agent', 'dist', 'cli.js')
       ])
-      const bun = firstExisting([join(npm, 'bun.exe')])
+      const bun = firstExisting([
+        join(npm, 'bun.exe'),
+        join(homedir(), '.bun', 'bin', 'bun.exe')
+      ])
       if (bun && script) return { spawnFile: bun, args: [script, ...extra] }
-      return null
+      const cmd = firstExisting([join(npm, 'omp.cmd')])
+      return cmd ? { spawnFile: cmd, args: extra } : null
     }
     case 'qwen':
     case 'dsh':

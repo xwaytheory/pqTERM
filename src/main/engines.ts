@@ -45,7 +45,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     hint: 'Oh My Pi — open-source terminal coding agent',
     extraPathDirs: ['%APPDATA%\\npm'],
     npmPackage: '@oh-my-pi/pi-coding-agent',
-    selfUpdate: ['update', '--force'],
+    selfUpdate: ['update'],
     modelFlag: (id) => ['--model', id],
     models: [
       { id: 'anthropic/claude-sonnet-4', name: 'Sonnet 4' },
@@ -81,6 +81,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     hint: 'OpenCode TUI — konta i klucze z lokalnej sesji',
     extraPathDirs: ['%APPDATA%\\npm'],
     npmPackage: 'opencode-ai',
+    selfUpdate: ['upgrade'],
     modelFlag: (id) => ['--model', id],
     models: [
       { id: 'opencode-default', name: 'OpenCode default' },
@@ -119,6 +120,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     hint: 'Claude Code TUI',
     extraPathDirs: ['%APPDATA%\\npm'],
     npmPackage: '@anthropic-ai/claude-code',
+    selfUpdate: ['update'],
     modelFlag: (id) => ['--model', id],
     models: [
       { id: 'claude-sonnet-4', name: 'Sonnet 4' },

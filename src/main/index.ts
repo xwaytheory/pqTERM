@@ -1,22 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from './host'
-
-process.on('uncaughtException', (err) => {
-  const msg = (err?.message ? String(err.message) : String(err)).replace(/electron/gi, 'pq')
-  if (/pty that has already exited|Cannot resize a pty|AttachConsole failed/i.test(msg)) {
-    return
-  }
-  console.error('[pq]', msg)
-})
-process.on('unhandledRejection', (reason) => {
-  const msg = (reason instanceof Error ? reason.message : String(reason)).replace(/electron/gi, 'pq')
-  if (/pty that has already exited|Cannot resize a pty|AttachConsole failed/i.test(msg)) {
-    return
-  }
-  console.error('[pq]', msg)
-})
 import { join } from 'path'
 import { homedir } from 'os'
 import { existsSync } from 'fs'
+import { productName, runningDev } from './env'
 import type {
   AppSnapshot,
   EngineId,
@@ -32,11 +18,26 @@ import { PtyManager } from './pty-manager'
 import { specById } from './engines'
 import { EngineSync } from './sync'
 import { BoardHub } from './board'
-import { productName } from './env'
 
-app.setName(productName())
-process.title = productName()
-app.setAppUserModelId(productName() === 'pq-dev' ? 'pq.dev' : 'pq.app')
+app.setName('pq')
+process.title = 'pq'
+app.setAppUserModelId('pq.app')
+app.setPath('userData', join(app.getPath('appData'), runningDev() ? 'pq-dev' : 'pq'))
+
+process.on('uncaughtException', (err) => {
+  const msg = (err?.message ? String(err.message) : String(err)).replace(/electron/gi, 'pq')
+  if (/pty that has already exited|Cannot resize a pty|AttachConsole failed/i.test(msg)) {
+    return
+  }
+  console.error('[pq]', msg)
+})
+process.on('unhandledRejection', (reason) => {
+  const msg = (reason instanceof Error ? reason.message : String(reason)).replace(/electron/gi, 'pq')
+  if (/pty that has already exited|Cannot resize a pty|AttachConsole failed/i.test(msg)) {
+    return
+  }
+  console.error('[pq]', msg)
+})
 
 let mainWindow: BrowserWindow | null = null
 let state: AppSnapshot = {
@@ -91,7 +92,7 @@ function createWindow(): void {
     frame: false,
     backgroundColor: '#07080a',
     autoHideMenuBar: true,
-    title: productName(),
+    title: 'pq',
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -104,6 +105,7 @@ function createWindow(): void {
   const reveal = () => {
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) mainWindow.show()
   }
+  mainWindow.setTitle('pq')
   mainWindow.on('ready-to-show', reveal)
   mainWindow.webContents.on('did-finish-load', reveal)
   mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
@@ -324,7 +326,7 @@ function registerIpc(): void {
 
   ipcMain.handle(
     'term:spawn',
-    (
+    async (
       _e,
       input: {
         paneId: string
@@ -344,6 +346,17 @@ function registerIpc(): void {
         ...(spec.args ?? []),
         ...(input.model && spec.modelFlag ? spec.modelFlag(input.model) : [])
       ]
+      mainWindow?.webContents.send(
+        'term:data',
+        input.paneId,
+        `\x1b[90m[pq] sync ${input.engine}…\x1b[0m\r\n`
+      )
+      await syncer.ensure(input.engine)
+      mainWindow?.webContents.send(
+        'term:data',
+        input.paneId,
+        `\x1b[90m[pq] spawn ${input.engine}\x1b[0m\r\n`
+      )
       ptys.spawn({
         paneId: input.paneId,
         workspaceId: input.workspaceId,
@@ -407,7 +420,8 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
-  app.setAppUserModelId(productName() === 'pq-dev' ? 'pq.dev' : 'pq.app')
+  app.setName('pq')
+  app.setAppUserModelId('pq.app')
   state = loadState()
   state.providers = scanProviders(state.user?.email, state.providers)
   saveState(state)
@@ -415,7 +429,10 @@ app.whenReady().then(() => {
   createWindow()
   board.setListener((snap) => mainWindow?.webContents.send('board:changed', snap))
   attachBoard()
-  void syncer.start().then(() => {
+  const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
+  const priority = (ws?.panes.map((p) => p.engine).filter((id): id is EngineId => Boolean(id)) ??
+    []) as EngineId[]
+  void syncer.start(priority).then(() => {
     state.providers = scanProviders(state.user?.email, state.providers)
     saveState(state)
     mainWindow?.webContents.send('state:changed', state)

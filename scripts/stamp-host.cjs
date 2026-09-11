@@ -1,12 +1,17 @@
-const { copyFileSync, existsSync, mkdirSync } = require('fs')
+const { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require('fs')
 const { join } = require('path')
 const { spawnSync } = require('child_process')
 
 const root = join(__dirname, '..')
-const src = join(root, 'node_modules', 'electron', 'dist', 'electron.exe')
+const dist = join(root, 'node_modules', 'electron', 'dist')
+const srcExe = join(dist, 'electron.exe')
 const rcedit = join(root, 'node_modules', 'rcedit', 'bin', 'rcedit-x64.exe')
+const pathTxt = join(root, 'node_modules', 'electron', 'path.txt')
+const host = join(root, 'host')
+const hostExe = join(host, 'pq.exe')
+const distExe = join(dist, 'pq.exe')
 
-if (!existsSync(src)) {
+if (!existsSync(srcExe)) {
   console.error('[pq] host binary missing — npm install first')
   process.exit(1)
 }
@@ -14,11 +19,6 @@ if (!existsSync(rcedit)) {
   console.error('[pq] rcedit missing')
   process.exit(1)
 }
-
-const dir = join(root, 'host')
-mkdirSync(dir, { recursive: true })
-const pqExe = join(dir, 'pq.exe')
-copyFileSync(src, pqExe)
 
 function stamp(exe) {
   const args = [
@@ -36,10 +36,52 @@ function stamp(exe) {
   if (r.status !== 0) throw new Error('stamp failed for ' + exe)
 }
 
-stamp(pqExe)
-try {
-  stamp(src)
-} catch {
-  console.log('[pq] live host locked — pq.exe stamped')
+function pathIsPq() {
+  try {
+    return readFileSync(pathTxt, 'utf8').trim() === 'pq.exe'
+  } catch {
+    return false
+  }
 }
-console.log('[pq] host stamped')
+
+mkdirSync(host, { recursive: true })
+
+const hostNeedsDist = !existsSync(join(host, 'ffmpeg.dll')) || !existsSync(hostExe)
+if (hostNeedsDist) {
+  cpSync(dist, host, {
+    recursive: true,
+    filter: (src) => {
+      const base = src.split(/[/\\]/).pop()
+      return base !== 'electron.exe' && base !== 'pq.exe'
+    }
+  })
+  copyFileSync(srcExe, hostExe)
+}
+
+stamp(hostExe)
+
+try {
+  copyFileSync(hostExe, distExe)
+} catch (err) {
+  console.log('[pq] dist/pq.exe locked —', err instanceof Error ? err.message : err)
+}
+
+try {
+  writeFileSync(pathTxt, 'pq.exe')
+} catch (err) {
+  console.log('[pq] path.txt locked —', err instanceof Error ? err.message : err)
+}
+
+if (!pathIsPq()) {
+  console.error('[pq] failed to point host at pq.exe')
+  process.exit(1)
+}
+
+try {
+  stamp(srcExe)
+} catch {
+  console.log('[pq] live electron.exe locked — pq.exe stamped')
+}
+
+console.log('[pq] host stamped →', hostExe)
+console.log('[pq] dev host →', distExe)
