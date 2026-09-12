@@ -12,13 +12,14 @@ pub mod updater;
 pub mod version;
 
 pub use ipc::{
-    decode_line, encode_line, stub_loopback_demo, Cancel, IpcError, IpcMessage, IpcSink,
-    MemoryChannelStub, Transport, PROTOCOL_VERSION, StartListen, Status, StubVoiceServer,
-    StubWorkClient, Transcript, VoiceState,
+    decode_line, encode_line, stub_loopback_demo, tcp_loopback_demo, Cancel, IpcError,
+    IpcMessage, IpcSink, LocalTcpTransport, MemoryChannelStub, Transport, DEFAULT_TCP_ADDR,
+    PROTOCOL_VERSION, StartListen, Status, StubVoiceServer, StubWorkClient, Transcript,
+    VoiceState,
 };
 pub use updater::{
     compare_semver, fetch_manifest, CheckOnLaunchPlan, ManifestFetch, UpdateManifest,
-    UpdaterError,
+    UpdaterError, STUB_REMOTE_LATEST,
 };
 pub use version::{PQ_CORE_VERSION, WORKSPACE_VERSION};
 

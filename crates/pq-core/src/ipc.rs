@@ -8,6 +8,11 @@
 //! Voice → work: Transcript, Status
 
 use serde::{Deserialize, Serialize};
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream, ToSocketAddrs};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 use thiserror::Error;
 
 /// Protocol version for future negotiation.
@@ -281,6 +286,196 @@ impl StubVoiceServer {
     }
 }
 
+
+/// Default loopback address for the Phase-2 TCP JSON-lines spike.
+pub const DEFAULT_TCP_ADDR: &str = "127.0.0.1:4791";
+
+/// Localhost TCP transport using the same JSON-line framing as future WS / named-pipe.
+///
+/// Spike for cross-process `IpcMessage` exchange (pq-work ↔ pq-voice). Not production WS;
+/// WebSocket can wrap this codec later (`tungstenite`). Named pipe remains an alternate target.
+pub struct LocalTcpTransport {
+    stream: TcpStream,
+    buf: Vec<u8>,
+}
+
+impl LocalTcpTransport {
+    /// Accept one inbound connection (blocking listen).
+    pub fn listen_once(addr: impl ToSocketAddrs) -> Result<Self, IpcError> {
+        let listener = TcpListener::bind(addr).map_err(|e| IpcError::Transport(e.to_string()))?;
+        listener
+            .set_nonblocking(false)
+            .map_err(|e| IpcError::Transport(e.to_string()))?;
+        let (stream, peer) = listener
+            .accept()
+            .map_err(|e| IpcError::Transport(e.to_string()))?;
+        let _ = peer;
+        Self::from_stream(stream)
+    }
+
+    /// Connect to a peer that is already listening.
+    pub fn connect(addr: impl ToSocketAddrs) -> Result<Self, IpcError> {
+        let stream =
+            TcpStream::connect(addr).map_err(|e| IpcError::Transport(e.to_string()))?;
+        Self::from_stream(stream)
+    }
+
+    fn from_stream(stream: TcpStream) -> Result<Self, IpcError> {
+        stream
+            .set_nodelay(true)
+            .map_err(|e| IpcError::Transport(e.to_string()))?;
+        // Non-blocking reads for try_recv; writes still work.
+        stream
+            .set_nonblocking(true)
+            .map_err(|e| IpcError::Transport(e.to_string()))?;
+        stream
+            .set_read_timeout(Some(Duration::from_millis(50)))
+            .ok();
+        Ok(Self {
+            stream,
+            buf: Vec::new(),
+        })
+    }
+
+    /// Blocking read of exactly one JSON line (used by demos).
+    pub fn recv_line_blocking(&mut self) -> Result<IpcMessage, IpcError> {
+        self.stream
+            .set_nonblocking(false)
+            .map_err(|e| IpcError::Transport(e.to_string()))?;
+        loop {
+            if let Some(msg) = self.drain_one_line()? {
+                let _ = self.stream.set_nonblocking(true);
+                return Ok(msg);
+            }
+            let mut chunk = [0u8; 1024];
+            let n = self
+                .stream
+                .read(&mut chunk)
+                .map_err(|e| IpcError::Transport(e.to_string()))?;
+            if n == 0 {
+                let _ = self.stream.set_nonblocking(true);
+                return Err(IpcError::Transport("peer closed".into()));
+            }
+            self.buf.extend_from_slice(&chunk[..n]);
+        }
+    }
+
+    fn drain_one_line(&mut self) -> Result<Option<IpcMessage>, IpcError> {
+        if let Some(pos) = self.buf.iter().position(|b| *b == b'\n') {
+            let line = self.buf.drain(..=pos).collect::<Vec<u8>>();
+            let s = String::from_utf8_lossy(&line);
+            return Ok(Some(decode_line(&s)?));
+        }
+        Ok(None)
+    }
+}
+
+impl IpcSink for LocalTcpTransport {
+    fn send(&mut self, msg: IpcMessage) -> Result<(), IpcError> {
+        let mut line = encode_line(&msg)?;
+        line.push('\n');
+        // Temporarily blocking write for reliability on nonblocking socket.
+        self.stream
+            .set_nonblocking(false)
+            .map_err(|e| IpcError::Transport(e.to_string()))?;
+        let res = self
+            .stream
+            .write_all(line.as_bytes())
+            .and_then(|_| self.stream.flush());
+        let _ = self.stream.set_nonblocking(true);
+        res.map_err(|e| IpcError::Transport(e.to_string()))
+    }
+}
+
+impl Transport for LocalTcpTransport {
+    fn try_recv(&mut self) -> Result<Option<IpcMessage>, IpcError> {
+        if let Some(msg) = self.drain_one_line()? {
+            return Ok(Some(msg));
+        }
+        let mut chunk = [0u8; 1024];
+        match self.stream.read(&mut chunk) {
+            Ok(0) => Err(IpcError::Transport("peer closed".into())),
+            Ok(n) => {
+                self.buf.extend_from_slice(&chunk[..n]);
+                self.drain_one_line()
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(None),
+            Err(e) => Err(IpcError::Transport(e.to_string())),
+        }
+    }
+
+    fn kind(&self) -> &'static str {
+        "localhost-tcp"
+    }
+}
+
+/// Cross-thread / cross-process style demo over localhost TCP (unit-test friendly).
+///
+/// Spawns a voice-side thread that accepts StartListen and emits a stub transcript;
+/// work-side connects and collects the final Transcript.
+pub fn tcp_loopback_demo(addr: &str) -> Result<Vec<Transcript>, IpcError> {
+    let listener = TcpListener::bind(addr).map_err(|e| IpcError::Transport(e.to_string()))?;
+    let bound = listener
+        .local_addr()
+        .map_err(|e| IpcError::Transport(e.to_string()))?;
+    let ready = Arc::new(Mutex::new(false));
+    let ready_flag = Arc::clone(&ready);
+
+    let voice_handle = thread::spawn(move || -> Result<(), IpcError> {
+        {
+            let mut g = ready_flag.lock().map_err(|e| IpcError::Other(e.to_string()))?;
+            *g = true;
+        }
+        let (stream, _) = listener
+            .accept()
+            .map_err(|e| IpcError::Transport(e.to_string()))?;
+        let mut transport = LocalTcpTransport::from_stream(stream)?;
+        let mut server = StubVoiceServer::default();
+        // Read StartListen
+        let start = transport.recv_line_blocking()?;
+        server.handle_from_work(start)?;
+        for msg in server.channel.take_outbound() {
+            transport.send(msg)?;
+        }
+        server.emit_stub_transcript("czesc tcp")?;
+        for msg in server.channel.take_outbound() {
+            transport.send(msg)?;
+        }
+        Ok(())
+    });
+
+    // Wait until listener thread is ready to accept
+    for _ in 0..50 {
+        if *ready.lock().map_err(|e| IpcError::Other(e.to_string()))? {
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    let mut work_transport = LocalTcpTransport::connect(bound)?;
+    let mut work = StubWorkClient::default();
+    work.start_listen("sess-tcp")?;
+    for msg in work.channel.take_outbound() {
+        work_transport.send(msg)?;
+    }
+
+    // Collect until we see a final transcript or idle after transcript
+    for _ in 0..40 {
+        let msg = work_transport.recv_line_blocking()?;
+        work.handle_from_voice(msg)?;
+        if work.transcripts.iter().any(|t| t.is_final) {
+            break;
+        }
+    }
+
+    voice_handle
+        .join()
+        .map_err(|_| IpcError::Other("voice thread panicked".into()))??;
+
+    Ok(work.transcripts)
+}
+
 /// Round-trip work↔voice over memory stub channels (used by binaries + tests).
 pub fn stub_loopback_demo() -> Result<(Vec<IpcMessage>, Vec<Transcript>), IpcError> {
     let mut work = StubWorkClient::default();
@@ -360,5 +555,40 @@ mod tests {
         }));
         assert!(ch.try_recv().unwrap().is_some());
         assert!(ch.try_recv().unwrap().is_none());
+    }
+
+    #[test]
+    fn localhost_tcp_loopback_produces_final_transcript() {
+        // Bind ephemeral via :0 inside demo by using a free port.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let addr = format!("127.0.0.1:{port}");
+        let transcripts = tcp_loopback_demo(&addr).unwrap();
+        assert_eq!(transcripts.len(), 1);
+        assert_eq!(transcripts[0].text, "czesc tcp");
+        assert!(transcripts[0].is_final);
+    }
+
+    #[test]
+    fn local_tcp_kind_label() {
+        // Smoke: connect pair and check kind() without full demo.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let accept = std::thread::spawn(move || {
+            let (s, _) = listener.accept().unwrap();
+            LocalTcpTransport::from_stream(s).unwrap()
+        });
+        let mut client = LocalTcpTransport::connect(addr).unwrap();
+        assert_eq!(client.kind(), "localhost-tcp");
+        client
+            .send(IpcMessage::Cancel(Cancel {
+                session_id: "k".into(),
+                reason: None,
+            }))
+            .unwrap();
+        let mut server = accept.join().unwrap();
+        let msg = server.recv_line_blocking().unwrap();
+        assert!(matches!(msg, IpcMessage::Cancel(_)));
     }
 }

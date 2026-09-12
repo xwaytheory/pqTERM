@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AppSnapshot, BoardSnapshot, Workspace } from '../../../shared/types'
+import EngineMark from './EngineMark'
 
 export default function Sidebar({
   snap,
@@ -31,8 +32,8 @@ export default function Sidebar({
     )
   }, [q, snap.workspaces])
 
-  function color(engine: string | null): string {
-    return snap.providers.find((p) => p.id === engine)?.color ?? '#4e5868'
+  function providerFor(engine: string | null) {
+    return snap.providers.find((p) => p.id === engine)
   }
 
   async function select(w: Workspace) {
@@ -97,7 +98,20 @@ export default function Sidebar({
                         focusPane(w.id, p.id)
                       }}
                     >
-                      <span className="dot" style={{ background: color(p.engine) }} />
+                      {(() => {
+                        const prov = providerFor(p.engine)
+                        return (
+                          <EngineMark
+                            id={p.engine ?? undefined}
+                            name={prov?.name ?? (p.engine ? p.title : 'idle')}
+                            color={prov?.color ?? '#4e5868'}
+                            logo={prov?.logo}
+                            icon={prov?.icon}
+                            mark={prov?.mark}
+                            size={14}
+                          />
+                        )
+                      })()}
                       <span>
                         {p.engine ? p.title : 'idle'}
                         {p.model ? ` · ${p.model}` : ''}

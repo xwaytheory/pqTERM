@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { EngineId, LayoutId, ProviderInfo } from '../../../shared/types'
 import { LAYOUTS } from '../../../shared/types'
+import EngineMark from './EngineMark'
 
 export default function NewWorkspaceModal({
   providers,
@@ -85,6 +86,7 @@ export default function NewWorkspaceModal({
               disabled={!p.installed}
               onClick={() => toggle(p.id)}
             >
+              <EngineMark id={p.id} name={p.name} color={p.color} logo={p.logo} icon={p.icon} mark={p.mark} size={14} />
               {p.name}
             </button>
           ))}

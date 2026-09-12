@@ -21,6 +21,8 @@ export interface EngineSpec {
   logo?: string
   /** Optional window/taskbar-style icon path; falls back to `logo` / color chip. */
   icon?: string
+  /** Optional monogram (1–2 chars) for letter-mark chips; set for first-letter collisions. */
+  mark?: string
 }
 
 export const ENGINE_SPECS: EngineSpec[] = [
@@ -29,6 +31,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     name: 'Grok CLI',
     vendor: 'xAI',
     color: '#39ffb6',
+    mark: 'Gr',
     binaries: ['grok', 'grok.exe'],
     args: ['--always-approve', '--trust'],
     hint: 'Grok Build TUI — sesja lokalna z ~/.grok',
@@ -47,6 +50,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     name: 'Omp',
     vendor: 'oh-my-pi',
     color: '#c084fc',
+    mark: 'Om',
     binaries: ['omp', 'omp.cmd'],
     args: ['--yolo'],
     hint: 'Oh My Pi — open-source terminal coding agent',
@@ -83,6 +87,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     name: 'OpenCode',
     vendor: 'OpenCode',
     color: '#7aa2ff',
+    mark: 'Oc',
     binaries: ['opencode', 'opencode.cmd'],
     args: ['--yolo'],
     hint: 'OpenCode TUI — konta i klucze z lokalnej sesji',
@@ -104,6 +109,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     name: 'Codex',
     vendor: 'OpenAI',
     color: '#9ae6b4',
+    mark: 'Cx',
     binaries: ['codex', 'codex.cmd'],
     args: ['--yolo'],
     hint: 'OpenAI Codex CLI',
@@ -122,6 +128,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     name: 'Claude Code',
     vendor: 'Anthropic',
     color: '#d4a574',
+    mark: 'Cl',
     binaries: ['claude', 'claude.cmd'],
     args: ['--dangerously-skip-permissions'],
     hint: 'Claude Code TUI',
@@ -171,6 +178,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     name: 'Gemini CLI',
     vendor: 'Google',
     color: '#4285f4',
+    mark: 'Ge',
     binaries: ['gemini', 'gemini.cmd'],
     args: ['--yolo', '--skip-trust'],
     hint: 'Gemini CLI (OSS). Consumer Gemini CLI jest wygaszany — zostawiamy binarkę jeśli działa.',
@@ -186,6 +194,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     name: 'Crush',
     vendor: 'Charmbracelet',
     color: '#ff387b',
+    mark: 'Cr',
     binaries: ['crush', 'crush.cmd'],
     args: [],
     hint: 'Crush — OSS TUI Charmbracelet, multi-provider',
@@ -210,6 +219,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     name: 'Copilot CLI',
     vendor: 'GitHub',
     color: '#f0f6fc',
+    mark: 'Co',
     binaries: ['copilot', 'copilot.cmd'],
     args: ['--yolo'],
     hint: 'GitHub Copilot CLI',
@@ -244,6 +254,9 @@ export function defaultProvider(spec: EngineSpec, extras?: Partial<ProviderInfo>
     command: spec.binaries[0],
     args: spec.args,
     color: spec.color,
+    logo: spec.logo,
+    icon: spec.icon,
+    mark: spec.mark,
     installed: false,
     detectedAuth: false,
     enabled: spec.id !== 'shell',

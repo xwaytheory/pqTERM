@@ -1,7 +1,8 @@
 # Android STT — SpeechRecognizer bridge (no Whisper on phone)
 
-**LOCKED:** Phone/Android uses system `android.speech.SpeechRecognizer`.  
-Desktop `pq-voice` keeps Whisper Large v3. Do **not** download GGML / run Whisper on device.
+**INTENT (not a runtime lock):** Phone/Android target path is system `android.speech.SpeechRecognizer`.  
+Desktop **INTENT** for `pq-voice` is Whisper Large v3; **CURRENT Electron** still uses `Xenova/whisper-tiny`. Do **not** download GGML / run Whisper on the phone.
+Sketch + docs landed; MainActivity / phone JS wiring is still TODO.
 
 Related: `docs/BACKLOG-NIGHT.md` item 8, `docs/MIGRATION-RUST.md` night additions,  
 `android/app/src/main/java/app/pq/remote/MainActivity.kt` (today: WebView `RECORD_AUDIO` for `getUserMedia` only).

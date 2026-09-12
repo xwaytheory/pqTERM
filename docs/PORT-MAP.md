@@ -56,7 +56,7 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 Stub client: `pq_core::ipc::StubWorkClient` (used from `pq-work`).  
 Stub server: `pq_core::ipc::StubVoiceServer` (used from `pq-voice`).  
 `MemoryChannelStub` = **in-process demo/test only** (not production IPC).  
-`Transport` trait defined for future named pipe / WS implementations.  
+`Transport` trait + **`LocalTcpTransport`** spike (`127.0.0.1:4791` JSON-lines; `pq-work`/`pq-voice --ipc-tcp`). Demo/cross-process only — **not** production IPC (WS/named-pipe still future).  
 JSON line codec: `encode_line` / `decode_line`.
 
 ## Suggested ownership

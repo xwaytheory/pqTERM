@@ -15,9 +15,9 @@ fields were added to `EngineSpec` for future letter-mark chips; no per-engine SV
 | PNG 256 | `resources/brand/pq-256.png` | present (**not** `pq.png`) |
 | PNG 512 | `resources/brand/pq-512.png` | present (**not** `pq.png`) |
 | Android launcher | `android/app/src/main/res/drawable/ic_launcher.xml` | vector mark |
-| Favicon / renderer | — | **TODO — missing** (no favicon under `src/renderer`) |
+| Favicon / renderer | `src/renderer/favicon.png` / `.ico` (from brand) | present; `index.html` + BrowserWindow |
 
-## Built-in harness “logos” (colors only today)
+## Built-in harness “logos” (letter-mark + color)
 
 | id | name | vendor | color | asset |
 |----|------|--------|-------|-------|
@@ -37,11 +37,17 @@ fields were added to `EngineSpec` for future letter-mark chips; no per-engine SV
 
 ## Letter-mark chip plan
 
+**Status:** letter-mark chips wired in Sidebar / TerminalPane / ProvidersModal / NewWorkspaceModal.
+Collision disambiguation (two-letter): `Cl` Claude, `Cx` Codex, `Cr` Crush, `Co` Copilot, `Gr` Grok, `Ge` Gemini, `Om` Omp, `Oc` OpenCode.
+Optional `EngineSpec.logo` / `icon` still unused (no per-engine SVG yet — abstract monograms only).
+
+## Letter-mark chip plan (detail)
+
 1. UI chips (Sidebar / TerminalPane / ProvidersModal) keep color dots as fallback.
 2. When `EngineSpec.logo` (or `icon`) is set → render a 16×16 / 20×20 letter-mark or SVG tinted by `color`.
 3. Prefer **abstract monograms** (first letter) over vendor wordmarks (trademark risk).
 4. Optional later: `resources/engines/<id>.svg` monochrome marks.
-5. **TODO:** add renderer favicon from `pq-256.png` / `pq.svg`.
+5. Favicon: done (`src/renderer/favicon.png` / `.ico` from brand; BrowserWindow `pq.ico`).
 
 ## Gauntlet — design/logo work (item 10)
 
@@ -49,4 +55,4 @@ fields were added to `EngineSpec` for future letter-mark chips; no per-engine SV
 
 **Krytyk pq (r1):** Shipping vendor logos may hit trademark issues; safer abstract monograms. Missing Windows `.ico` was a product gap (now filled).
 
-**Revise (r2):** Inventory corrected (`resources/brand` exists; filenames `pq-256.png` / `pq-512.png`). `EngineSpec.logo`/`icon` optional fields added. Favicon still TODO. Letter-mark chips = next UI wave.
+**Revise (r2):** Inventory corrected (`resources/brand` exists; filenames `pq-256.png` / `pq-512.png`). `EngineSpec.logo`/`icon` optional fields added. Favicon + letter-mark chips landed (gauntlet r3). Per-engine SVG monograms still optional later.

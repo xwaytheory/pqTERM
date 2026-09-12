@@ -12,6 +12,7 @@ import {
   type ProviderInfo
 } from '../../../shared/types'
 import { formatDroppedPaths } from '../lib/dropPaths'
+import EngineMark from './EngineMark'
 
 function resetLeft(ms?: number): string {
   if (!ms) return ''
@@ -369,9 +370,14 @@ export default function TerminalPane({
           onZoom()
         }}
       >
-        <span
-          className="dot"
-          style={{ background: provider?.color ?? '#4e5868' }}
+        <EngineMark
+          id={pane.engine ?? undefined}
+          name={provider?.name ?? engineName}
+          color={provider?.color ?? '#4e5868'}
+          logo={provider?.logo}
+          icon={provider?.icon}
+          mark={provider?.mark}
+          size={16}
         />
         <span className="slot" title={`pq send ${index} …`}>
           {index}
@@ -464,6 +470,15 @@ export default function TerminalPane({
                 disabled={!p.installed}
                 onClick={(e) => launch(p.id, e.shiftKey)}
               >
+                <EngineMark
+                  id={p.id}
+                  name={p.name}
+                  color={p.color}
+                  logo={p.logo}
+                  icon={p.icon}
+                  mark={p.mark}
+                  size={18}
+                />
                 <span className="n" style={{ color: p.color }}>
                   {p.name}
                 </span>
@@ -475,6 +490,7 @@ export default function TerminalPane({
             ))}
             {shell ? (
               <button className="eng" onClick={() => launch('shell')}>
+                <EngineMark id={shell.id} name={shell.name} color={shell.color} logo={shell.logo} icon={shell.icon} mark={shell.mark} size={18} />
                 <span className="n" style={{ color: shell.color }}>
                   PowerShell
                 </span>

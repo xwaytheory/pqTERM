@@ -16,7 +16,7 @@
     "shortcuts": "node scripts/make-shortcuts.cjs",
     "postinstall": "node scripts/rebuild.cjs",
     "dist": "npm run build && electron-builder --win nsis msi",
-    "test:unit": "node --experimental-strip-types --test src/renderer/src/lib/dropPaths.test.ts"
+    "test:unit": "node --experimental-strip-types --test src/renderer/src/lib/dropPaths.test.ts src/renderer/src/lib/engineMarkLetter.test.ts"
   },
   "build": {
     "appId": "com.pq.app",
@@ -27,7 +27,8 @@
     },
     "win": {
       "target": "dir",
-      "icon": "resources/brand/pq.ico"
+      "icon": "resources/brand/pq.ico",
+      "publisherName": ["pq (unsigned placeholder)"]
     },
     "nsis": {
       "oneClick": false,

@@ -454,7 +454,20 @@ function emptyPanes(layout: LayoutId, engines: EngineId[] = []): Workspace['pane
   })
 }
 
+function brandIconPath(): string | undefined {
+  const candidates = [
+    join(process.resourcesPath || '', 'brand', 'pq.ico'),
+    join(__dirname, '../../resources/brand/pq.ico'),
+    join(app.getAppPath(), 'resources/brand/pq.ico')
+  ]
+  for (const p of candidates) {
+    if (p && existsSync(p)) return p
+  }
+  return undefined
+}
+
 function createWindow(): void {
+  const icon = brandIconPath()
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -465,6 +478,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     title: 'pq',
     show: false,
+    ...(icon ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

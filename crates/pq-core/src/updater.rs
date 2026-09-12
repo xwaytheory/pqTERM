@@ -58,6 +58,10 @@ pub struct CheckOnLaunchPlan {
     pub check_enabled: bool,
 }
 
+/// Fake remote latest used only by Phase-1/2 stubs so `compare_semver` is not a tautology
+/// (`current == current`). Replace with real `fetch_manifest` when networking is wired.
+pub const STUB_REMOTE_LATEST: &str = "1.1.2";
+
 impl Default for CheckOnLaunchPlan {
     fn default() -> Self {
         Self {
@@ -67,6 +71,13 @@ impl Default for CheckOnLaunchPlan {
             current_version: crate::version::WORKSPACE_VERSION.into(),
             check_enabled: true,
         }
+    }
+}
+
+impl CheckOnLaunchPlan {
+    /// Demo compare against [`STUB_REMOTE_LATEST`] (not a real network check).
+    pub fn stub_remote_delta(&self) -> Result<i32, UpdaterError> {
+        compare_semver(&self.current_version, STUB_REMOTE_LATEST)
     }
 }
 

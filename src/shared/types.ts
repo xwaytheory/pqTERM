@@ -79,6 +79,12 @@ export interface ProviderInfo {
   command: string
   args: string[]
   color: string
+  /** Optional letter-mark / monogram asset (from EngineSpec.logo). */
+  logo?: string
+  /** Optional icon asset (from EngineSpec.icon); falls back to logo / letter. */
+  icon?: string
+  /** Optional monogram override (two-letter collision marks). */
+  mark?: string
   installed: boolean
   detectedAuth: boolean
   matchedEmail?: string

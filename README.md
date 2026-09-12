@@ -16,7 +16,7 @@ Trwa migracja Electron → Rust (**Phase 1: plan + scaffold**). Electron nadal j
 
 - Plan: [docs/MIGRATION-RUST.md](docs/MIGRATION-RUST.md)
 - Workspace: crates/ (pq-work, pq-voice, pq-core)
-- STT desktop: **Whisper Large v3** (openai/whisper-large-v3), język PL; Android: **SpeechRecognizer** (systemowe STT), nie Whisper na telefonie
+- STT map (honest): **CURRENT Electron** = `Xenova/whisper-tiny` (`voiceCommander.ts`); **INTENT desktop Rust / pq-voice** = Whisper Large v3 (`openai/whisper-large-v3`, PL) — not a runtime lock; **Android** = system `SpeechRecognizer` only (no on-device Whisper)
 - Night backlog (installer MSI/EXE, logo, DnD, gauntlet): [docs/BACKLOG-NIGHT.md](docs/BACKLOG-NIGHT.md) · [docs/LOGOS-INVENTORY.md](docs/LOGOS-INVENTORY.md) · [docs/workbench.md](docs/workbench.md)
 - Build szkicu:
 
@@ -143,7 +143,8 @@ pq/
 - **Daily / portable:** `npm run stamp` / `START-prod.cmd` → `host/pq.exe` (`build.win.target: "dir"`).
 - **Installers:** `npm run dist` → NSIS Setup + MSI in `release/` (`appId: com.pq.app`, stable MSI `upgradeCode`).
 - Brand icons: `resources/brand/pq.ico`, `pq-256.png`, `pq-512.png` (not `pq.png`).
-- Builds are **unsigned** — expect SmartScreen warnings until a signing cert is configured.
+- Builds are **unsigned** — expect SmartScreen warnings until a signing cert is configured (`publisherName` placeholder in `package.json`; not a real cert).
+- `npm run dist` smoke: run when convenient; **do not claim** NSIS/MSI exist until `release/` artifacts are present. Daily path remains `stamp` → `host/pq.exe`.
 
 ## Engines (agenty AI)
 
