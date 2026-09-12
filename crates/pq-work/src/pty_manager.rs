@@ -1,9 +1,14 @@
 #![allow(dead_code)] // manager surface; wired from host later
-//! PtyManager — session map + spawn/write/resize/kill (Electron `pty-manager.ts` twin).
+//! SessionRegistry — in-memory pane session map (buf/seq/meta).
 //!
-//! Default build: registry + scrollback seq/buf, no OS handles (Electron remains production).
-//! Optional `pty-spike` feature: `spawn_cmd` opens a real ConPTY via `portable-pty`
-//! for short-lived command smoke (full engine launch still Electron).
+//! **Not** an Electron `pty-manager.ts` twin: default build has **no OS PTY I/O**.
+//! `write` returns `true` only when a live ConPTY handle exists (`pty-spike`).
+//! Registry-only `write` returns `false` (no fake success).
+//!
+//! Optional `pty-spike` feature: `spawn_argv` / hardened `spawn_cmd` open ConPTY
+//! via `portable-pty` for short-lived smokes. Full engine launch stays Electron.
+//!
+//! Type alias: [`SessionRegistry`]. See `docs/PTY-MANAGER.md`.
 
 use std::collections::HashMap;
 
@@ -29,7 +34,7 @@ fn append_buf(prev: &str, data: &str) -> String {
     joined[cut..].to_string()
 }
 
-/// One live (or recently exited) pane PTY session metadata.
+/// One live (or recently exited) pane session metadata (registry only unless `pty-spike`).
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct PtySessionMeta {
@@ -92,7 +97,7 @@ impl SpawnOpts {
     }
 }
 
-/// In-memory PTY session registry (OS handles only with `pty-spike`).
+/// In-memory session registry (OS handles only with `pty-spike`).
 #[derive(Default)]
 pub struct PtyManager {
     sessions: HashMap<String, PtySessionMeta>,
@@ -100,6 +105,9 @@ pub struct PtyManager {
     #[cfg(feature = "pty-spike")]
     live: HashMap<String, LiveHandle>,
 }
+
+/// Honest name for the default (no-I/O) registry surface.
+pub type SessionRegistry = PtyManager;
 
 #[cfg(feature = "pty-spike")]
 struct LiveHandle {
@@ -173,7 +181,7 @@ impl PtyManager {
         }
     }
 
-    /// Register / re-register a session without an OS PTY (Electron parity spawn surface).
+    /// Register / re-register a session **without** an OS PTY (registry only).
     /// Reuses live session when same pane+engine+workspace and still alive.
     pub fn spawn(&mut self, opts: SpawnOpts) {
         let reuse = self
@@ -256,6 +264,8 @@ impl PtyManager {
         true
     }
 
+    /// Write to the live PTY when present. Registry-only sessions return `false`
+    /// (no fake I/O success).
     pub fn write(&mut self, pane_id: &str, data: &str) -> bool {
         if !self.alive(pane_id) {
             return false;
@@ -277,11 +287,10 @@ impl PtyManager {
             }
         }
         let _ = data;
-        // Registry-only mode: accept write as success when alive (Electron twin stub).
-        true
+        false
     }
 
-    /// Stub write alias (older tests / call sites).
+    /// Alias kept for older call sites; same honesty as [`Self::write`].
     pub fn write_stub(&mut self, pane_id: &str, data: &str) -> bool {
         self.write(pane_id, data)
     }
@@ -361,6 +370,19 @@ impl PtyManager {
         self.sessions.is_empty()
     }
 
+    /// True when this pane has a live ConPTY writer (`pty-spike` only).
+    pub fn has_live_io(&self, pane_id: &str) -> bool {
+        #[cfg(feature = "pty-spike")]
+        {
+            return self.live.contains_key(pane_id);
+        }
+        #[cfg(not(feature = "pty-spike"))]
+        {
+            let _ = pane_id;
+            false
+        }
+    }
+
     #[cfg(feature = "pty-spike")]
     fn mark_dead(&mut self, pane_id: &str) {
         if let Some(s) = self.sessions.get_mut(pane_id) {
@@ -369,9 +391,35 @@ impl PtyManager {
         let _ = self.live.remove(pane_id);
     }
 
-    /// Spike: spawn `cmd /D /Q /C <cmdline>` under ConPTY and register the pane.
+    /// Reject shell metacharacters so `cmd /C` cannot be used for injection.
     #[cfg(feature = "pty-spike")]
-    pub fn spawn_cmd(&mut self, opts: SpawnOpts, cmdline: &str) -> Result<(), String> {
+    fn assert_safe_cmdline(cmdline: &str) -> Result<(), String> {
+        const BAD: &[char] = &[
+            '&', '|', '<', '>', '^', '%', '\n', '\r', '\0', ';', '`', '$', '(', ')', '{', '}',
+        ];
+        if cmdline.chars().any(|c| BAD.contains(&c)) {
+            return Err(
+                "spawn_cmd: refused shell metacharacters — use spawn_argv(program, args)"
+                    .into(),
+            );
+        }
+        if cmdline.len() > 512 {
+            return Err("spawn_cmd: cmdline too long".into());
+        }
+        Ok(())
+    }
+
+    /// Preferred ConPTY spawn: program + argv (no `cmd /C` shell).
+    #[cfg(feature = "pty-spike")]
+    pub fn spawn_argv(
+        &mut self,
+        opts: SpawnOpts,
+        program: &str,
+        args: &[&str],
+    ) -> Result<(), String> {
+        if program.is_empty() {
+            return Err("spawn_argv: empty program".into());
+        }
         self.kill(&opts.pane_id);
         let cols = opts.cols.max(20);
         let rows = opts.rows.max(8);
@@ -385,8 +433,10 @@ impl PtyManager {
             })
             .map_err(|e| format!("openpty: {e}"))?;
 
-        let mut cmd = CommandBuilder::new("cmd.exe");
-        cmd.args(["/D", "/Q", "/C", cmdline]);
+        let mut cmd = CommandBuilder::new(program);
+        if !args.is_empty() {
+            cmd.args(args);
+        }
         if !opts.cwd.is_empty() {
             cmd.cwd(&opts.cwd);
         }
@@ -433,6 +483,14 @@ impl PtyManager {
         self.sessions.insert(opts.pane_id, meta);
         Ok(())
     }
+
+    /// Spike helper: `cmd /D /Q /C <cmdline>` — **hardened** (metacharacters rejected).
+    /// Prefer [`Self::spawn_argv`] for anything beyond short smoke strings.
+    #[cfg(feature = "pty-spike")]
+    pub fn spawn_cmd(&mut self, opts: SpawnOpts, cmdline: &str) -> Result<(), String> {
+        Self::assert_safe_cmdline(cmdline)?;
+        self.spawn_argv(opts, "cmd.exe", &["/D", "/Q", "/C", cmdline])
+    }
 }
 
 #[cfg(test)]
@@ -440,11 +498,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn spawn_write_resize_kill() {
-        let mut m = PtyManager::new();
+    fn session_registry_spawn_resize_kill() {
+        let mut m = SessionRegistry::new();
         m.spawn(SpawnOpts::new("p1", "ws1", "grok", "C:\\tmp", 80, 24));
         assert!(m.alive("p1"));
-        assert!(m.write("p1", "hi"));
+        // Registry-only: no fake write success
+        assert!(!m.write("p1", "hi"));
+        assert!(!m.has_live_io("p1"));
         assert!(m.resize("p1", 120, 40));
         assert_eq!(m.get("p1").unwrap().cols, 120);
         assert!(m.push_output("p1", "out"));
@@ -464,7 +524,7 @@ mod tests {
         assert!(m.alive("p1"));
         assert!(m.resize("p1", 120, 40));
         assert_eq!(m.get("p1").unwrap().cols, 120);
-        assert!(m.write_stub("p1", "hi"));
+        assert!(!m.write_stub("p1", "hi"));
         m.clear_pane("p1");
         assert!(!m.alive("p1"));
         assert_eq!(m.len(), 0);
@@ -507,5 +567,31 @@ mod tests {
         assert_eq!(d.engine, "grok");
         assert_eq!(d.workspace_id, "ws");
         assert_eq!(m.get("p1").unwrap().cwd, "");
+    }
+
+    #[cfg(feature = "pty-spike")]
+    #[test]
+    fn spawn_cmd_rejects_metacharacters() {
+        let mut m = PtyManager::new();
+        let opts = SpawnOpts::new("x", "ws", "shell", "", 80, 24);
+        let err = m
+            .spawn_cmd(opts, "echo hi & calc.exe")
+            .expect_err("must refuse");
+        assert!(err.contains("metacharacter") || err.contains("refused"));
+    }
+
+    #[cfg(feature = "pty-spike")]
+    #[test]
+    fn spawn_argv_echo_has_live_io() {
+        let mut m = PtyManager::new();
+        let opts = SpawnOpts::new("live1", "ws", "shell", "", 80, 24);
+        m.spawn_argv(opts, "cmd.exe", &["/D", "/Q", "/C", "echo pq-pty-ok"])
+            .expect("spawn_argv");
+        assert!(m.alive("live1"));
+        assert!(m.has_live_io("live1"));
+        // Live writer present — write should succeed (bytes accepted by ConPTY)
+        assert!(m.write("live1", "\x1b[1;1R"));
+        m.kill("live1");
+        assert!(!m.has_live_io("live1"));
     }
 }

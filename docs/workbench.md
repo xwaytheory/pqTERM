@@ -1,27 +1,28 @@
 # pq workbench (gauntlet live board)
 
-Last update: 2026-09-13 01:25 PT (Europe/Warsaw)
+Last update: 2026-09-13 ~01:40 PT (Europe/Warsaw)
 
 ## Stage / progress
-- **Stage:** Phase 2 overnight — PtyManager parity + Android STT wire + dist NSIS fix
-- **Rough %:** ~72% Phase 2 scaffolding
+- **Stage:** Phase 2 overnight — Krytyk A/B revise + auth/remote/board/updater fixtures
+- **Rough %:** ~74% Phase 2 scaffolding
 - **Branch:** `feat/rust-phase1` (local commits only)
-- **Base:** `535fb80` + this wave
+- **Base:** `7a91ac6` + this wave
 
 ## This wave
 | Item | Outcome |
 |------|---------|
-| Disk recovery | C: was 0 free; npm-cache cleared (~3.5 GB) |
-| PtyManager | spawn/write/resize/kill + buf/seq — `docs/PTY-MANAGER.md` |
-| Android STT | `PqSttBridge` wired + origin lock on `JavascriptInterface` |
-| Dist | **MSI + NSIS OK** after reclaim — `docs/DIST-SMOKE.md` |
-| `cargo test` | pq-core 23 + pq-work 4 green |
+| Krytyk A | SessionRegistry honesty; `write` false w/o I/O; spawn_cmd hardened; docs sync |
+| Krytyk B | Origin scheme+authority; deny getUserMedia; mic auto-retry; PL UTF-8; ANDROID-STT notes |
+| Dist docs | DIST-SMOKE DIST_EXIT honesty (no rebuild) |
+| pq-core | auth / remote `:4747` / board sketches + FileManifestFetch fixtures |
+| `cargo test` | keep green (core + work; pty-spike optional) |
 
 ## Tests
-- `cargo test -p pq-core` — 23 pass
-- `cargo test -p pq-work` — 4 pass
+- `cargo test -p pq-core`
+- `cargo test -p pq-work`
+- `cargo test -p pq-work --features pty-spike` (optional ConPTY)
 
 ## Next
 1. Phone JS mic → `PqStt.startListen` / WS final text
-2. PtyManager live engine spawn (beyond `spawn_cmd` spike)
+2. SessionRegistry live engine spawn (beyond `spawn_argv` smoke)
 3. Code signing when cert available

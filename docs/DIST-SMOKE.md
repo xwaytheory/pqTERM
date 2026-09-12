@@ -11,7 +11,13 @@ Command: `npx electron-builder --win nsis msi` with `CSC_IDENTITY_AUTO_DISCOVERY
 | NSIS Setup | `release/pq Setup 1.1.1.exe` | ~177.2 MB | **OK** (unsigned) |
 | Blockmap | `release/pq Setup 1.1.1.exe.blockmap` | ~185 KB | OK |
 
-Log: `release/dist-wave2.log` (`DIST_EXIT:0`).
+Log: `release/dist-wave2.log`.
+
+### DIST_EXIT honesty
+
+- Builder process reported **`DIST_EXIT:0`** in `release/dist-wave2.log` for wave 2 (both MSI + NSIS produced).
+- Treat **artifact presence + sizes** as the source of truth if a future log line is missing or wrapped by a parent shell.
+- Wave 1 did **not** exit 0 (NSIS write failed on 0 free bytes) even though MSI had already been written earlier in that run.
 
 ## Wave 1 failure (context)
 
@@ -28,3 +34,4 @@ Recovery:
 - `build.files` excludes `crates/`, `host/`, `release/`, … so stamp-host / cargo target races do not enter the asar.
 - `publisherName` still deprecated warning → move to `win.signtoolOptions` later.
 - Keep ≥4 GB free before `npm run dist` (unpacked + MSI + NSIS + 7z temp concurrently).
+- Overnight policy: **do not refill `release/` needlessly** when disk is tight — prefer docs+code.

@@ -1,16 +1,20 @@
-﻿package app.pq.remote
+package app.pq.remote
 
 /**
  * Native SpeechRecognizer bridge for the phone WebView (`PqStt` JS interface).
  *
  * INTENT: Android SpeechRecognizer only — do NOT use Whisper / GGML on phone.
- * Security: every @JavascriptInterface entry checks [allowedBase] origin lock.
+ * Security: every @JavascriptInterface entry checks [originAllowed] (scheme+authority).
+ *
+ * Note: XSS on an *allowed* origin can still call PqStt — origin lock ≠ page integrity.
+ * Phone JS glue for onFinal → remote WS is optional; see docs/ANDROID-STT.md.
  */
 
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -32,17 +36,14 @@ class PqSttBridge(
     private val main = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
     private var listening = false
+    /** True after we requested mic and are waiting to auto-retry startListen. */
+    private var pendingStartAfterPermission = false
 
-    private fun originAllowed(): Boolean {
+    /** scheme + authority (host[:port]) match — not a string prefix (avoids evil.com matching evil.com.attacker). */
+    fun originAllowed(): Boolean {
         val url = webView.url ?: return false
         if (url == "about:blank" || url.startsWith("about:")) return false
-        val base = allowedBase.trimEnd('/')
-        if (base.isEmpty()) return false
-        // Exact base or path under it (query/hash ok).
-        return url == base ||
-            url.startsWith("$base/") ||
-            url.startsWith("$base?") ||
-            url.startsWith("$base#")
+        return originsMatch(url, allowedBase)
     }
 
     private fun rejectIfBadOrigin(action: String): Boolean {
@@ -53,37 +54,55 @@ class PqSttBridge(
 
     @JavascriptInterface
     fun startListen() {
+        main.post { startListenInternal() }
+    }
+
+    /** Called from Activity after REQ_MIC_STT grant (avoids empty handler / double-tap). */
+    fun onMicPermissionResult(granted: Boolean) {
         main.post {
-            if (rejectIfBadOrigin("startListen")) return@post
-            if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
-                emitError("unavailable", "wymaga usług Google / pakietu mowy")
-                return@post
-            }
-            if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityCompat.requestPermissions(
-                    activity,
-                    arrayOf(Manifest.permission.RECORD_AUDIO),
-                    REQ_MIC_STT,
-                )
+            if (!granted) {
+                pendingStartAfterPermission = false
                 emitError("permission", "brak zgody na mikrofon")
                 return@post
             }
-            stopInternal(cancel = true)
-            val sr = SpeechRecognizer.createSpeechRecognizer(activity)
-            recognizer = sr
-            sr.setRecognitionListener(listener)
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pl-PL")
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            if (pendingStartAfterPermission) {
+                pendingStartAfterPermission = false
+                startListenInternal()
             }
-            listening = true
-            emitStatus("listening")
-            sr.startListening(intent)
         }
+    }
+
+    private fun startListenInternal() {
+        if (rejectIfBadOrigin("startListen")) return
+        if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
+            emitError("unavailable", "wymaga usług Google / pakietu mowy")
+            return
+        }
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingStartAfterPermission = true
+            ActivityCompat.requestPermissions(
+                activity,
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                REQ_MIC_STT,
+            )
+            // Do not emit error yet — Activity will call onMicPermissionResult.
+            return
+        }
+        stopInternal(cancel = true)
+        val sr = SpeechRecognizer.createSpeechRecognizer(activity)
+        recognizer = sr
+        sr.setRecognitionListener(listener)
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pl-PL")
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+        }
+        listening = true
+        emitStatus("listening")
+        sr.startListening(intent)
     }
 
     @JavascriptInterface
@@ -110,7 +129,10 @@ class PqSttBridge(
     }
 
     fun destroy() {
-        main.post { stopInternal(cancel = true) }
+        main.post {
+            pendingStartAfterPermission = false
+            stopInternal(cancel = true)
+        }
     }
 
     private fun stopInternal(cancel: Boolean) {
@@ -197,5 +219,20 @@ class PqSttBridge(
 
     companion object {
         const val REQ_MIC_STT = 402
+
+        /** Compare scheme + authority only (path/query/hash ignored). */
+        fun originsMatch(pageUrl: String, allowedBase: String): Boolean {
+            return try {
+                val page = Uri.parse(pageUrl.trim())
+                val base = Uri.parse(allowedBase.trim().trimEnd('/'))
+                val ps = page.scheme?.lowercase() ?: return false
+                val bs = base.scheme?.lowercase() ?: return false
+                val pa = page.authority?.lowercase() ?: return false
+                val ba = base.authority?.lowercase() ?: return false
+                ps == bs && pa == ba
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 }

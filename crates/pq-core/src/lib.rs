@@ -7,13 +7,24 @@
 //! `@huggingface/transformers`. Large v3 applies when the voice path is ported.
 //! Android phone: system SpeechRecognizer only (see docs/ANDROID-STT.md).
 
+pub mod auth;
+pub mod board;
 pub mod engines;
 pub mod env;
 pub mod ipc;
+pub mod remote;
 pub mod store;
 pub mod updater;
 pub mod version;
 
+pub use auth::{
+    pkce_challenge_from_seeds, session_from_identity, sign_in_with_google_stub, AuthError,
+    AuthIdentity, PkceChallenge, OAUTH_LOOPBACK_HOST,
+};
+pub use board::{
+    board_path, empty_board, load_board, save_board, BoardNote, BoardPane, BoardRelation,
+    BoardSnapshot, BOARD_REL_PATH,
+};
 pub use engines::{default_provider, merge_providers, spec_by_id, EngineSpec, ENGINE_SPECS};
 pub use env::{
     appdata_roaming, prod_user_data_dir, product_name, running_dev, user_data_dir,
@@ -25,14 +36,18 @@ pub use ipc::{
     named_pipe_path, DEFAULT_TCP_ADDR, PIPE_NAME_PREFIX, PROTOCOL_VERSION, StartListen, Status, StubVoiceServer,
     StubWorkClient, Transcript, VoiceState,
 };
+pub use remote::{
+    RemoteCommand, RemoteHubStub, RemoteInfo, RemotePersist, TunnelState, DEFAULT_REMOTE_PORT,
+};
 pub use store::{
     empty_snapshot, exists_state, exists_state_at, load_state, load_state_from, save_state,
     save_state_to, state_path, state_path_in, touch_workspace, AppSnapshot, AuthProvider,
     GoogleOAuthConfig, ModelChoice, PaneState, ProviderInfo, StoreError, UserSession, Workspace,
 };
 pub use updater::{
-    compare_semver, fetch_manifest, CheckOnLaunchPlan, ManifestFetch, UpdateManifest,
-    UpdaterError, STUB_REMOTE_LATEST,
+    compare_semver, fetch_github_fixture, fetch_manifest, manifest_from_github_release,
+    CheckOnLaunchPlan, FileManifestFetch, GitHubReleaseAsset, GitHubReleaseFixture, ManifestFetch,
+    MockManifestFetch, UpdateAsset, UpdateManifest, UpdaterError, STUB_REMOTE_LATEST,
 };
 pub use version::{PQ_CORE_VERSION, WORKSPACE_VERSION};
 

@@ -44,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private var retryOverlay: LinearLayout? = null
     private var pendingPermission: PermissionRequest? = null
     private var sttBridge: PqSttBridge? = null
+    private var pairedBase: String = ""
     private val io = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,7 +68,7 @@ class MainActivity : AppCompatActivity() {
                 w.goBack()
                 return
             }
-            // keep the session alive â€” user returns without re-pairing/reloading
+            // keep the session alive — user returns without re-pairing/reloading
             moveTaskToBack(true)
         }
     }
@@ -82,7 +83,8 @@ class MainActivity : AppCompatActivity() {
             pendingPermission = null
         }
         if (requestCode == PqSttBridge.REQ_MIC_STT) {
-            // Bridge already emitted permission error; user can tap mic again after grant.
+            val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            sttBridge?.onMicPermissionResult(granted)
         }
     }
 
@@ -91,8 +93,9 @@ class MainActivity : AppCompatActivity() {
         sttBridge = null
         web = null
         retryOverlay = null
+        pairedBase = ""
         val host = EditText(this).apply {
-            hint = "https://â€¦.trycloudflare.com"
+            hint = "https://….trycloudflare.com"
             setText(
                 prefill
                     ?: prefs.getString("url", "")?.removePrefix("http://")?.removePrefix("https://")
@@ -118,10 +121,10 @@ class MainActivity : AppCompatActivity() {
         val status = TextView(this).apply {
             setTextColor(Color.parseColor(if (err != null) "#ff5c7a" else "#7a8494"))
             textSize = 13f
-            text = err ?: "adres i PIN z pq na laptopie: â—Ż â†’ TELEFON."
+            text = err ?: "adres i PIN z pq na laptopie: ● → TELEFON."
         }
         val go = Button(this).apply {
-            text = "poĹ‚Ä…cz"
+            text = "połącz"
             setTextColor(Color.parseColor("#07080a"))
             setBackgroundColor(Color.parseColor("#39ffb6"))
         }
@@ -140,7 +143,7 @@ class MainActivity : AppCompatActivity() {
             }
             go.isEnabled = false
             status.setTextColor(Color.parseColor("#7a8494"))
-            status.text = "Ĺ‚Ä…czÄ™â€¦"
+            status.text = "łączę…"
             io.execute {
                 val result = pair(base, p)
                 runOnUiThread {
@@ -166,7 +169,7 @@ class MainActivity : AppCompatActivity() {
             addView(spaceDp(10))
             addView(
                 label(
-                    "Te same workspaceâ€™y co na laptopie. Wybierasz okno, piszesz â€” wykonuje siÄ™ tam.",
+                    "Te same workspace’y co na laptopie. Wybierasz okno, piszesz — wykonuje się tam.",
                     14f,
                     Color.parseColor("#7a8494")
                 )
@@ -194,6 +197,7 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun showWeb(base: String, token: String) {
+        pairedBase = base
         val webView = WebView(this)
         web = webView
         webView.setBackgroundColor(Color.parseColor("#07080a"))
@@ -201,6 +205,14 @@ class MainActivity : AppCompatActivity() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 val wantsAudio = request.resources.any { it == PermissionRequest.RESOURCE_AUDIO_CAPTURE }
                 if (!wantsAudio) {
+                    request.deny()
+                    return
+                }
+                // Native SpeechRecognizer is the phone mic path — deny WebView getUserMedia.
+                // (Also gate on origin so a navigated-away page cannot grab capture.)
+                val originOk = sttBridge?.originAllowed() == true ||
+                    PqSttBridge.originsMatch(request.origin?.toString() ?: "", pairedBase)
+                if (sttBridge != null || !originOk) {
                     request.deny()
                     return
                 }
@@ -235,7 +247,7 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest,
                 error: android.webkit.WebResourceError
             ) {
-                // transient WAN/LAN blip â€” keep the pairing, offer a retry
+                // transient WAN/LAN blip — keep the pairing, offer a retry
                 if (request.isForMainFrame) showRetry(base)
             }
         }
@@ -243,7 +255,12 @@ class MainActivity : AppCompatActivity() {
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
         s.cacheMode = WebSettings.LOAD_DEFAULT
-        s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        // Prefer not to always-allow mixed content; LAN http keeps compatibility mode.
+        s.mixedContentMode = if (base.startsWith("https://", ignoreCase = true)) {
+            WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        } else {
+            WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        }
         s.userAgentString = s.userAgentString + " pq-android"
         sttBridge?.destroy()
         sttBridge = PqSttBridge(this, webView, base).also {
@@ -260,13 +277,13 @@ class MainActivity : AppCompatActivity() {
             }
             setOnClickListener {
                 AlertDialog.Builder(this@MainActivity)
-                    .setTitle("rozĹ‚Ä…czyÄ‡?")
-                    .setMessage("WrĂłcisz do ekranu adresu i PIN.")
-                    .setPositiveButton("rozĹ‚Ä…cz") { _, _ ->
+                    .setTitle("rozłączyć?")
+                    .setMessage("Wrócisz do ekranu adresu i PIN.")
+                    .setPositiveButton("rozłącz") { _, _ ->
                         prefs.edit().remove("token").apply()
                         showPair(base)
                     }
-                    .setNegativeButton("zostaĹ„", null)
+                    .setNegativeButton("zostań", null)
                     .show()
             }
         }
@@ -300,12 +317,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun retryView(base: String): LinearLayout {
-        val title = label("pq nie Ĺ‚Ä…czy", 15f, Color.parseColor("#d6deea"))
-        val msg = label("laptop/Internet niedostÄ™pny. SprawdĹş, czy pq na laptopie jest wĹ‚Ä…czone â€” poĹ‚Ä…czenie wrĂłci bez ponownego parowania.", 13f, Color.parseColor("#7a8494")).apply {
+        val title = label("pq nie łączy", 15f, Color.parseColor("#d6deea"))
+        val msg = label("laptop/Internet niedostępny. Sprawdź, czy pq na laptopie jest włączone — połączenie wróci bez ponownego parowania.", 13f, Color.parseColor("#7a8494")).apply {
             setLineSpacing(0f, 1.15f)
         }
         val retry = Button(this).apply {
-            text = "sprĂłbuj znowu"
+            text = "spróbuj znowu"
             setTextColor(Color.parseColor("#07080a"))
             setBackgroundColor(Color.parseColor("#39ffb6"))
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46))
@@ -410,13 +427,13 @@ class MainActivity : AppCompatActivity() {
             val json = runCatching { JSONObject(body) }.getOrElse { JSONObject() }
             if (conn.responseCode in 200..299) {
                 val token = json.optString("token")
-                if (token.isBlank()) Result.failure(IllegalStateException("laptop nie oddaĹ‚ tokenu"))
+                if (token.isBlank()) Result.failure(IllegalStateException("laptop nie oddał tokenu"))
                 else Result.success(token)
             } else {
                 Result.failure(IllegalStateException(json.optString("error").ifBlank { "HTTP ${conn.responseCode}" }))
             }
         } catch (e: Exception) {
-            Result.failure(IllegalStateException("nie widzÄ™ laptopa. ${e.message}"))
+            Result.failure(IllegalStateException("nie widzę laptopa. ${e.message}"))
         }
     }
 

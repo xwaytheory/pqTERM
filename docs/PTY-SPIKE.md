@@ -1,7 +1,7 @@
 # portable-pty / ConPTY spike
 
-**Status:** optional feature `pty-spike` on `pq-work` — **builds and runs** on Windows.  
-**Date:** 2026-09-13  
+**Status:** optional feature `pty-spike` on `pq-work` — builds and runs on Windows.  
+**Date:** 2026-09-13 (synced with SessionRegistry revise)  
 **Not production** — Electron `node-pty` / `pty-manager.ts` remains live.
 
 ## How to run
@@ -22,12 +22,12 @@ Spawns `cmd /D /Q /C echo pq-pty-ok` via `portable-pty` native ConPTY, answers C
 | Backend | Windows ConPTY through `native_pty_system()` |
 | Init noise | ConPTY emits DSR (`ESC [ 6 n`), mode sets, title OSC before payload |
 | Capture | Marker `pq-pty-ok` appears after answering DSR; without reply child can stall |
-| Scope | Spike only — no pane grid, resize API, or buf/seq parity with Electron |
+| Manager | `SessionRegistry` + optional `spawn_argv` / hardened `spawn_cmd` (see PTY-MANAGER.md) |
+| Scope | Spike only — full engine PATH/yoloEnv/trust still Electron |
 
 ## Production path (later Phase 3)
 
-- Port `src/main/pty-manager.ts` → `pq-work::pty`
-- Session map: spawn / write / resize / kill + scrollback seq
+- Grow SessionRegistry → real host-owned grid with live I/O
 - Keep Electron path until Rust host owns the grid
 
 ## Fallback

@@ -15,7 +15,7 @@
     section { background:var(--card); border-radius:10px; padding:1rem 1.1rem; border:1px solid #243044; }
     h2 { margin:0 0 .75rem; font-size:0.95rem; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; }
     .bar { height:10px; background:#243044; border-radius:999px; overflow:hidden; }
-    .bar > i { display:block; height:100%; width:70%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
+    .bar > i { display:block; height:100%; width:74%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
     .pct { font-size:1.6rem; font-weight:700; margin:.35rem 0; }
     ul { margin:.25rem 0 0; padding-left:1.1rem; }
     li { margin:.2rem 0; }
@@ -30,23 +30,24 @@
 <body>
   <header>
     <h1>pq workbench</h1>
-    <div class="meta">Electron → Rust migration · branch <code>feat/rust-phase1</code> · last update <strong>2026-09-13 01:25 PT</strong> (Europe/Warsaw)</div>
+    <div class="meta">Electron → Rust migration · branch <code>feat/rust-phase1</code> · last update <strong>2026-09-13 ~01:40 PT</strong> (Europe/Warsaw)</div>
   </header>
   <main>
     <section>
       <h2>Stage</h2>
-      <div>Phase 2 overnight — PtyManager parity + Android STT + dist NSIS+MSI OK</div>
-      <div class="pct">~72%</div>
+      <div>Phase 2 overnight — Krytyk A/B + auth/remote/board/updater fixtures</div>
+      <div class="pct">~74%</div>
       <div class="bar" title="Phase 2 scaffolding"><i></i></div>
-      <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag">keep moving</span> (propose notes in docs)</p>
+      <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag">A+B revise</span> (C conditional OK)</p>
     </section>
     <section>
       <h2>This slice</h2>
       <ul>
-        <li><code>PtyManager</code> spawn/write/resize/kill + buf/seq</li>
-        <li>Android <code>PqSttBridge</code> + origin lock</li>
-        <li>Disk reclaim (npm-cache) for NSIS retry</li>
-        <li><code>cargo test</code> pq-core 23 / pq-work 4</li>
+        <li><code>SessionRegistry</code> honesty — no fake <code>write</code></li>
+        <li>Android origin + mic retry + PL UTF-8</li>
+        <li><code>pq-core</code> auth / remote:4747 / board stubs</li>
+        <li>Updater <code>FileManifestFetch</code> + fixtures</li>
+        <li>No dist rebuild (disk)</li>
       </ul>
     </section>
     <section>
@@ -61,8 +62,9 @@
     <section>
       <h2>Risks</h2>
       <ul>
-        <li><span class="tag warn">disk</span> NSIS needs multi-GB free beside MSI</li>
+        <li><span class="tag warn">disk</span> keep ≥2 GB free; skip release/ refill</li>
         <li>ConPTY DSR / init noise across Windows builds</li>
+        <li>XSS on allowed Android origin can still call PqStt</li>
         <li>Do not point Rust <code>save_state</code> at live AppData yet</li>
       </ul>
     </section>
@@ -73,12 +75,14 @@
         <tr><td>env / store / engines merge</td><td>done (lean)</td></tr>
         <tr><td>IPC duplex + LocalWs / TCP</td><td>spike</td></tr>
         <tr><td>Named pipe</td><td>stub (path contract)</td></tr>
-        <tr><td>PTY manager</td><td>registry parity; live ConPTY = feature</td></tr>
-        <tr><td>Android STT bridge</td><td>wired + origin lock</td></tr>
+        <tr><td>SessionRegistry / PTY</td><td>registry stub; ConPTY = feature</td></tr>
+        <tr><td>auth / remote / board</td><td>pq-core sketches</td></tr>
+        <tr><td>updater fixtures</td><td>FileManifestFetch + GitHub shape</td></tr>
+        <tr><td>Android STT bridge</td><td>gauntlet B revise</td></tr>
         <tr><td>Tauri shell</td><td>doc spike</td></tr>
       </table>
     </section>
   </main>
-  <footer>Mirror of <code>docs/workbench.md</code>. Electron <code>src/</code> remains production UI.</footer>
+  <footer>Silent overnight · report HEAD to parent only · no push</footer>
 </body>
 </html>
