@@ -18,3 +18,5 @@ android/local.properties
 android/*.apk
 !android/pq-debug.apk
 android/emu-*
+# pq
+.pq/

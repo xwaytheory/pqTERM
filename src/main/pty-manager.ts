@@ -20,8 +20,23 @@ export interface PtySession {
   id: string
   paneId: string
   workspaceId: string
+  engine: EngineId
   proc: IPty
   alive: boolean
+  /** raw output kept so the pane can be redrawn after switching workspaces / app restart */
+  buf: string
+  /** chunk counter — lets the renderer dedupe replay vs live stream */
+  seq: number
+}
+
+const MAX_BUF = 512 * 1024
+
+function appendBuf(prev: string, data: string): string {
+  const joined = prev + data
+  if (joined.length <= MAX_BUF) return joined
+  let cut = joined.length - MAX_BUF
+  if (cut > 0 && /[\ud800-\udbff]/.test(joined[cut - 1] ?? '')) cut -= 1
+  return joined.slice(cut)
 }
 
 function envFor(
@@ -65,6 +80,7 @@ function exitedInternally(proc: IPty): boolean {
 
 export class PtyManager {
   private sessions = new Map<string, PtySession>()
+  private lastBuf = new Map<string, { data: string; seq: number }>()
 
   constructor(
     private getWin: () => BrowserWindow | null,
@@ -84,7 +100,18 @@ export class PtyManager {
     rows: number
     resolvedPath?: string
     extraArgs?: string[]
+    seedBuf?: string
   }): void {
+    const live = this.sessions.get(opts.paneId)
+    if (
+      live?.alive &&
+      !exitedInternally(live.proc) &&
+      live.engine === opts.engine &&
+      live.workspaceId === opts.workspaceId
+    ) {
+      if (opts.seedBuf && !live.buf) live.buf = appendBuf(opts.seedBuf, '')
+      return
+    }
     this.kill(opts.paneId)
     try {
       trustWorkspace(opts.cwd || homedir())
@@ -128,19 +155,27 @@ export class PtyManager {
       id: opts.paneId,
       paneId: opts.paneId,
       workspaceId: opts.workspaceId,
+      engine: opts.engine,
       proc,
-      alive: true
+      alive: true,
+      buf: opts.seedBuf ?? '',
+      seq: 0
     }
     this.sessions.set(opts.paneId, session)
+    this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
 
     proc.onData((data) => {
       if (!session.alive) return
+      session.seq += 1
+      session.buf = appendBuf(session.buf, data)
+      this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
       this.hooks?.onOutput?.(opts.paneId, data)
-      this.getWin()?.webContents.send('term:data', opts.paneId, data)
+      this.getWin()?.webContents.send('term:data', opts.paneId, data, session.seq)
     })
     proc.onExit(({ exitCode }) => {
       session.alive = false
       this.sessions.delete(opts.paneId)
+      this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
       this.hooks?.onExit?.(opts.paneId)
       this.getWin()?.webContents.send('term:exit', opts.paneId, exitCode ?? 0)
     })
@@ -178,6 +213,7 @@ export class PtyManager {
     if (!s) return
     s.alive = false
     this.sessions.delete(paneId)
+    this.lastBuf.set(paneId, { data: s.buf, seq: s.seq })
     this.hooks?.onExit?.(paneId)
     try {
       s.proc.kill()
@@ -199,5 +235,34 @@ export class PtyManager {
   alive(paneId: string): boolean {
     const s = this.sessions.get(paneId)
     return Boolean(s?.alive && !exitedInternally(s.proc))
+  }
+
+  describe(paneId: string): { alive: boolean; engine: EngineId; workspaceId: string } | null {
+    const s = this.sessions.get(paneId)
+    if (!s) return null
+    return {
+      alive: s.alive && !exitedInternally(s.proc),
+      engine: s.engine,
+      workspaceId: s.workspaceId
+    }
+  }
+
+  /** tail of accumulated output for a pane (also kept after the process exits) */
+  buffer(paneId: string): { data: string; seq: number } {
+    const s = this.sessions.get(paneId)
+    if (s) return { data: s.buf, seq: s.seq }
+    return this.lastBuf.get(paneId) ?? { data: '', seq: 0 }
+  }
+
+  /** feed a persisted scrollback into a fresh session without pushing it to the UI */
+  seedBuffer(paneId: string, data: string): void {
+    if (!data) return
+    const s = this.sessions.get(paneId)
+    if (s) {
+      s.buf = appendBuf(s.buf, data)
+      this.lastBuf.set(paneId, { data: s.buf, seq: s.seq })
+    } else {
+      this.lastBuf.set(paneId, { data, seq: 0 })
+    }
   }
 }

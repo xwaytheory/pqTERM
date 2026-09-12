@@ -133,8 +133,17 @@ export default function TerminalPane({
     termRef.current = term
     fitRef.current = fit
 
-    const offData = window.pq.terminals.onData((id, data) => {
-      if (id === pane.id) term.write(data)
+    // sessions run in the main process for as long as the app lives — this pane
+    // may mount, unmount, or just stay hidden; here we only attach to the stream.
+    const stream = { applied: false, dropUntil: 0, pending: [] as { d: string; s: number }[] }
+    const offData = window.pq.terminals.onData((id, data, seq) => {
+      if (id !== pane.id) return
+      if (!stream.applied) {
+        stream.pending.push({ d: data, s: seq })
+        if (stream.pending.length > 500) stream.pending.shift()
+        return
+      }
+      if (!seq || seq > stream.dropUntil) term.write(data)
     })
     const offExit = window.pq.terminals.onExit((id, code) => {
       if (id === pane.id) {
@@ -186,7 +195,7 @@ export default function TerminalPane({
       } catch {
         /* ignore */
       }
-      await window.pq.terminals.spawn({
+      const res = await window.pq.terminals.spawn({
         paneId: pane.id,
         workspaceId,
         engine: pane.engine as EngineId,
@@ -194,6 +203,13 @@ export default function TerminalPane({
         cols: term.cols,
         rows: term.rows
       })
+      stream.dropUntil = res.replaySeq
+      stream.applied = true
+      if (res.replay) term.write(res.replay)
+      for (const c of stream.pending) {
+        if (!c.s || c.s > stream.dropUntil) term.write(c.d)
+      }
+      stream.pending = []
       spawned.current = true
     }
     requestAnimationFrame(() => {
@@ -207,9 +223,9 @@ export default function TerminalPane({
       clearTimeout(resizeTimer)
       term.dispose()
       termRef.current = null
-      if (spawned.current) window.pq.terminals.kill(pane.id)
+      // do NOT kill the pty — the session keeps running in the main process
     }
-    // re-spawn only when engine identity changes
+    // re-attach only when engine identity changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pane.id, pane.engine, pane.model, workspaceId])
 

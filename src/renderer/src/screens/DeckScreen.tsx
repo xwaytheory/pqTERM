@@ -38,15 +38,28 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
     )
   }, [ws, zoomedPane])
 
+  function setZoomFor(wId: string, paneId: string | null): void {
+    void window.pq.workspaces.update(wId, { zoomedPaneId: paneId })
+    if (paneId) setFocus(paneId)
+  }
+
+  function toggleZoomFor(
+    wId: string,
+    wsZoomed: string | null | undefined,
+    paneId: string | null
+  ): void {
+    if (!paneId) return
+    setZoomFor(wId, wsZoomed === paneId ? null : paneId)
+  }
+
   function setZoom(paneId: string | null): void {
     if (!ws) return
-    void window.pq.workspaces.update(ws.id, { zoomedPaneId: paneId })
-    if (paneId) setFocus(paneId)
+    setZoomFor(ws.id, paneId)
   }
 
   function toggleZoom(paneId: string | null): void {
     if (!ws || !paneId) return
-    setZoom(ws.zoomedPaneId === paneId ? null : paneId)
+    toggleZoomFor(ws.id, ws.zoomedPaneId, paneId)
   }
 
   useEffect(() => {
@@ -228,24 +241,32 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                   delete ws
                 </button>
               </div>
-              <div className={`grid l${ws.layout}${zoomedId ? ' zoomed' : ''}`}>
-                {ws.panes.map((p, i) => (
-                  <TerminalPane
-                    key={p.id}
-                    pane={p}
-                    workspaceId={ws.id}
-                    cwd={ws.cwd}
-                    providers={snap.providers}
-                    focused={focus === p.id}
-                    zoomed={zoomedId === p.id}
-                    renameNonce={focus === p.id ? renameNonce : 0}
-                    usage={p.engine ? usage[p.engine] : undefined}
-                    index={i + 1}
-                    onFocus={() => setFocus(p.id)}
-                    onZoom={() => toggleZoom(p.id)}
-                  />
-                ))}
-              </div>
+              {snap.workspaces.map((w) => {
+                const active = w.id === snap.activeWorkspaceId
+                const zId = w.zoomedPaneId ?? null
+                return (
+                  <div key={w.id} className={`ws-grid${active ? ' active' : ''}`}>
+                    <div className={`grid l${w.layout}${zId ? ' zoomed' : ''}`}>
+                      {w.panes.map((p, i) => (
+                        <TerminalPane
+                          key={p.id}
+                          pane={p}
+                          workspaceId={w.id}
+                          cwd={w.cwd}
+                          providers={snap.providers}
+                          focused={active && focus === p.id}
+                          zoomed={zId === p.id}
+                          renameNonce={active && focus === p.id ? renameNonce : 0}
+                          usage={p.engine ? usage[p.engine] : undefined}
+                          index={i + 1}
+                          onFocus={() => void (active && setFocus(p.id))}
+                          onZoom={() => toggleZoomFor(w.id, zId, p.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
             </>
           ) : (
             <div className="blank">

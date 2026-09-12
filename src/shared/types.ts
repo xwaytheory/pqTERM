@@ -95,6 +95,8 @@ export interface PaneState {
   /** user typed this title — auto-title from prompt/OSC must not overwrite */
   titleLocked?: boolean
   model?: string
+  /** engine-native id of the agent conversation this pane should resume */
+  sessionHandle?: string
 }
 
 export interface Workspace {

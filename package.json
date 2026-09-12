@@ -1,6 +1,6 @@
 {
   "name": "pq",
-  "version": "0.1.0",
+  "version": "1.0.8",
   "description": "pq — nerd terminal grid for AI coding agents",
   "main": "./out/main/index.js",
   "author": "pq",

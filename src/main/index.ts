@@ -1,7 +1,14 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from './host'
 import { join } from 'path'
 import { homedir } from 'os'
-import { existsSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync
+} from 'fs'
 import { productName, runningDev } from './env'
 import type {
   AppSnapshot,
@@ -9,6 +16,7 @@ import type {
   GoogleOAuthConfig,
   LayoutId,
   PanePatch,
+  PaneState,
   Workspace
 } from '../shared/types'
 import { ENGINE_ORDER, looksLikePathTitle, paneCount } from '../shared/types'
@@ -22,6 +30,7 @@ import { BoardHub } from './board'
 import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
 import { RemoteHub, type RemoteCommand } from './remote'
+import { pickResume, primeResume, resumeFlag } from './resume'
 
 app.setName('pq')
 process.title = 'pq'
@@ -75,6 +84,102 @@ const ptys = new PtyManager(() => mainWindow, {
 })
 const syncer = new EngineSync(() => mainWindow)
 const usage = new UsageHub()
+
+function sessionsDir(): string {
+  return join(app.getPath('userData'), 'sessions')
+}
+
+function sessionLogPath(workspaceId: string, paneId: string): string {
+  return join(sessionsDir(), workspaceId, `${paneId}.log`)
+}
+
+function restoreSession(ws: Workspace, pane: PaneState): void {
+  if (!pane.engine) return
+  let seed = ''
+  try {
+    const f = sessionLogPath(ws.id, pane.id)
+    if (existsSync(f)) seed = readFileSync(f, 'utf8')
+  } catch {
+    seed = ''
+  }
+  const provider = state.providers.find((p) => p.id === pane.engine)
+  const spec = specById(pane.engine)
+  let extraArgs = [
+    ...(spec.args ?? []),
+    ...(pane.model && spec.modelFlag ? spec.modelFlag(pane.model) : [])
+  ]
+  const session = pickResume(ws.id, pane.engine, pane.sessionHandle)
+  if (session) {
+    const flag = resumeFlag(pane.engine, session.handle)
+    if (flag) extraArgs = [...extraArgs, ...flag]
+    if (pane.sessionHandle !== session.handle) pane.sessionHandle = session.handle
+  } else if (pane.sessionHandle) {
+    // stale/duplicated handle — let the pane pick its session again next boot
+    pane.sessionHandle = undefined
+  }
+  ptys.spawn({
+    paneId: pane.id,
+    workspaceId: ws.id,
+    engine: pane.engine,
+    cwd: ws.cwd,
+    cols: 80,
+    rows: 24,
+    resolvedPath: provider?.resolvedPath,
+    extraArgs,
+    seedBuf: seed
+  })
+  if (ws.id === state.activeWorkspaceId) {
+    board.paneStart(pane.id, pane.engine, pane.title || spec.name)
+  }
+}
+
+function restoreSessions(): void {
+  for (const w of state.workspaces) {
+    for (const p of w.panes) restoreSession(w, p)
+  }
+  persist()
+}
+
+function persistSessions(): void {
+  const root = sessionsDir()
+  const keep = new Set<string>()
+  try {
+    for (const w of state.workspaces) {
+      for (const p of w.panes) {
+        if (!p.engine) continue
+        const b = ptys.buffer(p.id)
+        if (!b.data) continue
+        const f = sessionLogPath(w.id, p.id)
+        keep.add(f)
+        mkdirSync(join(root, w.id), { recursive: true })
+        writeFileSync(f, b.data, 'utf8')
+      }
+    }
+    if (existsSync(root)) {
+      for (const wsDir of readdirSync(root)) {
+        const dir = join(root, wsDir)
+        let entries: string[] = []
+        try {
+          entries = readdirSync(dir)
+        } catch {
+          continue
+        }
+        for (const f of entries) {
+          const full = join(dir, f)
+          if (!keep.has(full)) {
+            try {
+              unlinkSync(full)
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
@@ -198,9 +303,6 @@ async function dispatchRemote(cmd: RemoteCommand): Promise<unknown> {
       return { ...state, google: { clientId: '', clientSecret: '' } }
     case 'workspaces.select': {
       const id = (a[0] as string | null) ?? null
-      if (state.activeWorkspaceId && state.activeWorkspaceId !== id) {
-        ptys.killWorkspace(state.activeWorkspaceId)
-      }
       state.activeWorkspaceId = id
       persist()
       attachBoard()
@@ -317,8 +419,17 @@ remote = new RemoteHub({
 
 function attachBoard(): void {
   const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
-  if (ws?.cwd) board.attach(ws.cwd)
-  else board.detach()
+  if (ws?.cwd) {
+    board.detach()
+    board.attach(ws.cwd)
+    for (const p of ws.panes) {
+      if (p.engine && ptys.alive(p.id)) {
+        board.paneStart(p.id, p.engine, p.title || specById(p.engine).name)
+      }
+    }
+  } else {
+    board.detach()
+  }
 }
 
 function persist(): void {
@@ -433,6 +544,7 @@ function registerIpc(): void {
       user.email
     )
     persist()
+    restoreSessions()
     return user
   })
 
@@ -448,6 +560,7 @@ function registerIpc(): void {
     state.user = user
     state.providers = applyEmailMatch(scanProviders(user.email, state.providers), user.email)
     persist()
+    restoreSessions()
     return user
   })
 
@@ -530,9 +643,6 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('workspaces:select', (_e, id: string | null) => {
-    if (state.activeWorkspaceId && state.activeWorkspaceId !== id) {
-      ptys.killWorkspace(state.activeWorkspaceId)
-    }
     state.activeWorkspaceId = id
     persist()
     attachBoard()
@@ -603,13 +713,37 @@ function registerIpc(): void {
     ) => {
       const ws = state.workspaces.find((w) => w.id === input.workspaceId)
       if (!ws) throw new Error('brak workspace')
-      const provider = state.providers.find((p) => p.id === input.engine)
       const spec = specById(input.engine)
+      const provider = state.providers.find((p) => p.id === input.engine)
       const model = input.model
+
+      const existing = ptys.describe(input.paneId)
+      if (
+        existing?.alive &&
+        existing.engine === input.engine &&
+        existing.workspaceId === input.workspaceId
+      ) {
+        // session already running — keep it alive and let the renderer replay its buffer
+        const title = ws.panes.find((p) => p.id === input.paneId)?.title
+        if (input.workspaceId === state.activeWorkspaceId) {
+          board.paneStart(input.paneId, input.engine, title || spec.name)
+        }
+        const b = ptys.buffer(input.paneId)
+        return { id: input.paneId, replay: b.data, replaySeq: b.seq, existed: true }
+      }
+
       const extraArgs = [
         ...(spec.args ?? []),
         ...(input.model && spec.modelFlag ? spec.modelFlag(input.model) : [])
       ]
+      const paneInWs = ws.panes.find((p) => p.id === input.paneId)
+      let resumeHandle = paneInWs?.sessionHandle
+      const session = pickResume(input.workspaceId, input.engine, paneInWs?.sessionHandle)
+      if (session) {
+        const flag = resumeFlag(input.engine, session.handle)
+        if (flag) extraArgs.push(...flag)
+        resumeHandle = session.handle
+      }
       ptys.spawn({
         paneId: input.paneId,
         workspaceId: input.workspaceId,
@@ -632,17 +766,20 @@ function registerIpc(): void {
               ...p,
               engine: input.engine,
               title: keep,
-              model
+              model,
+              sessionHandle: resumeHandle
             }
           })
         })
       })
       persist()
-      const live = state.workspaces
-        .find((w) => w.id === input.workspaceId)
-        ?.panes.find((p) => p.id === input.paneId)
-      board.paneStart(input.paneId, input.engine, live?.title || spec.name)
-      return { id: input.paneId }
+      if (input.workspaceId === state.activeWorkspaceId) {
+        const live = state.workspaces
+          .find((w) => w.id === input.workspaceId)
+          ?.panes.find((p) => p.id === input.paneId)
+        board.paneStart(input.paneId, input.engine, live?.title || spec.name)
+      }
+      return { id: input.paneId, replay: '', replaySeq: 0, existed: false }
     }
   )
 
@@ -663,7 +800,14 @@ function registerIpc(): void {
         ...w,
         panes: w.panes.map((p) =>
           p.id === paneId
-            ? { ...p, engine: null, title: 'idle', titleLocked: false, model: undefined }
+            ? {
+                ...p,
+                engine: null,
+                title: 'idle',
+                titleLocked: false,
+                model: undefined,
+                sessionHandle: undefined
+              }
             : p
         )
       })
@@ -693,17 +837,26 @@ function registerIpc(): void {
   )
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setName('pq')
   app.setAppUserModelId('pq.app')
   state = loadState()
   state.providers = scanProviders(state.user?.email, state.providers)
   saveState(state)
   registerIpc()
-  createWindow()
   board.setListener((snap) => mainWindow?.webContents.send('board:changed', snap))
   usage.onChange((m) => mainWindow?.webContents.send('usage:changed', m))
   attachBoard()
+  // Scan engine session storage BEFORE any TUI starts (the opencode CLI becomes very
+  // slow under contention with running opencode servers) so every pane can resume
+  // its previous conversation right away.
+  try {
+    await primeResume(state.workspaces, state.providers)
+  } catch (err) {
+    console.error('[pq]', err instanceof Error ? err.message : String(err))
+  }
+  restoreSessions()
+  createWindow()
   usage.start()
   void remote.restore().catch((err) => console.error('[pq] remote', err))
 
@@ -713,6 +866,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  persistSessions()
   ptys.killAll()
   if (process.platform !== 'darwin') app.quit()
 })
@@ -721,5 +875,6 @@ app.on('before-quit', () => {
   usage.stop()
   bridge.stop()
   remote.stop()
+  persistSessions()
   ptys.killAll()
 })

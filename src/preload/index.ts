@@ -117,15 +117,21 @@ const pq = {
       model?: string
       cols?: number
       rows?: number
-    }) => invoke('term:spawn', input) as Promise<{ id: string }>,
+    }) =>
+      invoke('term:spawn', input) as Promise<{
+        id: string
+        replay: string
+        replaySeq: number
+        existed?: boolean
+      }>,
     write: (paneId: string, data: string) => ipcRenderer.send('term:write', paneId, data),
     resize: (paneId: string, cols: number, rows: number) =>
       ipcRenderer.send('term:resize', paneId, cols, rows),
     kill: (paneId: string) => invoke('term:kill', paneId) as Promise<void>,
     clearPane: (workspaceId: string, paneId: string) =>
       invoke('term:clearPane', workspaceId, paneId) as Promise<void>,
-    onData: (cb: (paneId: string, data: string) => void) => {
-      const fn = (_: unknown, paneId: string, data: string) => cb(paneId, data)
+    onData: (cb: (paneId: string, data: string, seq: number) => void) => {
+      const fn = (_: unknown, paneId: string, data: string, seq: number) => cb(paneId, data, seq)
       ipcRenderer.on('term:data', fn)
       return () => ipcRenderer.removeListener('term:data', fn)
     },
