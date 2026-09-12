@@ -88,7 +88,7 @@ See `docs/LOGOS-INVENTORY.md`.
 - Add tiny drop overlay CSS (“upuść ścieżki”).
 - Tests: unit for path quoting; manual matrix Grok/Claude/OpenCode.
 
-**Status:** design revised; implement in Electron renderer next coding wave (not Phase 1 Rust).
+**Status:** v1 implemented on `feat/rust-phase1` (paths-only DnD). Manual engine matrix + Ctrl+Drop copy still TODO.
 
 ---
 

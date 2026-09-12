@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from './host'
+import { contextBridge, ipcRenderer, webUtils } from './host'
 import type {
   AppSnapshot,
   EngineId,
@@ -104,6 +104,17 @@ const pq = {
       invoke('workspaces:setLayout', id, layout) as Promise<void>,
     setPane: (workspaceId: string, paneId: string, patch: PanePatch) =>
       invoke('workspaces:setPane', workspaceId, paneId, patch) as Promise<void>
+  },
+  files: {
+    /** Electron File → absolute path (drag-drop). */
+    pathFor: (file: File) => {
+      try {
+        return webUtils.getPathForFile(file)
+      } catch {
+        const legacy = (file as File & { path?: string }).path
+        return legacy ?? ''
+      }
+    }
   },
   panes: {
     fill: (input: { engine: string; prompt?: string; skipPaneId?: string }) =>

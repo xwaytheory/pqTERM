@@ -1,1 +1,1 @@
-export { contextBridge, ipcRenderer } from 'electron'
+export { contextBridge, ipcRenderer, webUtils } from 'electron'

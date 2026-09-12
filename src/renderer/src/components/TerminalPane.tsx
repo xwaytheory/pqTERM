@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -11,6 +11,7 @@ import {
   type PaneState,
   type ProviderInfo
 } from '../../../shared/types'
+import { formatDroppedPaths } from '../lib/dropPaths'
 
 function resetLeft(ms?: number): string {
   if (!ms) return ''
@@ -79,6 +80,7 @@ export default function TerminalPane({
   const fitRef = useRef<FitAddon | null>(null)
   const spawned = useRef(false)
   const lineBuf = useRef('')
+  const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(pane.title)
@@ -305,10 +307,43 @@ export default function TerminalPane({
     })
   }
 
+
+  function onDragOver(e: DragEvent): void {
+    if (!pane.engine) return
+    if (![...e.dataTransfer.types].includes('Files')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setDragOver(true)
+  }
+
+  function onDragLeave(e: DragEvent): void {
+    if (e.currentTarget === e.target) setDragOver(false)
+  }
+
+  function onDropFiles(e: DragEvent): void {
+    e.preventDefault()
+    setDragOver(false)
+    if (!pane.engine) return
+    const files = [...e.dataTransfer.files]
+    if (!files.length) return
+    const paths: string[] = []
+    for (const f of files) {
+      const abs = window.pq.files.pathFor(f)
+      if (abs) paths.push(abs)
+    }
+    const payload = formatDroppedPaths(paths)
+    if (!payload) return
+    onFocus()
+    window.pq.terminals.write(pane.id, payload)
+  }
+
   return (
     <section
-      className={`pane${focused ? ' focused' : ''}${zoomed ? ' zoomed-pane' : ''}`}
+      className={`pane${focused ? ' focused' : ''}${zoomed ? ' zoomed-pane' : ''}${dragOver ? ' drop-target' : ''}`}
       onMouseDown={onFocus}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDropFiles}
     >
       <div
         className="pane-head"
@@ -396,6 +431,7 @@ export default function TerminalPane({
       </div>
       {pane.engine ? (
         <div className="xterm-host" ref={host} />
+        {dragOver ? <div className="drop-overlay">upuść ścieżki</div> : null}
       ) : (
         <div className="picker">
           <h3>SPAWN ENGINE</h3>

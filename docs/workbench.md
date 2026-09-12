@@ -17,6 +17,17 @@ Last update: 2026-09-12 23:13 PT
 | 11 | DnD to terminals | propose→krytyk→revise | Paths-only v1 design |
 | 12 | Gauntlet process | adopted | workbench + BACKLOG-NIGHT |
 
+## DnD wave (item 11) — implemented
+- preload: pq.files.pathFor via webUtils.getPathForFile
+- TerminalPane: dragover/drop → quoted paths into PTY
+- CSS drop overlay; helper lib/dropPaths.ts
+- Krytyk follow-up: manual matrix still pending; folder recursion deferred
+
+## Brand seed (item 10)
+- Added 
+esources/brand/pq.svg (same motif as Android ic_launcher.xml)
+- Still need .ico for electron-builder / stamp-host
+
 ## Next build wave (after silence / morning)
 1. Electron: TerminalPane DnD paths (item 11)
 2. Brand: `resources/brand/pq.ico` (item 10) then `npm run dist` NSIS/MSI (item 9)

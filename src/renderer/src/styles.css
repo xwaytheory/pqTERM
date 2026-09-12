@@ -1174,3 +1174,23 @@ textarea.f:focus {
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* drag-drop paths onto terminal panes */
+.pane.drop-target {
+  outline: 1px solid var(--green, #39ffb6);
+  outline-offset: -2px;
+}
+.drop-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 28px 4px 4px 4px;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 8, 10, 0.72);
+  color: var(--green, #39ffb6);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  z-index: 5;
+  border: 1px dashed rgba(57, 255, 182, 0.45);
+}
