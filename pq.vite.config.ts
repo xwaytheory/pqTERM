@@ -15,8 +15,15 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
-        '@shared': resolve('src/shared')
+        '@shared': resolve('src/shared'),
+        '@ort-wasm': resolve('node_modules/onnxruntime-web/dist')
       }
+    },
+    optimizeDeps: {
+      exclude: ['onnxruntime-web', '@huggingface/transformers']
+    },
+    build: {
+      assetsInlineLimit: 0
     },
     plugins: [
       react(),

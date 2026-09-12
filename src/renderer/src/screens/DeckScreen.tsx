@@ -7,9 +7,10 @@ import TerminalPane from '../components/TerminalPane'
 import NewWorkspaceModal from '../components/NewWorkspaceModal'
 import ProvidersModal from '../components/ProvidersModal'
 import RemotePanel from '../components/RemotePanel'
+import VoicePanel from '../components/VoicePanel'
 
 export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
-  const [modal, setModal] = useState<'new' | 'providers' | 'remote' | null>(null)
+  const [modal, setModal] = useState<'new' | 'providers' | 'remote' | 'voice' | null>(null)
   const [focus, setFocus] = useState<string | null>(null)
   const [renameNonce, setRenameNonce] = useState(0)
   const [usage, setUsage] = useState<UsageMap>({})
@@ -138,6 +139,13 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           </button>
           <button className="dockbtn" title="telefon / remote" onClick={() => setModal('remote')}>
             ◯
+          </button>
+          <button className="dockbtn" title="mowa / asystent głosowy" onClick={() => setModal('voice')}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <rect x="9" y="2.5" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0" />
+              <line x1="12" y1="18" x2="12" y2="21.5" />
+            </svg>
           </button>
           <div className="sp" />
           {snap.user?.picture ? (
@@ -305,6 +313,9 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
         />
       ) : null}
       {modal === 'remote' ? <RemotePanel onClose={() => setModal(null)} /> : null}
+      {modal === 'voice' ? (
+        <VoicePanel snap={snap} focus={focus} onClose={() => setModal(null)} />
+      ) : null}
     </>
   )
 }

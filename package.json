@@ -1,6 +1,6 @@
 {
   "name": "pq",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "pq — nerd terminal grid for AI coding agents",
   "main": "./out/main/index.js",
   "author": "pq",
@@ -28,6 +28,7 @@
     }
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
     "@xterm/addon-webgl": "^0.18.0",

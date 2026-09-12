@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from './host'
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from './host'
 import { join } from 'path'
 import { homedir } from 'os'
 import {
@@ -840,6 +840,26 @@ function registerIpc(): void {
 app.whenReady().then(async () => {
   app.setName('pq')
   app.setAppUserModelId('pq.app')
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'media')
+  })
+  // cross-origin isolation enables onnxruntime-web threads (dramatically faster STT),
+  // with COEP:credentialless so HF model downloads keep working
+  if (runningDev()) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(details.url)) {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Cross-Origin-Opener-Policy': ['same-origin'],
+            'Cross-Origin-Embedder-Policy': ['credentialless']
+          }
+        })
+        return
+      }
+      callback({})
+    })
+  }
   state = loadState()
   state.providers = scanProviders(state.user?.email, state.providers)
   saveState(state)
