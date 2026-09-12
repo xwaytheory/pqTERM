@@ -20,3 +20,6 @@ android/*.apk
 android/emu-*
 # pq
 .pq/
+
+# Rust
+crates/target/

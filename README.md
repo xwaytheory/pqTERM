@@ -8,6 +8,26 @@ Na razie **prywatne**. Publicznie wyjdzie dopiero gdy zdecydujesz.
 
 ---
 
+---
+
+## Rust migration (WIP)
+
+Trwa migracja Electron → Rust (**Phase 1: plan + scaffold**). Electron nadal jest produkcją.
+
+- Plan: [docs/MIGRATION-RUST.md](docs/MIGRATION-RUST.md)
+- Workspace: crates/ (pq-work, pq-voice, pq-core)
+- STT (docelowo): **Whisper Large v3** (openai/whisper-large-v3), język PL
+- Build szkicu:
+
+`at
+cd crates
+cargo build
+`
+
+Nie usuwaj / nie łam src/, package.json, host/ — Phase 1 ich nie zastępuje.
+
+---
+
 ## Nowy komputer (instalacja od zera)
 
 1. Zainstaluj [Node.js LTS](https://nodejs.org/) i [Git](https://git-scm.com/).

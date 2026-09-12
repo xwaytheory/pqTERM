@@ -1,0 +1,13 @@
+[package]
+name = "pq-work"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "pq workbench binary (Phase 1 stub; future Tauri UI host)"
+
+[[bin]]
+name = "pq-work"
+path = "src/main.rs"
+
+[dependencies]
+pq-core = { workspace = true }

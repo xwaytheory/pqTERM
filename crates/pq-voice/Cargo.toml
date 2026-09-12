@@ -1,0 +1,13 @@
+[package]
+name = "pq-voice"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "pq voice assistant binary (Phase 1 stub; Whisper Large STT target)"
+
+[[bin]]
+name = "pq-voice"
+path = "src/main.rs"
+
+[dependencies]
+pq-core = { workspace = true }
