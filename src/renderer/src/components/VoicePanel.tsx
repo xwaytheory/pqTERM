@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AppSnapshot } from '../../../shared/types'
 import {
+  clearPendingAsk,
   isListening,
   onVoice,
   runText,
@@ -42,7 +43,11 @@ export default function VoicePanel({
       else if (e.t === 'log') setLogs((ls) => [...ls.slice(-60), e.line])
       else if (e.t === 'result') setTranscript(e.text)
     })
-    return off
+    return () => {
+      off()
+      stopListening()
+      clearPendingAsk()
+    }
   }, [])
 
   useEffect(() => {
@@ -51,6 +56,20 @@ export default function VoicePanel({
   }, [logs])
 
   const listening = isListening()
+  const [awaiting, setAwaiting] = useState(false)
+
+  async function execute(text: string): Promise<void> {
+    try {
+      const r = await runText(text.trim(), snap, focus)
+      if (r.kind === 'clarify') setAwaiting(true)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setLogs((ls) => [
+        ...ls.slice(-60),
+        { id: Date.now(), kind: 'error', text: msg }
+      ])
+    }
+  }
 
   async function handleMic(): Promise<void> {
     if (listening) {
@@ -60,13 +79,17 @@ export default function VoicePanel({
     if (busy) return
     setBusy(true)
     setLevel(0)
+    setAwaiting(false)
     try {
       const rec = await startListening()
       if (rec.status !== 'stopped' || !rec.audio) return
       setPhase('transcribe')
       const text = await transcribe(rec.audio)
       setTranscript(text)
-      if (text.trim()) await runText(text.trim(), snap, focus)
+      if (text.trim()) {
+        const r = await runText(text.trim(), snap, focus)
+        if (r.kind === 'clarify') setAwaiting(true)
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setLogs((ls) => [
@@ -140,11 +163,18 @@ export default function VoicePanel({
               <button
                 className="primary"
                 disabled={busy || !transcript.trim()}
-                onClick={() => void runText(transcript.trim(), snap, focus)}
+                onClick={() => void execute(transcript)}
               >
                 wykonaj poprawkę
               </button>
             </div>
+          </div>
+        ) : null}
+
+        {awaiting ? (
+          <div className="voice-pending">
+            czekam na odpowiedź — kliknij mikrofon i powiedz, np. „w katalogu C:{'\\'}projekt”
+            (albo wpisz tekst w polu i kliknij „wykonaj poprawkę”)
           </div>
         ) : null}
 

@@ -81,7 +81,20 @@ export function isListening(): boolean {
   return home !== null && !home.stopped
 }
 
+interface StartEntry {
+  token: { cancelled: boolean }
+  resolve: (r: { status: 'stopped' | 'cancelled'; audio: Float32Array | null }) => void
+}
+
+let startEntry: StartEntry | null = null
+
 export function stopListening(): void {
+  if (startEntry) {
+    const { token, resolve } = startEntry
+    startEntry = null
+    token.cancelled = true
+    resolve({ status: 'cancelled', audio: null })
+  }
   finishRecording('stopped')
 }
 
@@ -116,6 +129,16 @@ export async function startListening(): Promise<{
   audio: Float32Array | null
 }> {
   if (home) return { status: 'cancelled', audio: null }
+  const token: StartEntry['token'] = { cancelled: false }
+  let resolveStart!: (r: { status: 'stopped' | 'cancelled'; audio: Float32Array | null }) => void
+  const promise = new Promise<{
+    status: 'stopped' | 'cancelled'
+    audio: Float32Array | null
+  }>((res) => {
+    resolveStart = res
+  })
+  startEntry = { token, resolve: resolveStart }
+
   let stream: MediaStream
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -126,12 +149,21 @@ export async function startListening(): Promise<{
       }
     })
   } catch (err) {
+    if (startEntry?.token === token) startEntry = null
     log(
       'error',
       'brak dostępu do mikrofonu — ' +
         (err instanceof Error ? err.message.replace(/electron/gi, 'pq') : String(err))
     )
+    resolveStart({ status: 'cancelled', audio: null })
     return { status: 'cancelled', audio: null }
+  }
+  if (token.cancelled || home) {
+    stream.getTracks().forEach((tr) => tr.stop())
+    if (startEntry?.token === token) startEntry = null
+    const cancelled = { status: 'cancelled' as const, audio: null }
+    resolveStart(cancelled)
+    return cancelled
   }
 
   const ctx = new AudioContext()
@@ -178,12 +210,21 @@ export async function startListening(): Promise<{
   analyser.connect(node)
   node.connect(ctx.destination)
 
+  if (token.cancelled) {
+    stream.getTracks().forEach((tr) => tr.stop())
+    void ctx.close().catch(() => {})
+    if (startEntry?.token === token) startEntry = null
+    const cancelled = { status: 'cancelled' as const, audio: null }
+    resolveStart(cancelled)
+    return cancelled
+  }
+
   home = st
+  startEntry = null
   emit({ t: 'phase', phase: 'listen' })
   log('status', 'słucham… (pauza 1,5 s kończy nagranie)')
-  return new Promise((resolve) => {
-    st.resolve = resolve
-  })
+  st.resolve = (r) => resolveStart(r)
+  return promise
 }
 
 // ---------- whisper STT (lazy, cached) ----------
@@ -269,6 +310,37 @@ function nearestLayout(n: number): LayoutId {
   ) as LayoutId
 }
 
+const NUM_WORDS: Record<string, number> = {
+  dwa: 2, dwoch: 2, dwoma: 2, obie: 2,
+  trzy: 3, trzech: 3, trzema: 3,
+  cztery: 4, czterech: 4, czterema: 4,
+  piec: 5, pieciu: 5, piecioma: 5,
+  szesc: 6, szesciu: 6, szescioma: 6,
+  siedem: 7, siedmiu: 7, siedmioma: 7,
+  osiem: 8, osmiu: 8, osmioma: 8,
+  dziewiec: 9, dziewieciu: 9, dziewiecioma: 9,
+  dziesiec: 10, dziesieciu: 10, dziesiecioma: 10
+}
+
+const WINDOW_WORDS =
+  '(?:okien|okna|oknami|oknach|oknom|terminali|terminalach|terminalom|paneli?|windows|siatk)'
+
+function parseLayout(flat: string): LayoutId | null {
+  const full = new RegExp(
+    '(?:^|[^a-z])[a-ząćęłńóśźż]+\\s+' + WINDOW_WORDS + '\\b',
+    'i'
+  )
+  const m = flat.match(full)
+  if (m) {
+    const word = flatten(m[0]).match(/[a-ząćęłńóśźż]+/)?.[0] ?? ''
+    const n = NUM_WORDS[flatten(word)]
+    if (n) return nearestLayout(n)
+  }
+  const d = flat.match(new RegExp('(\\d+)\\s*' + WINDOW_WORDS + '\\b'))
+  if (d) return nearestLayout(Number(d[1]))
+  return null
+}
+
 const FILL_PHRASES =
   /(?:pozosta(?:łych|łe)|wszystk(?:ich|ie)|wszystkimi|w każdym|każdemu|każdego|\bdwóch|\btrzech|\bczterech|\bpięciu|\bsześciu|\bdziesięciu|\bdziewięciu|innych)\s(?:oknach|okien|okna|terminalach|terminali|terminalom|oknom|panelach|pane)\b/gi
 
@@ -320,6 +392,8 @@ export interface RouteResult {
   label: string
   detail?: string
   action?: () => Promise<string>
+  ask?: 'create-cwd' | 'fill-prompt'
+  create?: { title: string | null; layout: LayoutId; engines: EngineId[] }
 }
 
 export function routeTranscript(
@@ -334,23 +408,18 @@ export function routeTranscript(
 
   if (/\bworkspace\b/i.test(flat)) {
     const title = pickTitle(orig)
+    const layout = parseLayout(flat) ?? (flat.includes('kwadrat') ? 4 : 2)
     const cwd = pickCwd(orig)
     if (!cwd) {
       return {
         ok: false,
         kind: 'clarify',
-        label: 'brakuje ścieżki katalogu',
-        detail: `powiedz np. „utwórz workspace ${title ?? 'dziennik'} w katalogu C:\\x”`
+        ask: 'create-cwd',
+        label: 'podaj katalog — powiedz np. „w katalogu C:\\x”, a potem kliknij mikrofon',
+        detail: title ? `workspace „${title}” ${layout}-grid · ${engines.join(', ')}` : undefined,
+        create: { title, layout, engines }
       }
     }
-    const layoutNum = flat.match(
-      /(\d+)\s*(?:okien|okna|oknach|terminali|terminalach|paneli?|windows)/
-    )
-    const layout: LayoutId = layoutNum
-      ? nearestLayout(Number(layoutNum[1]))
-      : flat.includes('kwadrat')
-        ? 4
-        : 2
     const finalTitle = title ?? cwd.split(/[\\/]/).filter(Boolean).pop() ?? 'workspace'
     return {
       ok: true,
@@ -377,8 +446,9 @@ export function routeTranscript(
       return {
         ok: false,
         kind: 'clarify',
-        label: 'nie wiem, co wysłać do pozostałych okien',
-        detail: 'dopowiedz treść, np. „… i wyślij w pozostałych oknach: uruchom testy”'
+        ask: 'fill-prompt',
+        label: 'podaj treść — powiedz np. „uruchom testy”, a potem kliknij mikrofon',
+        detail: engines.length ? `do okien ${engines.join(', ')}` : undefined
       }
     }
     const engine: EngineId = engines[0] ?? ws?.panes.find((p) => p.engine)?.engine ?? 'grok'
@@ -441,12 +511,62 @@ export function routeTranscript(
   }
 }
 
+// ---------- multi-turn clarification (click-driven) ----------
+
+type PendingAsk =
+  | { key: 'create-cwd'; title: string | null; layout: LayoutId; engines: EngineId[] }
+  | { key: 'fill-prompt' }
+
+let pendingAsk: PendingAsk | null = null
+
+export function clearPendingAsk(): void {
+  pendingAsk = null
+}
+
+export function hasPendingAsk(): boolean {
+  return pendingAsk !== null
+}
+
+function buildCreateText(answer: string, hint: PendingAsk & { key: 'create-cwd' }): string {
+  const cleaned = answer.replace(/\s+/g, ' ').trim()
+  const path =
+    pickCwd(cleaned) ??
+    cleaned
+      .replace(/^(?:w katalogu|w folderze|w ścieżce|katalog|folder|ścieżka|do)\s*:?\s*/i, '')
+      .replace(/^["'`]+|["'`]+$/g, '')
+      .replace(/[.;]+$/g, '')
+      .trim()
+  const parts = ['utwórz workspace']
+  if (hint.title) parts.push(`"${hint.title}"`)
+  if (!path) parts.push('')
+  else parts.push(`w katalogu ${path}`)
+  parts.push(`z ${hint.layout} oknami`)
+  const eng = hint.engines.filter(Boolean)
+  if (eng.length) parts.push(eng.join(' '))
+  return parts.join(' ')
+}
+
 export async function runText(
   text: string,
   snap: AppSnapshot,
   focus: string | null
 ): Promise<RouteResult> {
-  const r = routeTranscript(text, snap, focus)
+  const prev = pendingAsk
+  pendingAsk = null
+  const clean = text.replace(/\s+/g, ' ').trim()
+  let r: RouteResult
+  if (prev && prev.key === 'create-cwd') {
+    r = routeTranscript(buildCreateText(clean, prev), snap, focus)
+  } else if (prev && prev.key === 'fill-prompt') {
+    r = routeTranscript(`wyślij w pozostałych oknach: ${clean}`, snap, focus)
+  } else {
+    r = routeTranscript(clean, snap, focus)
+  }
+  if (r.ok === false && r.ask === 'create-cwd' && r.create) {
+    pendingAsk = { key: 'create-cwd', ...r.create }
+  } else if (r.ok === false && r.ask === 'fill-prompt') {
+    pendingAsk = { key: 'fill-prompt' }
+  }
   emit({ t: 'result', text })
   log(r.kind === 'clarify' ? 'clarify' : 'run', r.label, r.detail)
   if (!r.ok || !r.action) return r

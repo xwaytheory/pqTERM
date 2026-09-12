@@ -1165,3 +1165,12 @@ textarea.f:focus {
   gap: 8px;
   margin-top: 8px;
 }
+.voice-pending {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px dashed var(--accent, #4cc2ff);
+  border-radius: 8px;
+  color: var(--accent, #4cc2ff);
+  font-size: 12px;
+  line-height: 1.4;
+}
