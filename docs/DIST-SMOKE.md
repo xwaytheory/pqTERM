@@ -2,24 +2,29 @@
 
 Command: `npx electron-builder --win nsis msi` with `CSC_IDENTITY_AUTO_DISCOVERY=false` and `win.signAndEditExecutable: false` (winCodeSign Darwin symlink privilege workaround). `build.win.target` remains `"dir"` for stamp-host / START-prod.
 
-## Results
+## Wave 2 results (after disk reclaim) — **PASS**
 
-| Artifact | Path | Status |
-|----------|------|--------|
-| Unpacked | `release/win-unpacked/pq.exe` | OK |
-| MSI | `release/pq 1.1.1.msi` (~194.6 MB) | **OK** (unsigned; SmartScreen expected) |
-| NSIS Setup | `release/pq Setup 1.1.1.exe` | **FAIL** |
+| Artifact | Path | Size | Status |
+|----------|------|------|--------|
+| Unpacked | `release/win-unpacked/pq.exe` | — | OK |
+| MSI | `release/pq 1.1.1.msi` | ~194.6 MB | **OK** (unsigned; SmartScreen expected) |
+| NSIS Setup | `release/pq Setup 1.1.1.exe` | ~177.2 MB | **OK** (unsigned) |
+| Blockmap | `release/pq Setup 1.1.1.exe.blockmap` | ~185 KB | OK |
 
-## NSIS exact failure
+Log: `release/dist-wave2.log` (`DIST_EXIT:0`).
 
-```
-Error: can't write 67108864 bytes to output
-Error - aborting creation process
-```
+## Wave 1 failure (context)
 
-Likely low free disk while compressing ~186 MB payload into Setup.exe (plus concurrent WiX/NSIS caches). Partial `pq Setup 1.1.1.exe` (~98 KB) is **not** a valid installer — delete/ignore until disk free + re-run `npm run dist`.
+NSIS failed with `can't write 67108864 bytes to output` when **C: had 0 bytes free**. MSI had already succeeded (~194.6 MB) then was temporarily replaced with a placeholder during recovery so Shell could spawn again.
+
+Recovery:
+
+1. Cleared `%LOCALAPPDATA%\npm-cache` (~3.5 GB) + Temp noise
+2. Removed `release/win-unpacked` + partial NSIS stubs
+3. Freed ~5+ GB → rebuilt MSI+NSIS successfully
 
 ## Packaging notes
 
 - `build.files` excludes `crates/`, `host/`, `release/`, … so stamp-host / cargo target races do not enter the asar.
 - `publisherName` still deprecated warning → move to `win.signtoolOptions` later.
+- Keep ≥4 GB free before `npm run dist` (unpacked + MSI + NSIS + 7z temp concurrently).

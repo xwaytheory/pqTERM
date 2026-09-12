@@ -1,7 +1,7 @@
 package app.pq.remote.sketch
 
 /**
- * PASTE-READY SKETCH — not compiled into the APK yet.
+ * SUPERSEDED — live copy is `app/pq/remote/PqSttBridge.kt` (wired into MainActivity with origin lock). This sketch kept for reference.
  *
  * Wire from MainActivity.showWeb:
  *   webView.addJavascriptInterface(PqSttBridge(this, webView), "PqStt")

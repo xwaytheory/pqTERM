@@ -1,33 +1,27 @@
 # pq workbench (gauntlet live board)
 
-Last update: 2026-09-13 00:45 PT (Europe/Warsaw)
+Last update: 2026-09-13 01:25 PT (Europe/Warsaw)
 
 ## Stage / progress
-- **Stage:** Phase 2 overnight â€” engines merge + duplex/WS + DnD shell + dist smoke
-- **Rough %:** ~65% Phase 2 scaffolding
+- **Stage:** Phase 2 overnight — PtyManager parity + Android STT wire + dist NSIS fix
+- **Rough %:** ~72% Phase 2 scaffolding
 - **Branch:** `feat/rust-phase1` (local commits only)
-- **Base:** `d6827fc` + this wave
+- **Base:** `535fb80` + this wave
 
 ## This wave
 | Item | Outcome |
 |------|---------|
-| Gauntlet hygiene | LOCKED â†’ INTENT in Android sketch + MIGRATION; LOGOS table letter-mark chips (not color-swatch-only) |
-| Shell-aware DnD | `pathShellForPane` + TerminalPane wire; fragment fix for drop overlays; unit tests green |
-| Whisper INTENT | already in `d6827fc` (`docs/WHISPER-LARGE.md`, `stt::intended_ggml_path` / `ensure_ggml_model`) |
-| `pq-core::engines` | ENGINE_SPECS twin + `merge_providers` / `default_provider`; store empty+load merge |
-| Transport beyond stub | `DuplexEndpoint` real send/recv; `LocalWsTransport` (`ws-jsonlines-tcp`); named-pipe still OS-stub |
-| PtyManager start | `pq-work::pty_manager` session map + register/resize/write_stub/clear |
-| `npm run dist` | **MSI OK** (`release/pq 1.1.1.msi`); NSIS FAIL disk write — see `docs/DIST-SMOKE.md` |
-| Android MainActivity | deferred (sketch INTENT only; wire next) |
+| Disk recovery | C: was 0 free; npm-cache cleared (~3.5 GB) |
+| PtyManager | spawn/write/resize/kill + buf/seq — `docs/PTY-MANAGER.md` |
+| Android STT | `PqSttBridge` wired + origin lock on `JavascriptInterface` |
+| Dist | **MSI + NSIS OK** after reclaim — `docs/DIST-SMOKE.md` |
+| `cargo test` | pq-core 23 + pq-work 4 green |
 
 ## Tests
-- `npm run test:unit` â€” 18 pass
-- `cargo test -p pq-core` â€” 23 pass (engines + duplex + store merge)
-- `cargo test -p pq-work` â€” pty_manager pass
+- `cargo test -p pq-core` — 23 pass
+- `cargo test -p pq-work` — 4 pass
 
 ## Next
-1. Finish/document dist smoke (NSIS+MSI under `release/`) when WiX completes
-2. OS named-pipe I/O or real tungstenite WS
-3. PtyManager â†” portable-pty spawn (beyond stub registry)
-4. Android MainActivity + `PqStt` JSInterface wire
-5. Code signing when cert available
+1. Phone JS mic → `PqStt.startListen` / WS final text
+2. PtyManager live engine spawn (beyond `spawn_cmd` spike)
+3. Code signing when cert available
