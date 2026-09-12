@@ -1,6 +1,6 @@
 # Night backlog — items 8–12 (gauntlet)
 
-Updated: 2026-09-12 23:13 PT  
+Updated: 2026-09-12 23:35 PT  
 Branch: `feat/rust-phase1`  
 Process: **gauntlet-loop** (Hermes skill `software-development/gauntlet-loop`) — propose → independent Krytyk pq → revise. Live board: `docs/workbench.md`.
 
@@ -27,7 +27,7 @@ Process: **gauntlet-loop** (Hermes skill `software-development/gauntlet-loop`) �
 - Surface errors (`ERROR_INSUFFICIENT_PERMISSIONS`, `ERROR_NETWORK`, etc.) in Polish.
 - Keep intent routing on PC (`voiceCommander` / later pq-work IPC).
 
-**Status:** documented lock; implementation = later phase (Android + remote).
+**Status:** documented lock + **overnight sketch landed** (`docs/ANDROID-STT.md`, `android/sketch/SpeechRecognizerBridge.kt`). MainActivity / phone JS wiring = later; no Whisper on phone.
 
 ---
 
@@ -111,3 +111,13 @@ See `docs/LOGOS-INVENTORY.md`.
 - Next: true split critics when harness allows; never merge builder+critic roles silently.
 
 **Status:** process adopted for this backlog.
+
+
+---
+
+## Overnight Rust slice (Phase 2 partial)
+
+- `docs/PORT-MAP.md` — full `src/main/*.ts` → Rust targets
+- `pq_core::ipc` stubs (StartListen, Transcript, Cancel, Status) + client/server in pq-work / pq-voice
+- Android STT path documented/sketched (item 8)
+- Krytyk feedback ignored for this focused slice (per overnight brief)

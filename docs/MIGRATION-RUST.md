@@ -68,6 +68,7 @@ Suggested order (dependencies first; do not rip out Electron until the Rust side
 | Phase | Module(s) | Notes |
 |-------|-----------|--------|
 | 1 (done) | — | Plan + Cargo scaffold + updater stubs |
+| 2 (partial) | port map + `pq_core::ipc` stubs | `docs/PORT-MAP.md`; StartListen/Transcript/Cancel/Status; Android STT doc |
 | 2 | `env.ts`, `host.ts`, `store.ts` | Paths, product name, `%AppData%\pq*` state JSON |
 | 3 | `pty-manager.ts`, `bridge.ts` | ConPTY / portable-pty; pane spawn/write/resize |
 | 4 | `engines.ts`, `providers.ts`, `resolve-launch.ts` | Agent CLI discovery + launch args |
@@ -83,17 +84,21 @@ Renderer (`src/renderer`), preload, phone, android stay on web/Kotlin until UI h
 
 ### IPC between pq-work and pq-voice
 
-Sketch (Phase 1 — design only):
+Phase 2 overnight slice: **typed stubs compile** in `pq_core::ipc` + used from both binaries.
 
-- **Transport (Windows first):** named pipe `\\.\pipe\pq-voice-{session}` or loopback WebSocket `ws://127.0.0.1:<ephemeral>`.
-- **Auth:** random token written by pq-work at launch; pq-voice receives via argv/env.
-- **Messages (JSON lines):**
-  - `voice.transcript` `{ text, lang }`
-  - `voice.intent` `{ kind, payload }` (mirror current `runText` outcomes)
-  - `work.snapshot` / `work.focus` — app snapshot + focused pane for commander
-  - `work.exec` — ask workbench to run an intent (spawn engine, fill pane, etc.)
+- **Transport (Windows first, later):** named pipe `\\.\pipe\pq-voice-{session}` or loopback WebSocket `ws://127.0.0.1:<ephemeral>`.
+- **Auth (later):** random token written by pq-work at launch; pq-voice receives via argv/env.
+- **Messages (JSON lines, `serde` tagged `type`) — stubbed now:**
+  - `start_listen` → `StartListen { session_id, language, timeout_ms }` (work → voice)
+  - `transcript` → `Transcript { session_id, text, lang, is_final }` (voice → work)
+  - `cancel` → `Cancel { session_id, reason }` (work → voice)
+  - `status` → `Status { source, state, detail, session_id }` (voice → work)
+- **Stubs:** `StubWorkClient` (pq-work), `StubVoiceServer` (pq-voice), `encode_line` / `decode_line`, in-memory loopback demo + unit tests.
+- **Later (not this slice):** `voice.intent`, `work.snapshot` / `work.focus` / `work.exec`.
 - **Lifecycle:** pq-work spawns pq-voice when VoicePanel opens (or on demand); kills on close.
 - Electron path today keeps voice in-renderer; dual-run during migration via feature flag.
+
+Full Electron→Rust module table: **`docs/PORT-MAP.md`**. Android phone STT sketch: **`docs/ANDROID-STT.md`**.
 
 ### Updater via GitHub Releases (manifest sketch)
 
@@ -166,10 +171,9 @@ Verified on DESKTOP-3I4REKQ: `rustc`/`cargo`/`rustup` **1.93.1** already install
 
 ## Suggested next phase
 
-**Phase 2:** Implement `store` + `env` equivalents in `pq-core`/`pq-work`, add real HTTP `ManifestFetch` (reqwest), scaffold IPC protocol crate module, and spike `portable-pty` hello-world pane — still leaving Electron as the daily driver.
+**Phase 2 (partial — this overnight slice):** Port map (`docs/PORT-MAP.md`), IPC stubs (`pq_core::ipc`), Android SpeechRecognizer sketch (`docs/ANDROID-STT.md`).
 
-
----
+**Still Phase 2+:** Implement `store` + `env` in `pq-core`/`pq-work`, real HTTP `ManifestFetch` (reqwest), spike `portable-pty` hello-world pane, wire Android sketch into `MainActivity` — Electron remains daily driver.
 
 ## Night additions (2026-09-12) — product locks
 

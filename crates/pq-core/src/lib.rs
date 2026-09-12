@@ -1,12 +1,19 @@
-//! Shared library for pq Rust migration (Phase 1).
+//! Shared library for pq Rust migration (Phase 1–2).
 //!
 //! STT target (locked): OpenAI Whisper Large v3 — best quality for Polish.
 //! Model id: `openai/whisper-large-v3` (HF); local GGML: `ggml-large-v3.bin`.
 //! Do NOT use tiny/base/small/medium for production Polish STT.
+//! Android phone: system SpeechRecognizer only (see docs/ANDROID-STT.md).
 
+pub mod ipc;
 pub mod updater;
 pub mod version;
 
+pub use ipc::{
+    decode_line, encode_line, stub_loopback_demo, Cancel, IpcError, IpcMessage, IpcSink,
+    MemoryChannel, PROTOCOL_VERSION, StartListen, Status, StubVoiceServer, StubWorkClient,
+    Transcript, VoiceState,
+};
 pub use updater::{
     compare_semver, fetch_manifest, CheckOnLaunchPlan, ManifestFetch, UpdateManifest,
     UpdaterError,
