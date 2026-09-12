@@ -11,7 +11,7 @@ import {
   type PaneState,
   type ProviderInfo
 } from '../../../shared/types'
-import { formatDroppedPaths } from '../lib/dropPaths'
+import { formatDroppedPaths, pathShellForPane } from '../lib/dropPaths'
 import EngineMark from './EngineMark'
 
 function resetLeft(ms?: number): string {
@@ -343,7 +343,7 @@ export default function TerminalPane({
       setDropStatus(msg)
       window.setTimeout(() => setDropStatus(null), 4000)
     }
-    const payload = formatDroppedPaths(paths)
+    const payload = formatDroppedPaths(paths, pathShellForPane({ engine: pane.engine }))
     if (!payload) {
       if (!failed.length) {
         setDropStatus('DnD: no paths to insert')
@@ -453,9 +453,11 @@ export default function TerminalPane({
         ) : null}
       </div>
       {pane.engine ? (
-        <div className="xterm-host" ref={host} />
-        {dropStatus ? <div className="drop-overlay drop-status">{dropStatus}</div> : null}
-        {dragOver ? <div className="drop-overlay">upuść ścieżki</div> : null}
+        <>
+          <div className="xterm-host" ref={host} />
+          {dropStatus ? <div className="drop-overlay drop-status">{dropStatus}</div> : null}
+          {dragOver ? <div className="drop-overlay">upuść ścieżki</div> : null}
+        </>
       ) : (
         <div className="picker">
           <h3>SPAWN ENGINE</h3>

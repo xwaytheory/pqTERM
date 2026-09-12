@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { quotePath, formatDroppedPaths } from './dropPaths.ts'
+import { quotePath, formatDroppedPaths, pathShellForPane } from './dropPaths.ts'
 
 describe('quotePath cmd/pwsh', () => {
   it('leaves simple paths unquoted', () => {
@@ -52,5 +52,31 @@ describe('formatDroppedPaths', () => {
   it('handles UNC + quotes mix', () => {
     const out = formatDroppedPaths(['\\\\srv\\share\\f.txt', 'C:\\q\\"x".dat'])
     assert.equal(out, '\\\\srv\\share\\f.txt "C:\\q\\""x"".dat" ')
+  })
+})
+
+describe('pathShellForPane', () => {
+  it('defaults Windows agent panes to cmd', () => {
+    assert.equal(pathShellForPane({ engine: 'grok' }), 'cmd')
+    assert.equal(pathShellForPane({ engine: null }), 'cmd')
+  })
+
+  it('maps shell engine to pwsh', () => {
+    assert.equal(pathShellForPane({ engine: 'shell' }), 'pwsh')
+  })
+
+  it('honors hostType when present (WSL/posix hook)', () => {
+    assert.equal(pathShellForPane({ engine: 'shell', hostType: 'wsl' }), 'posix')
+    assert.equal(pathShellForPane({ engine: 'grok', hostType: 'posix' }), 'posix')
+    assert.equal(pathShellForPane({ engine: 'grok', hostType: 'pwsh' }), 'pwsh')
+  })
+})
+
+describe('formatDroppedPaths shell-aware', () => {
+  it('posix-quotes spaces when shell=posix', () => {
+    assert.equal(
+      formatDroppedPaths(['/home/u/my file'], 'posix'),
+      "'/home/u/my file' "
+    )
   })
 })

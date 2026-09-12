@@ -28,7 +28,10 @@
     "win": {
       "target": "dir",
       "icon": "resources/brand/pq.ico",
-      "publisherName": ["pq (unsigned placeholder)"]
+      "publisherName": [
+        "pq (unsigned placeholder)"
+      ],
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
@@ -39,7 +42,26 @@
     "msi": {
       "oneClick": false,
       "upgradeCode": "3BBDA8F5-596C-47EF-9538-BDEF42EEBA06"
-    }
+    },
+    "files": [
+      "out/**/*",
+      "package.json",
+      "resources/**/*",
+      "!**/{.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!crates{,/**/*}",
+      "!release{,/**/*}",
+      "!host{,/**/*}",
+      "!android{,/**/*}",
+      "!docs{,/**/*}",
+      "!scripts{,/**/*}",
+      "!**/*.ts",
+      "!**/*.map"
+    ],
+    "asarUnpack": [
+      "**/*.node",
+      "**/node-pty/**"
+    ]
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

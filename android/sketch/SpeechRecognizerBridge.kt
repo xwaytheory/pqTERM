@@ -7,7 +7,7 @@ package app.pq.remote.sketch
  *   webView.addJavascriptInterface(PqSttBridge(this, webView), "PqStt")
  * And call from phone JS: PqStt.startListen() / stopListen() / cancel()
  *
- * LOCKED: Android SpeechRecognizer only. Do NOT use Whisper / GGML on phone.
+ * INTENT (not runtime lock): Android SpeechRecognizer only. Do NOT use Whisper / GGML on phone.
  */
 
 import android.Manifest

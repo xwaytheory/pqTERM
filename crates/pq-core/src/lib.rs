@@ -7,19 +7,21 @@
 //! `@huggingface/transformers`. Large v3 applies when the voice path is ported.
 //! Android phone: system SpeechRecognizer only (see docs/ANDROID-STT.md).
 
+pub mod engines;
 pub mod env;
 pub mod ipc;
 pub mod store;
 pub mod updater;
 pub mod version;
 
+pub use engines::{default_provider, merge_providers, spec_by_id, EngineSpec, ENGINE_SPECS};
 pub use env::{
     appdata_roaming, prod_user_data_dir, product_name, running_dev, user_data_dir,
     user_data_dir_for,
 };
 pub use ipc::{
     decode_line, encode_line, stub_loopback_demo, tcp_loopback_demo, Cancel, IpcError,
-    IpcMessage, IpcSink, LocalTcpTransport, MemoryChannelStub, NamedPipeTransport, Transport,
+    IpcMessage, IpcSink, LocalTcpTransport, MemoryChannelStub, NamedPipeTransport, DuplexEndpoint, LocalWsTransport, Transport,
     named_pipe_path, DEFAULT_TCP_ADDR, PIPE_NAME_PREFIX, PROTOCOL_VERSION, StartListen, Status, StubVoiceServer,
     StubWorkClient, Transcript, VoiceState,
 };

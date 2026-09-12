@@ -568,6 +568,108 @@ impl Transport for NamedPipeTransport {
     }
 }
 
+/// In-process duplex with **real** send/recv (JSON-line queue).
+///
+/// Stepping stone beyond [`NamedPipeTransport`] stub / before OS pipes:
+/// two ends share opposite queues. Production named-pipe/WS will reuse the same
+/// [`encode_line`] / [`decode_line`] framing.
+#[derive(Debug, Clone)]
+pub struct DuplexEndpoint {
+    label: &'static str,
+    inbound: Arc<Mutex<Vec<IpcMessage>>>,
+    outbound: Arc<Mutex<Vec<IpcMessage>>>,
+}
+
+impl DuplexEndpoint {
+    /// Create a connected pair `(a, b)` — a.send → b.try_recv and vice versa.
+    pub fn pair(label: &'static str) -> (Self, Self) {
+        let ab = Arc::new(Mutex::new(Vec::new()));
+        let ba = Arc::new(Mutex::new(Vec::new()));
+        (
+            Self {
+                label,
+                inbound: ba.clone(),
+                outbound: ab.clone(),
+            },
+            Self {
+                label,
+                inbound: ab,
+                outbound: ba,
+            },
+        )
+    }
+}
+
+impl IpcSink for DuplexEndpoint {
+    fn send(&mut self, msg: IpcMessage) -> Result<(), IpcError> {
+        self.outbound
+            .lock()
+            .map_err(|_| IpcError::Transport("duplex lock poisoned".into()))?
+            .push(msg);
+        Ok(())
+    }
+}
+
+impl Transport for DuplexEndpoint {
+    fn try_recv(&mut self) -> Result<Option<IpcMessage>, IpcError> {
+        let mut q = self
+            .inbound
+            .lock()
+            .map_err(|_| IpcError::Transport("duplex lock poisoned".into()))?;
+        if q.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(q.remove(0)))
+    }
+
+    fn kind(&self) -> &'static str {
+        self.label
+    }
+}
+
+/// Localhost JSON-lines over TCP, labeled as the **WS path stand-in**.
+///
+/// Real `ws://` framing (tungstenite) is deferred; this proves the same codec
+/// on a loopback socket under a distinct `kind()` so demos/docs can say "WS later".
+pub struct LocalWsTransport {
+    inner: LocalTcpTransport,
+}
+
+impl LocalWsTransport {
+    pub fn listen_once(addr: impl ToSocketAddrs) -> Result<Self, IpcError> {
+        Ok(Self {
+            inner: LocalTcpTransport::listen_once(addr)?,
+        })
+    }
+
+    pub fn connect(addr: impl ToSocketAddrs) -> Result<Self, IpcError> {
+        Ok(Self {
+            inner: LocalTcpTransport::connect(addr)?,
+        })
+    }
+
+    pub fn recv_line_blocking(&mut self) -> Result<IpcMessage, IpcError> {
+        self.inner.recv_line_blocking()
+    }
+}
+
+impl IpcSink for LocalWsTransport {
+    fn send(&mut self, msg: IpcMessage) -> Result<(), IpcError> {
+        self.inner.send(msg)
+    }
+}
+
+impl Transport for LocalWsTransport {
+    fn try_recv(&mut self) -> Result<Option<IpcMessage>, IpcError> {
+        self.inner.try_recv()
+    }
+
+    fn kind(&self) -> &'static str {
+        "ws-jsonlines-tcp"
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -665,6 +767,18 @@ mod tests {
         let mut server = accept.join().unwrap();
         let msg = server.recv_line_blocking().unwrap();
         assert!(matches!(msg, IpcMessage::Cancel(_)));
+    }
+
+    #[test]
+    fn duplex_real_send_recv() {
+        let (mut a, mut b) = DuplexEndpoint::pair("duplex");
+        assert_eq!(a.kind(), "duplex");
+        a.send(IpcMessage::Cancel(Cancel { session_id: "x".into(), reason: None })).unwrap();
+        let got = b.try_recv().unwrap().expect("msg");
+        match got {
+            IpcMessage::Cancel(c) => assert_eq!(c.session_id, "x"),
+            _ => panic!("wrong"),
+        }
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # Logos / brand inventory (pq)
 
-Scan date: 2026-09-12 (gauntlet round 2 revise)
+Scan date: 2026-09-13 (gauntlet hygiene — letter-mark table)
 
 ## Finding
 
@@ -21,19 +21,19 @@ fields were added to `EngineSpec` for future letter-mark chips; no per-engine SV
 
 | id | name | vendor | color | asset |
 |----|------|--------|-------|-------|
-| `grok` | Grok CLI | xAI | `#39ffb6` | color swatch only |
-| `omp` | Omp | oh-my-pi | `#c084fc` | color swatch only |
-| `hermes` | Hermes | Nous / Hermes | `#f5c542` | color swatch only |
-| `opencode` | OpenCode | OpenCode | `#7aa2ff` | color swatch only |
-| `codex` | Codex | OpenAI | `#9ae6b4` | color swatch only |
-| `claude` | Claude Code | Anthropic | `#d4a574` | color swatch only |
-| `qwen` | Qwen Code | Alibaba | `#7c5cff` | color swatch only |
-| `dsh` | DeepSeek Harness | DeepSeek | `#4cc9f0` | color swatch only |
-| `gemini` | Gemini CLI | Google | `#4285f4` | color swatch only |
-| `crush` | Crush | Charmbracelet | `#ff387b` | color swatch only |
-| `aider` | Aider | Aider-AI | `#e8c547` | color swatch only |
-| `copilot` | Copilot CLI | GitHub | `#f0f6fc` | color swatch only |
-| `shell` | PowerShell | Windows | `#5b9fd6` | color swatch only |
+| `grok` | Grok CLI | xAI | `#39ffb6` | Gr (letter-mark chip + color) |
+| `omp` | Omp | oh-my-pi | `#c084fc` | Om (letter-mark chip + color) |
+| `hermes` | Hermes | Nous / Hermes | `#f5c542` | H (letter-mark chip + color) |
+| `opencode` | OpenCode | OpenCode | `#7aa2ff` | Oc (letter-mark chip + color) |
+| `codex` | Codex | OpenAI | `#9ae6b4` | Cx (letter-mark chip + color) |
+| `claude` | Claude Code | Anthropic | `#d4a574` | Cl (letter-mark chip + color) |
+| `qwen` | Qwen Code | Alibaba | `#7c5cff` | Q (letter-mark chip + color) |
+| `dsh` | DeepSeek Harness | DeepSeek | `#4cc9f0` | D (letter-mark chip + color) |
+| `gemini` | Gemini CLI | Google | `#4285f4` | Ge (letter-mark chip + color) |
+| `crush` | Crush | Charmbracelet | `#ff387b` | Cr (letter-mark chip + color) |
+| `aider` | Aider | Aider-AI | `#e8c547` | A (letter-mark chip + color) |
+| `copilot` | Copilot CLI | GitHub | `#f0f6fc` | Co (letter-mark chip + color) |
+| `shell` | PowerShell | Windows | `#5b9fd6` | PS (letter-mark chip + color) |
 
 ## Letter-mark chip plan
 

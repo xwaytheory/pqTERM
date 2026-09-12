@@ -186,9 +186,9 @@ Verified on DESKTOP-3I4REKQ: `rustc`/`cargo`/`rustup` **1.93.1** already install
 
 **Still Phase 2+:** Implement `store` + `env` in `pq-core`/`pq-work`, real HTTP `ManifestFetch` (reqwest), spike `portable-pty` hello-world pane, wire Android sketch into `MainActivity` — Electron remains daily driver.
 
-## Night additions (2026-09-12) — product locks
+## Night additions (2026-09-12) — product intents
 
-### Android voice = native STT (LOCKED)
+### Android voice = native STT (INTENT)
 
 - **Phone/Android does NOT run Whisper.** Use Android `SpeechRecognizer` (system STT) for mic → text on device.
 - Desktop **pq-voice INTENT** remains Whisper Large v3 (`openai/whisper-large-v3` / `ggml-large-v3.bin`, `pl`).

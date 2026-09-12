@@ -6,6 +6,8 @@
 //! IPC: owns StubWorkClient (StartListen / Cancel → voice; receives Transcript / Status).
 //! Spike: `--ipc-tcp [addr]` listens on localhost TCP JSON-lines (Transport spike, not production IPC).
 
+mod pty_manager;
+
 #[cfg(feature = "pty-spike")]
 mod pty_spike;
 

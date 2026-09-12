@@ -4,8 +4,7 @@
 //! When running as `pq-dev` and the dest file is missing, Electron copies from
 //! production `%APPDATA%\pq\pq-state.json`; Rust mirrors that migrate-on-first-load.
 //!
-//! **Gap:** provider merge against `ENGINE_SPECS` is Electron-only until
-//! `pq-core::engines` lands. Rust load keeps providers as-is (or empty).
+//! Provider merge: `pq_core::engines::merge_providers` (catalog + saved toggles).
 //! Pane title sanitize similarly deferred — load/save roundtrip preserves JSON fields.
 
 use crate::env::{prod_user_data_dir, user_data_dir};
@@ -152,14 +151,14 @@ impl Default for AppSnapshot {
     }
 }
 
-/// Empty snapshot matching Electron `empty()` shape (providers left empty — no ENGINE_SPECS yet).
+/// Empty snapshot matching Electron `empty()` — providers from ENGINE_SPECS defaults.
 pub fn empty_snapshot() -> AppSnapshot {
     AppSnapshot {
         user: None,
         google: GoogleOAuthConfig::default(),
         workspaces: Vec::new(),
         active_workspace_id: None,
-        providers: Vec::new(),
+        providers: crate::engines::merge_providers(None),
         sidebar_open: true,
     }
 }
@@ -226,7 +225,8 @@ pub fn load_state() -> AppSnapshot {
 /// Load from an explicit path (no migrate). Missing/invalid → error.
 pub fn load_state_from(path: impl AsRef<Path>) -> Result<AppSnapshot, StoreError> {
     let raw = fs::read_to_string(path)?;
-    let snap: AppSnapshot = serde_json::from_str(&raw)?;
+    let mut snap: AppSnapshot = serde_json::from_str(&raw)?;
+    snap.providers = crate::engines::merge_providers(Some(&snap.providers));
     Ok(snap)
 }
 
@@ -286,7 +286,7 @@ mod tests {
         let s = empty_snapshot();
         assert!(s.user.is_none());
         assert!(s.workspaces.is_empty());
-        assert!(s.providers.is_empty());
+        assert_eq!(s.providers.len(), crate::engines::ENGINE_SPECS.len());
         assert!(s.sidebar_open);
         assert_eq!(s.google.client_id, "");
     }
@@ -316,28 +316,9 @@ mod tests {
             created_at: 1,
             updated_at: 2,
         });
-        snap.providers.push(ProviderInfo {
-            id: "grok".into(),
-            name: "Grok".into(),
-            vendor: "xAI".into(),
-            command: "grok".into(),
-            args: vec![],
-            color: "#00".into(),
-            logo: None,
-            icon: None,
-            mark: None,
-            installed: true,
-            detected_auth: false,
-            matched_email: None,
-            resolved_path: None,
-            enabled: true,
-            models: vec![ModelChoice {
-                id: "m1".into(),
-                name: "Model".into(),
-                enabled: true,
-            }],
-            hint: String::new(),
-        });
+        if let Some(g) = snap.providers.iter_mut().find(|p| p.id == "grok") {
+            g.installed = true;
+        }
         snap.user = Some(UserSession {
             email: "a@b.c".into(),
             name: "A".into(),
@@ -349,7 +330,10 @@ mod tests {
         save_state_to(&path, &snap).unwrap();
         assert!(exists_state_at(&path));
         let back = load_state_from(&path).unwrap();
+        // load merges providers against ENGINE_SPECS (Electron twin)
+        snap.providers = crate::engines::merge_providers(Some(&snap.providers));
         assert_eq!(back, snap);
+        assert!(back.providers.iter().any(|p| p.id == "grok" && p.installed));
         let _ = fs::remove_dir_all(&dir);
     }
 

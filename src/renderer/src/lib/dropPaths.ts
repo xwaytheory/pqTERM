@@ -2,6 +2,31 @@
 export type PathShell = 'cmd' | 'pwsh' | 'posix'
 
 /**
+ * Optional host/engine hints for DnD quoting.
+ * PaneState has no hostType yet — when WSL/bash panes exist, pass hostType: 'wsl'|'posix'.
+ */
+export type PathShellHostHint = {
+  engine?: string | null
+  /** Future pane PTY host; today almost always ConPTY on Windows. */
+  hostType?: 'conpty' | 'wsl' | 'posix' | 'cmd' | 'pwsh' | null
+}
+
+/**
+ * Map pane host/engine → PathShell for formatDroppedPaths.
+ * - hostType wsl/posix → posix quoting
+ * - hostType pwsh / engine `shell` (powershell.exe) → pwsh
+ * - otherwise Windows ConPTY agent CLIs → cmd (same "" escapes as pwsh today)
+ */
+export function pathShellForPane(hint: PathShellHostHint): PathShell {
+  const host = hint.hostType
+  if (host === 'wsl' || host === 'posix') return 'posix'
+  if (host === 'pwsh') return 'pwsh'
+  if (host === 'cmd' || host === 'conpty') return 'cmd'
+  if (hint.engine === 'shell') return 'pwsh'
+  return 'cmd'
+}
+
+/**
  * Quote a filesystem path for pasting into a CLI/TUI.
  *
  * - `cmd` / `pwsh` (default `cmd`): Windows-style `"..."` with embedded `"` doubled as `""`
