@@ -13,7 +13,7 @@ Scan date: 2026-09-12 23:13 PT
 | Asset | Location | Notes |
 |-------|----------|-------|
 | Android launcher | `android/app/src/main/res/drawable/ic_launcher.xml` | Vector: dark `#07080A` square + mint `#39FFB6` three bars (terminal motif) |
-| Windows / Electron icon | **MISSING** as dedicated `.ico` | `package.json` `build.win.target` = `dir` only; `stamp-host` copies Electron exe — default Electron icon unless rcedit sets one |
+| Windows / Electron icon | esources/brand/pq.ico\ (+ png 256/512) | Wired as \uild.win.icon\; pm run dist\ -> NSIS+MSI; stamp-host path unchanged |
 | Brand SVG (seed) | `resources/brand/pq.svg` | Same three-bar mint mark as Android |
 | Favicon / renderer | **MISSING** | No favicon asset found under renderer |
 

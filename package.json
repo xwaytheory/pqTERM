@@ -14,7 +14,8 @@
     "rebuild": "node scripts/rebuild.cjs",
     "stamp": "node scripts/stamp-host.cjs",
     "shortcuts": "node scripts/make-shortcuts.cjs",
-    "postinstall": "node scripts/rebuild.cjs"
+    "postinstall": "node scripts/rebuild.cjs",
+    "dist": "npm run build && electron-builder --win nsis msi"
   },
   "build": {
     "appId": "pq",
@@ -24,7 +25,17 @@
       "output": "release"
     },
     "win": {
-      "target": "dir"
+      "target": "dir",
+      "icon": "resources/brand/pq.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "msi": {
+      "oneClick": false
     }
   },
   "dependencies": {
