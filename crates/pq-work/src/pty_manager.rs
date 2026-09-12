@@ -106,6 +106,19 @@ pub struct PtyManager {
     live: HashMap<String, LiveHandle>,
 }
 
+
+/// Result of an optional live ConPTY attempt (`pty-spike`) or registry-only fallback.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpawnOutcome {
+    pub pane_id: String,
+    /// Registry meta is present and `alive` after the call.
+    pub registry: bool,
+    /// True only when a live ConPTY writer is attached.
+    pub live_io: bool,
+    /// Set when live was requested but could not be opened — registry-only kept (honest).
+    pub live_error: Option<String>,
+}
+
 /// Honest name for the default (no-I/O) registry surface.
 pub type SessionRegistry = PtyManager;
 
@@ -370,6 +383,55 @@ impl PtyManager {
         self.sessions.is_empty()
     }
 
+
+    /// Prefer live ConPTY when `pty-spike` is enabled. On spawn failure: register
+    /// registry-only and return `live_error` (no fake `write` success).
+    /// Without `pty-spike`: always registry-only with an honest `live_error`.
+    pub fn spawn_prefer_live(
+        &mut self,
+        opts: SpawnOpts,
+        program: &str,
+        args: &[&str],
+    ) -> SpawnOutcome {
+        let pane_id = opts.pane_id.clone();
+        #[cfg(feature = "pty-spike")]
+        {
+            match self.spawn_argv(opts.clone(), program, args) {
+                Ok(()) => {
+                    return SpawnOutcome {
+                        pane_id,
+                        registry: true,
+                        live_io: true,
+                        live_error: None,
+                    };
+                }
+                Err(e) => {
+                    // Honesty: fall back to registry tracking; write stays false.
+                    self.spawn(opts);
+                    return SpawnOutcome {
+                        pane_id,
+                        registry: true,
+                        live_io: false,
+                        live_error: Some(e),
+                    };
+                }
+            }
+        }
+        #[cfg(not(feature = "pty-spike"))]
+        {
+            let _ = (program, args);
+            self.spawn(opts);
+            SpawnOutcome {
+                pane_id,
+                registry: true,
+                live_io: false,
+                live_error: Some(
+                    "live ConPTY unavailable: rebuild with --features pty-spike".into(),
+                ),
+            }
+        }
+    }
+
     /// True when this pane has a live ConPTY writer (`pty-spike` only).
     pub fn has_live_io(&self, pane_id: &str) -> bool {
         #[cfg(feature = "pty-spike")]
@@ -495,6 +557,7 @@ impl PtyManager {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -594,4 +657,55 @@ mod tests {
         m.kill("live1");
         assert!(!m.has_live_io("live1"));
     }
+    #[cfg(not(feature = "pty-spike"))]
+    #[test]
+    fn spawn_prefer_live_without_feature_is_honest() {
+        let mut m = SessionRegistry::new();
+        let out = m.spawn_prefer_live(
+            SpawnOpts::new("p-live", "ws", "shell", "", 80, 24),
+            "cmd.exe",
+            &["/D", "/Q", "/C", "echo hi"],
+        );
+        assert!(out.registry);
+        assert!(!out.live_io);
+        assert!(out.live_error.is_some());
+        assert!(!m.has_live_io("p-live"));
+        assert!(!m.write("p-live", "x"));
+        assert!(m.alive("p-live"));
+    }
+
+    #[cfg(feature = "pty-spike")]
+    #[test]
+    fn spawn_prefer_live_ok_wires_conpty() {
+        let mut m = SessionRegistry::new();
+        let out = m.spawn_prefer_live(
+            SpawnOpts::new("p-ok", "ws", "shell", "", 80, 24),
+            "cmd.exe",
+            &["/D", "/Q", "/C", "echo pq-prefer-live"],
+        );
+        assert!(out.registry);
+        assert!(out.live_io, "err={:?}", out.live_error);
+        assert!(out.live_error.is_none());
+        assert!(m.has_live_io("p-ok"));
+        assert!(m.write("p-ok", "\x1b[1;1R"));
+        m.kill("p-ok");
+    }
+
+    #[cfg(feature = "pty-spike")]
+    #[test]
+    fn spawn_prefer_live_fail_falls_back_registry() {
+        let mut m = SessionRegistry::new();
+        let out = m.spawn_prefer_live(
+            SpawnOpts::new("p-bad", "ws", "shell", "", 80, 24),
+            "", // empty program -> spawn_argv err
+            &[],
+        );
+        assert!(out.registry);
+        assert!(!out.live_io);
+        assert!(out.live_error.is_some());
+        assert!(!m.has_live_io("p-bad"));
+        assert!(!m.write("p-bad", "x"));
+        assert!(m.alive("p-bad"));
+    }
 }
+

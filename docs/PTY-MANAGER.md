@@ -19,7 +19,9 @@ Gauntlet: keep moving. Electron `node-pty` remains production.
 
 ## Live ConPTY (`--features pty-spike`)
 
-- `spawn_argv(program, args)` — preferred (no shell)
+- `spawn_prefer_live(program, args)` — try ConPTY; on failure **registry-only** + `live_error` (honest)
+- `SpawnOutcome { registry, live_io, live_error }`
+- `spawn_argv(program, args)` — preferred direct (no shell)
 - `spawn_cmd(cmdline)` — `cmd /D /Q /C` **hardened**: rejects `&\|<>^%` etc.; prefer `spawn_argv`
 - Spike CLI: `pty_spike::run_echo_spike` / `pq-work --pty-spike`
 - Full engine launch / PATH / yoloEnv remain Electron

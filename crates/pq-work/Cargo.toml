@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 pq-core = { workspace = true }
+serde_json = { workspace = true }
 portable-pty = { version = "0.9.0", optional = true }
 
 [features]

@@ -8,6 +8,8 @@
 
 mod pty_manager;
 
+use std::path::PathBuf;
+
 #[cfg(feature = "pty-spike")]
 mod pty_spike;
 
@@ -15,7 +17,10 @@ use pq_core::ipc::{
     stub_loopback_demo, IpcMessage, IpcSink, LocalTcpTransport, StubWorkClient, Transport,
     DEFAULT_TCP_ADDR, PROTOCOL_VERSION,
 };
-use pq_core::{CheckOnLaunchPlan, STUB_REMOTE_LATEST, WORKSPACE_VERSION};
+use pq_core::{
+    fetch_manifest, offer_from_manifest, CheckOnLaunchPlan, FileManifestFetch,
+    STUB_REMOTE_LATEST, WORKSPACE_VERSION,
+};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -54,6 +59,14 @@ fn main() {
             eprintln!("pty-spike: rebuild with --features pty-spike");
             std::process::exit(2);
         }
+    }
+
+    if let Some(path) = check_update_path(&args) {
+        if let Err(e) = run_check_update(&path) {
+            eprintln!("check-update: {e}");
+            std::process::exit(1);
+        }
+        return;
     }
 
     println!("pq-work {WORKSPACE_VERSION} (Phase 2 stub)");
@@ -157,6 +170,50 @@ fn run_ipc_tcp_demo(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     println!("ipc-tcp demo ok");
+    Ok(())
+}
+
+
+fn check_update_path(args: &[String]) -> Option<String> {
+    for (i, a) in args.iter().enumerate() {
+        if a == "--check-update" {
+            let next = args.get(i + 1).filter(|p| !p.starts_with('-'));
+            return Some(next.cloned().unwrap_or_else(default_update_fixture_path));
+        }
+    }
+    None
+}
+
+fn default_update_fixture_path() -> String {
+    let from_manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("pq-core")
+        .join("fixtures")
+        .join("pq-update-manifest.json");
+    if from_manifest.is_file() {
+        return from_manifest.to_string_lossy().into_owned();
+    }
+    "pq-update-manifest.json".into()
+}
+
+/// FileManifestFetch fixture check — prints `OfferUpdate` JSON or up-to-date (no network).
+fn run_check_update(path: &str) -> Result<(), String> {
+    let fetcher = FileManifestFetch::new(path);
+    let manifest = fetch_manifest(&fetcher, path).map_err(|e| e.to_string())?;
+    let current = WORKSPACE_VERSION;
+    match offer_from_manifest(current, &manifest, path).map_err(|e| e.to_string())? {
+        Some(offer) => {
+            println!("OfferUpdate");
+            let raw = serde_json::to_string_pretty(&offer).map_err(|e| e.to_string())?;
+            println!("{raw}");
+        }
+        None => {
+            println!(
+                "up-to-date: current={current} latest={} source={path}",
+                manifest.latest
+            );
+        }
+    }
     Ok(())
 }
 

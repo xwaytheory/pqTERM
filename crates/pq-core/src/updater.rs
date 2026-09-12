@@ -44,6 +44,22 @@ pub struct UpdateAsset {
 
 /// Minimal GitHub Releases API list/item shape (subset) for fixture parsing.
 /// See <https://docs.github.com/en/rest/releases/releases>.
+
+/// Result of a check-on-launch compare when remote is newer than current.
+/// Printed by `pq-work --check-update` (fixture / FileManifestFetch — no network).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OfferUpdate {
+    pub current: String,
+    pub latest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
+    #[serde(default)]
+    pub assets: Vec<UpdateAsset>,
+    /// Path or URL the manifest was loaded from (honesty for operators).
+    pub manifest_source: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GitHubReleaseFixture {
     pub tag_name: String,
@@ -213,6 +229,28 @@ pub fn fetch_github_fixture(
     Ok(manifest_from_github_release(&rel))
 }
 
+
+/// If `manifest.latest` is newer than `current`, return an [`OfferUpdate`].
+/// `Ok(None)` means up-to-date or current is ahead (no offer).
+pub fn offer_from_manifest(
+    current: &str,
+    manifest: &UpdateManifest,
+    source: &str,
+) -> Result<Option<OfferUpdate>, UpdaterError> {
+    let cmp = compare_semver(current, &manifest.latest)?;
+    if cmp < 0 {
+        Ok(Some(OfferUpdate {
+            current: current.to_string(),
+            latest: manifest.latest.clone(),
+            channel: manifest.channel.clone(),
+            assets: manifest.assets.clone(),
+            manifest_source: source.to_string(),
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Minimal semver compare: `major.minor.patch` (pre-release ignored / rejected).
 /// Returns `Ordering`-like: -1 if a < b, 0 if equal, 1 if a > b.
 pub fn compare_semver(a: &str, b: &str) -> Result<i32, UpdaterError> {
@@ -322,5 +360,24 @@ mod tests {
         assert_eq!(m.channel.as_deref(), Some("stable"));
         assert_eq!(m.assets.len(), 2);
         assert!(m.assets.iter().all(|a| a.platform == "windows-x64"));
+    }
+
+    #[test]
+    fn offer_when_remote_newer() {
+        let m = UpdateManifest {
+            latest: "1.1.2".into(),
+            channel: Some("stable".into()),
+            published_at: None,
+            assets: vec![UpdateAsset {
+                platform: "windows-x64".into(),
+                url: "https://example.invalid/x".into(),
+                sha256: None,
+                size: Some(1),
+            }],
+        };
+        let offer = offer_from_manifest("1.1.1", &m, "fixture").unwrap().expect("offer");
+        assert_eq!(offer.latest, "1.1.2");
+        assert_eq!(offer.current, "1.1.1");
+        assert!(offer_from_manifest("1.1.2", &m, "fixture").unwrap().is_none());
     }
 }
