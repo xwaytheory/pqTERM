@@ -1,6 +1,6 @@
 //! pq-voice — voice assistant process (Phase 2 stub).
 //!
-//! STT target (LOCKED): Whisper Large v3 for Polish.
+//! STT INTENT (not runtime lock): Whisper Large v3 for Polish when ported.
 //! Model: openai/whisper-large-v3 (GGML: ggml-large-v3.bin), language=pl.
 //! Electron today still uses Xenova/whisper-tiny in voiceCommander.ts — upgrade on port.
 //!
@@ -53,6 +53,7 @@ fn print_help() {
          OPTIONS:\n\
              -h, --help       Show help\n\
              -V, --version    Show version\n\n\
-         STT: Whisper Large v3 (Polish). IPC stubs: docs/PORT-MAP.md / pq_core::ipc."
+         STT INTENT: Whisper Large v3 (Polish). CURRENT Electron: Xenova/whisper-tiny.
+         IPC: MemoryChannelStub + Transport trait — docs/PORT-MAP.md / pq_core::ipc."
     );
 }

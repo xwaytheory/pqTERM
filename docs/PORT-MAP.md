@@ -55,7 +55,9 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 
 Stub client: `pq_core::ipc::StubWorkClient` (used from `pq-work`).  
 Stub server: `pq_core::ipc::StubVoiceServer` (used from `pq-voice`).  
-Wire transport (named pipe / WS) = later phase; JSON line codec already in `encode_line` / `decode_line`.
+`MemoryChannelStub` = **in-process demo/test only** (not production IPC).  
+`Transport` trait defined for future named pipe / WS implementations.  
+JSON line codec: `encode_line` / `decode_line`.
 
 ## Suggested ownership
 
@@ -65,4 +67,4 @@ Wire transport (named pipe / WS) = later phase; JSON line codec already in `enco
 | **pq-work** | pty, bridge, providers, launch, auth, trust, resume, board, sync, usage, remote, UI host |
 | **pq-voice** | mic, VAD, Whisper Large v3, intent hints; speaks IPC only |
 
-Updated: 2026-09-12 overnight slice (port map + IPC stubs).
+Updated: 2026-09-12 gauntlet round 2 (Transport trait + MemoryChannelStub naming).

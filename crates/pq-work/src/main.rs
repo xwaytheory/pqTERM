@@ -21,7 +21,7 @@ fn main() {
 
     println!("pq-work {WORKSPACE_VERSION} (Phase 2 stub)");
     println!("Electron app under src/ is still the production UI.");
-    println!("IPC protocol v{PROTOCOL_VERSION}: StubWorkClient ready");
+    println!("IPC protocol v{PROTOCOL_VERSION}: StubWorkClient + MemoryChannelStub (not production Transport)");
 
     let plan = CheckOnLaunchPlan::default();
     println!(

@@ -1,6 +1,6 @@
 # Night backlog — items 8–12 (gauntlet)
 
-Updated: 2026-09-12 23:35 PT  
+Updated: 2026-09-13 00:00 PT (gauntlet round 2 revise)  
 Branch: `feat/rust-phase1`  
 Process: **gauntlet-loop** (Hermes skill `software-development/gauntlet-loop`) — propose → independent Krytyk pq → revise. Live board: `docs/workbench.md`.
 
@@ -52,7 +52,7 @@ Process: **gauntlet-loop** (Hermes skill `software-development/gauntlet-loop`) �
 3. Document install/uninstall in README.
 4. Updater manifest assets point at installer or portable exe explicitly.
 
-**Status:** `resources/brand/pq.ico` + `npm run dist` (nsis+msi) wired; `build.win.target` still `dir` so START-prod/stamp untouched. Full dist smoke-test TODO.
+**Status (r2 revise):** `appId: com.pq.app`; MSI `upgradeCode` stable GUID; brand files `pq.ico` / `pq-256.png` / `pq-512.png`. `build.win.target` stays `dir` for stamp-host/`START-prod`; `npm run dist` builds NSIS+MSI into `release/`. **Unsigned** → SmartScreen warnings (known gap). Full dist smoke-test TODO.
 
 ---
 
@@ -60,7 +60,7 @@ Process: **gauntlet-loop** (Hermes skill `software-development/gauntlet-loop`) �
 
 See `docs/LOGOS-INVENTORY.md`.
 
-**Status:** inventory + seed assets (`pq.svg`/`pq.ico`/png). Engine letter-marks / trademark pass still TODO.
+**Status (r2):** inventory fixed (`resources/brand` exists); `EngineSpec.logo`/`icon` optional; letter-mark chip plan in LOGOS-INVENTORY; **favicon TODO**.
 
 ---
 
@@ -88,7 +88,7 @@ See `docs/LOGOS-INVENTORY.md`.
 - Add tiny drop overlay CSS (“upuść ścieżki”).
 - Tests: unit for path quoting; manual matrix Grok/Claude/OpenCode.
 
-**Status:** v1 implemented on `feat/rust-phase1` (paths-only DnD). Manual engine matrix + Ctrl+Drop copy still TODO.
+**Status (r2):** Windows `quotePath` (`""` escapes); pathFor failures surfaced (console + overlay); `sandbox:false` threat note; unit tests `npm run test:unit`. Manual engine matrix + Ctrl+Drop still TODO.
 
 ---
 

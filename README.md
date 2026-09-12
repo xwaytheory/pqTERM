@@ -132,9 +132,18 @@ pq/
 | `npm run rebuild` | `electron-builder install-app-deps` + `stamp-host` |
 | `npm run stamp` | Tylko stamp-host (skopiuj electron → host/) |
 | `npm run shortcuts` | Utwórz skróty na pulpicie (pq-dev.lnk, pq-prod.lnk) |
+| `npm run dist` | Installery NSIS+MSI → `release/` (nadpisuje target; `build.win.target` zostaje `dir` dla stamp-host) |
+| `npm run test:unit` | Testy jednostkowe (m.in. `quotePath` / DnD) |
 | `npm postinstall` | Automatycznie po `npm install`: `rebuild` |
 
 ---
+
+## Packaging (Windows)
+
+- **Daily / portable:** `npm run stamp` / `START-prod.cmd` → `host/pq.exe` (`build.win.target: "dir"`).
+- **Installers:** `npm run dist` → NSIS Setup + MSI in `release/` (`appId: com.pq.app`, stable MSI `upgradeCode`).
+- Brand icons: `resources/brand/pq.ico`, `pq-256.png`, `pq-512.png` (not `pq.png`).
+- Builds are **unsigned** — expect SmartScreen warnings until a signing cert is configured.
 
 ## Engines (agenty AI)
 

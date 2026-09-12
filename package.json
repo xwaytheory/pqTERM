@@ -15,10 +15,11 @@
     "stamp": "node scripts/stamp-host.cjs",
     "shortcuts": "node scripts/make-shortcuts.cjs",
     "postinstall": "node scripts/rebuild.cjs",
-    "dist": "npm run build && electron-builder --win nsis msi"
+    "dist": "npm run build && electron-builder --win nsis msi",
+    "test:unit": "node --experimental-strip-types --test src/renderer/src/lib/dropPaths.test.ts"
   },
   "build": {
-    "appId": "pq",
+    "appId": "com.pq.app",
     "productName": "pq",
     "executableName": "pq",
     "directories": {
@@ -35,7 +36,8 @@
       "createStartMenuShortcut": true
     },
     "msi": {
-      "oneClick": false
+      "oneClick": false,
+      "upgradeCode": "3BBDA8F5-596C-47EF-9538-BDEF42EEBA06"
     }
   },
   "dependencies": {

@@ -1,23 +1,23 @@
 # Logos / brand inventory (pq)
 
-Scan date: 2026-09-12 23:13 PT
+Scan date: 2026-09-12 (gauntlet round 2 revise)
 
-## Finding (critical)
+## Finding
 
-**There are no per-harness logo image files in the repo.** Engines are identified by **name + hex color** in `src/main/engines.ts` (`EngineSpec.color`). UI uses colored dots/chips (`Sidebar.tsx`, `TerminalPane.tsx`, `ProvidersModal.tsx`), not SVG/PNG marks.
+**Product mark exists under `resources/brand/`.** Engines are still identified primarily by
+**name + hex color** in `src/main/engines.ts` (`EngineSpec.color`). Optional `logo` / `icon`
+fields were added to `EngineSpec` for future letter-mark chips; no per-engine SVG/PNG yet.
 
-`resources/` is empty / unused for brand assets. No `src/**/*.svg` or engine PNGs found.
+| Asset | Location | Status |
+|-------|----------|--------|
+| Brand SVG | `resources/brand/pq.svg` | present (three-bar mint mark) |
+| ICO | `resources/brand/pq.ico` | present; wired as `build.win.icon` |
+| PNG 256 | `resources/brand/pq-256.png` | present (**not** `pq.png`) |
+| PNG 512 | `resources/brand/pq-512.png` | present (**not** `pq.png`) |
+| Android launcher | `android/app/src/main/res/drawable/ic_launcher.xml` | vector mark |
+| Favicon / renderer | — | **TODO — missing** (no favicon under `src/renderer`) |
 
-## pq product mark
-
-| Asset | Location | Notes |
-|-------|----------|-------|
-| Android launcher | `android/app/src/main/res/drawable/ic_launcher.xml` | Vector: dark `#07080A` square + mint `#39FFB6` three bars (terminal motif) |
-| Windows / Electron icon | `resources/brand/pq.ico` (+ png 256/512) | Wired as `build.win.icon`; `npm run dist` -> NSIS+MSI; stamp-host path unchanged |
-| Brand SVG (seed) | `resources/brand/pq.svg` | Same three-bar mint mark as Android |
-| Favicon / renderer | **MISSING** | No favicon asset found under renderer |
-
-## Built-in harness “logos” (colors only)
+## Built-in harness “logos” (colors only today)
 
 | id | name | vendor | color | asset |
 |----|------|--------|-------|-------|
@@ -35,12 +35,18 @@ Scan date: 2026-09-12 23:13 PT
 | `copilot` | Copilot CLI | GitHub | `#f0f6fc` | color swatch only |
 | `shell` | PowerShell | Windows | `#5b9fd6` | color swatch only |
 
+## Letter-mark chip plan
+
+1. UI chips (Sidebar / TerminalPane / ProvidersModal) keep color dots as fallback.
+2. When `EngineSpec.logo` (or `icon`) is set → render a 16×16 / 20×20 letter-mark or SVG tinted by `color`.
+3. Prefer **abstract monograms** (first letter) over vendor wordmarks (trademark risk).
+4. Optional later: `resources/engines/<id>.svg` monochrome marks.
+5. **TODO:** add renderer favicon from `pq-256.png` / `pq.svg`.
+
 ## Gauntlet — design/logo work (item 10)
 
 **Bar:** Windows Terminal / Warp / Claude Desktop app icon quality + recognizable per-engine marks at 16×16 and 256×256; pq mark must read as “terminal grid for agents”.
 
-**Propose:** Create `resources/brand/` with `pq.ico`, `pq.png` (256/512), export Android adaptive icons from same mark; add optional `resources/engines/<id>.svg` monochrome marks tinted by `color`.
+**Krytyk pq (r1):** Shipping vendor logos may hit trademark issues; safer abstract monograms. Missing Windows `.ico` was a product gap (now filled).
 
-**Krytyk pq:** Shipping vendor logos may hit trademark issues; safer: abstract monograms (first letter) + official colors, not copied wordmarks. Missing Windows `.ico` is a bigger product gap than engine SVGs.
-
-**Revise:** Priority 1 = pq `.ico`/PNG + wire electron-builder `win.icon`. Priority 2 = letter-mark chips in UI. Priority 3 = optional official marks only with license check. Do not block installer on engine SVGs.
+**Revise (r2):** Inventory corrected (`resources/brand` exists; filenames `pq-256.png` / `pq-512.png`). `EngineSpec.logo`/`icon` optional fields added. Favicon still TODO. Letter-mark chips = next UI wave.

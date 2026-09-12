@@ -6,7 +6,7 @@ Phase 1 to **plan + szkielet** — bez zastępowania Electrona.
 
 - Dzielimy produkt na dwa procesy: **pq-work** (workbench: siatka terminali, IPC, store, remote) i **pq-voice** (asystent głosowy + STT).
 - Workspace Cargo w `crates/`: `pq-core` (wspólne typy, wersja, updater stub), `pq-work`, `pq-voice`.
-- **STT na sztywno:** Whisper **Large v3** (`openai/whisper-large-v3` / `ggml-large-v3.bin`), język `pl` — decyzja produktowa (Paweł). Electron dziś ma `Xenova/whisper-tiny`; przy porcie voice idziemy od razu na Large.
+- **STT INTENT (nie runtime lock):** Whisper **Large v3** (`openai/whisper-large-v3` / `ggml-large-v3.bin`), język `pl` — cel produktu dla **pq-voice**. **CURRENT Electron** nadal używa `Xenova/whisper-tiny` w `voiceCommander.ts` (`@huggingface/transformers`). Large dopiero przy porcie voice.
 - Auto-update: check przy starcie względem manifestu z GitHub Releases (szkic JSON + `compare_semver` + mock fetch).
 - Electron (`src/`, `package.json`, `host/`) **zostaje** produkcją do kolejnych faz.
 - Hipoteza UI później: **Tauri** dla pq-work; terminale: **ConPTY** / `portable-pty` (lekka weryfikacja poniżej — bez implementacji w Phase 1).
@@ -26,7 +26,7 @@ Replace the Electron shell gradually with native Rust binaries while keeping fea
 
 Shared logic lives in **pq-core** (version constants, update manifest types, later: shared protocol types).
 
-### STT target (LOCKED)
+### STT target (INTENT — not a runtime lock)
 
 | Field | Value |
 |-------|--------|
@@ -34,8 +34,8 @@ Shared logic lives in **pq-core** (version constants, update manifest types, lat
 | Model id (HF / OpenAI) | `openai/whisper-large-v3` |
 | Local GGML / whisper.cpp | `ggml-large-v3.bin` |
 | Language | `pl` (Polish) |
-| Rationale | Large v3 is the current flagship Whisper checkpoint; best Polish ASR quality in the Whisper family. Product owner locked Large (not tiny/base/small/medium, not turbo-as-default). |
-| Electron today | `Xenova/whisper-tiny` via `@huggingface/transformers` in `voiceCommander.ts` — temporary; port upgrades to Large v3. |
+| Rationale | **Intent** for desktop Rust/pq-voice: Large v3 flagship Whisper for Polish. Not tiny/base/small/medium as the port default. |
+| Electron **CURRENT** | `Xenova/whisper-tiny` via `@huggingface/transformers` in `voiceCommander.ts` — **still production**; do not document as Large. Port upgrades to Large v3. |
 
 Constants are mirrored in `pq_core::stt` for Rust code comments/docs.
 
@@ -52,6 +52,8 @@ pq/
 ├── src/                    # Electron (still production)
 └── ...
 ```
+
+License: workspace crates use **MIT** (aligned with root `package.json`).
 
 Build:
 
@@ -93,7 +95,7 @@ Phase 2 overnight slice: **typed stubs compile** in `pq_core::ipc` + used from b
   - `transcript` → `Transcript { session_id, text, lang, is_final }` (voice → work)
   - `cancel` → `Cancel { session_id, reason }` (work → voice)
   - `status` → `Status { source, state, detail, session_id }` (voice → work)
-- **Stubs:** `StubWorkClient` (pq-work), `StubVoiceServer` (pq-voice), `encode_line` / `decode_line`, in-memory loopback demo + unit tests.
+- **Stubs:** `StubWorkClient` (pq-work), `StubVoiceServer` (pq-voice), `encode_line` / `decode_line`, **`MemoryChannelStub` (test/demo only — not production IPC)** + [`Transport`] trait for future named pipe / WS.
 - **Later (not this slice):** `voice.intent`, `work.snapshot` / `work.focus` / `work.exec`.
 - **Lifecycle:** pq-work spawns pq-voice when VoicePanel opens (or on demand); kills on close.
 - Electron path today keeps voice in-renderer; dual-run during migration via feature flag.
@@ -104,7 +106,7 @@ Full Electron→Rust module table: **`docs/PORT-MAP.md`**. Android phone STT ske
 
 Check-on-launch (both binaries):
 
-1. Read embedded `WORKSPACE_VERSION` (`pq_core::version`).
+1. Read embedded `WORKSPACE_VERSION` (`pq_core::version`) — **synced to Electron `package.json` `1.1.1`** (dual-track documented in `version.rs`).
 2. `GET` manifest URL (default sketch: `.../releases/latest/download/pq-update-manifest.json`).
 3. `compare_semver(current, manifest.latest)`.
 4. If newer: download matching `assets[].platform`, verify `sha256`, stage, relaunch.
@@ -180,13 +182,16 @@ Verified on DESKTOP-3I4REKQ: `rustc`/`cargo`/`rustup` **1.93.1** already install
 ### Android voice = native STT (LOCKED)
 
 - **Phone/Android does NOT run Whisper.** Use Android `SpeechRecognizer` (system STT) for mic → text on device.
-- Desktop **pq-voice** remains Whisper Large v3 (`openai/whisper-large-v3` / `ggml-large-v3.bin`, `pl`).
+- Desktop **pq-voice INTENT** remains Whisper Large v3 (`openai/whisper-large-v3` / `ggml-large-v3.bin`, `pl`).
 - Wire Android → existing remote WS intents the same way typed commands do; no on-device Whisper model download on phone.
 
 ### Windows installers (target)
 
 - Ship **MSI** + classic **Setup .exe** (electron-builder `nsis` + `msi`, later WiX/cargo-wix for Rust).
-- Today: `package.json` `build.win.target` is only `"dir"` + stamped `host/pq.exe` — not a real installer yet.
+- **Two packaging paths (do not conflate):**
+  - `build.win.target: "dir"` + `npm run stamp` / `START-prod.cmd` → stamped `host/pq.exe` (daily portable).
+  - `npm run dist` → `electron-builder --win nsis msi` → installers under `release/` (NSIS Setup + MSI with stable `upgradeCode`).
+  - Builds are **unsigned** → Windows SmartScreen warnings expected until a code-signing cert is configured.
 
 ### Process
 

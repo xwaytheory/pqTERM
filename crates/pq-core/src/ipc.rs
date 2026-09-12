@@ -1,7 +1,8 @@
 //! IPC protocol stubs between pq-work and pq-voice (Phase 2 overnight slice).
 //!
-//! Transport later: named pipe `\\.\pipe\pq-voice-{session}` or loopback WS.
-//! Phase 2: typed JSON messages + in-process stub client/server that compile.
+//! [`MemoryChannelStub`] is an **in-process test/demo stub only** — not production IPC.
+//! Real transports later implement [`Transport`]: named pipe `\\.\pipe\pq-voice-{session}`
+//! or loopback WebSocket `ws://127.0.0.1:<ephemeral>`.
 //!
 //! Work → voice: StartListen, Cancel
 //! Voice → work: Transcript, Status
@@ -91,6 +92,8 @@ pub enum IpcError {
     Deserialize(String),
     #[error("stub not connected")]
     NotConnected,
+    #[error("transport: {0}")]
+    Transport(String),
     #[error("{0}")]
     Other(String),
 }
@@ -119,29 +122,60 @@ pub trait IpcHandler {
     fn on_message(&mut self, msg: IpcMessage) -> Result<(), IpcError>;
 }
 
-/// In-memory duplex used by both binaries in Phase 2 (no real pipe yet).
-#[derive(Debug, Default)]
-pub struct MemoryChannel {
-    pub outbound: Vec<IpcMessage>,
+/// Future production transport (named pipe / WebSocket).
+///
+/// Phase 2 only provides [`MemoryChannelStub`] for compile-time demos and unit tests.
+/// Do not treat the memory stub as the production IPC path.
+pub trait Transport: IpcSink {
+    /// Non-blocking poll for one inbound message (None = nothing ready).
+    fn try_recv(&mut self) -> Result<Option<IpcMessage>, IpcError>;
+    /// Human label for logs (`memory-stub`, `named-pipe`, `ws`).
+    fn kind(&self) -> &'static str;
 }
 
-impl IpcSink for MemoryChannel {
+/// In-memory duplex for unit tests / Phase 2 demos **only** — not production IPC.
+#[derive(Debug, Default)]
+pub struct MemoryChannelStub {
+    pub outbound: Vec<IpcMessage>,
+    pub inbound: Vec<IpcMessage>,
+}
+
+impl IpcSink for MemoryChannelStub {
     fn send(&mut self, msg: IpcMessage) -> Result<(), IpcError> {
         self.outbound.push(msg);
         Ok(())
     }
 }
 
-impl MemoryChannel {
+impl Transport for MemoryChannelStub {
+    fn try_recv(&mut self) -> Result<Option<IpcMessage>, IpcError> {
+        if self.inbound.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(self.inbound.remove(0)))
+        }
+    }
+
+    fn kind(&self) -> &'static str {
+        "memory-stub"
+    }
+}
+
+impl MemoryChannelStub {
     pub fn take_outbound(&mut self) -> Vec<IpcMessage> {
         std::mem::take(&mut self.outbound)
+    }
+
+    /// Queue a message as if it arrived from the peer (test helper).
+    pub fn push_inbound(&mut self, msg: IpcMessage) {
+        self.inbound.push(msg);
     }
 }
 
 /// Stub client living in **pq-work**: sends StartListen / Cancel; records Status / Transcript.
 #[derive(Debug, Default)]
 pub struct StubWorkClient {
-    pub channel: MemoryChannel,
+    pub channel: MemoryChannelStub,
     pub last_status: Option<Status>,
     pub transcripts: Vec<Transcript>,
 }
@@ -187,7 +221,7 @@ impl StubWorkClient {
 /// Stub server living in **pq-voice**: handles StartListen / Cancel; emits Transcript / Status.
 #[derive(Debug, Default)]
 pub struct StubVoiceServer {
-    pub channel: MemoryChannel,
+    pub channel: MemoryChannelStub,
     pub active_session: Option<String>,
 }
 
@@ -247,7 +281,7 @@ impl StubVoiceServer {
     }
 }
 
-/// Round-trip work↔voice over memory channels (used by binaries + tests).
+/// Round-trip work↔voice over memory stub channels (used by binaries + tests).
 pub fn stub_loopback_demo() -> Result<(Vec<IpcMessage>, Vec<Transcript>), IpcError> {
     let mut work = StubWorkClient::default();
     let mut voice = StubVoiceServer::default();
@@ -306,5 +340,25 @@ mod tests {
         assert_eq!(transcripts.len(), 1);
         assert_eq!(transcripts[0].text, "czesc pq");
         assert!(transcripts[0].is_final);
+    }
+
+    #[test]
+    fn memory_stub_is_transport_not_production() {
+        let mut ch = MemoryChannelStub::default();
+        assert_eq!(ch.kind(), "memory-stub");
+        ch.send(IpcMessage::Cancel(Cancel {
+            session_id: "x".into(),
+            reason: None,
+        }))
+        .unwrap();
+        assert_eq!(ch.take_outbound().len(), 1);
+        ch.push_inbound(IpcMessage::Status(Status {
+            source: "t".into(),
+            state: VoiceState::Idle,
+            detail: None,
+            session_id: None,
+        }));
+        assert!(ch.try_recv().unwrap().is_some());
+        assert!(ch.try_recv().unwrap().is_none());
     }
 }

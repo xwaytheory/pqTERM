@@ -14,6 +14,13 @@ export interface EngineSpec {
   npmPackage?: string
   pipPackage?: string
   selfUpdate?: string[]
+  /**
+   * Optional brand mark path (e.g. `resources/engines/<id>.svg`) for letter-mark chips.
+   * Prefer abstract monograms over vendor wordmarks (trademark). See docs/LOGOS-INVENTORY.md.
+   */
+  logo?: string
+  /** Optional window/taskbar-style icon path; falls back to `logo` / color chip. */
+  icon?: string
 }
 
 export const ENGINE_SPECS: EngineSpec[] = [

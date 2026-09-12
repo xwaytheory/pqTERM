@@ -469,6 +469,9 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Threat note: sandbox:false is required so preload can use webUtils.getPathForFile
+      // for DnD absolute paths. Mitigations: contextIsolation:true, nodeIntegration:false,
+      // no remote module; do not widen privileges further. Paths exposed to renderer are sensitive.
       sandbox: false
     }
   })

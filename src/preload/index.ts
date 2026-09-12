@@ -106,13 +106,26 @@ const pq = {
       invoke('workspaces:setPane', workspaceId, paneId, patch) as Promise<void>
   },
   files: {
-    /** Electron File → absolute path (drag-drop). */
-    pathFor: (file: File) => {
+    /**
+     * Electron File → absolute path (drag-drop).
+     * Returns '' on failure; callers MUST surface failures (log/status) — do not drop silently.
+     * Threat note: main BrowserWindow uses sandbox:false so preload can call webUtils.getPathForFile
+     * and expose absolute filesystem paths to the renderer. Keep contextIsolation:true; never enable
+     * nodeIntegration; treat returned paths as sensitive (may reveal user home layout).
+     */
+    pathFor: (file: File): string => {
       try {
-        return webUtils.getPathForFile(file)
-      } catch {
+        const p = webUtils.getPathForFile(file)
+        if (!p) {
+          console.warn('[pq] files.pathFor: empty path for', file?.name)
+          return ''
+        }
+        return p
+      } catch (err) {
         const legacy = (file as File & { path?: string }).path
-        return legacy ?? ''
+        if (legacy) return legacy
+        console.warn('[pq] files.pathFor failed:', file?.name, err)
+        return ''
       }
     }
   },

@@ -81,6 +81,7 @@ export default function TerminalPane({
   const spawned = useRef(false)
   const lineBuf = useRef('')
   const [dragOver, setDragOver] = useState(false)
+  const [dropStatus, setDropStatus] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(pane.title)
@@ -312,6 +313,8 @@ export default function TerminalPane({
     if (!pane.engine) return
     if (![...e.dataTransfer.types].includes('Files')) return
     e.preventDefault()
+    // dropEffect 'copy' is only the OS cursor hint (link/move/copy). We do NOT copy file
+    // bytes into the PTY — we insert quoted absolute paths (paths-only DnD).
     e.dataTransfer.dropEffect = 'copy'
     setDragOver(true)
   }
@@ -327,12 +330,26 @@ export default function TerminalPane({
     const files = [...e.dataTransfer.files]
     if (!files.length) return
     const paths: string[] = []
+    const failed: string[] = []
     for (const f of files) {
       const abs = window.pq.files.pathFor(f)
       if (abs) paths.push(abs)
+      else failed.push(f.name || '(unnamed)')
+    }
+    if (failed.length) {
+      const msg = `DnD: failed to resolve path (${failed.length}/${files.length}): ${failed.slice(0, 3).join(', ')}`
+      console.warn('[pq]', msg)
+      setDropStatus(msg)
+      window.setTimeout(() => setDropStatus(null), 4000)
     }
     const payload = formatDroppedPaths(paths)
-    if (!payload) return
+    if (!payload) {
+      if (!failed.length) {
+        setDropStatus('DnD: no paths to insert')
+        window.setTimeout(() => setDropStatus(null), 3000)
+      }
+      return
+    }
     onFocus()
     window.pq.terminals.write(pane.id, payload)
   }
@@ -431,6 +448,7 @@ export default function TerminalPane({
       </div>
       {pane.engine ? (
         <div className="xterm-host" ref={host} />
+        {dropStatus ? <div className="drop-overlay drop-status">{dropStatus}</div> : null}
         {dragOver ? <div className="drop-overlay">upuść ścieżki</div> : null}
       ) : (
         <div className="picker">
