@@ -52,7 +52,7 @@ Process: **gauntlet-loop** (Hermes skill `software-development/gauntlet-loop`) â
 3. Document install/uninstall in README.
 4. Updater manifest assets point at installer or portable exe explicitly.
 
-**Status:** esources/brand/pq.ico\ + pm run dist\ (nsis+msi) wired; \uild.win.target\ still \dir\ so START-prod/stamp untouched. Full dist smoke-test TODO.
+**Status:** `resources/brand/pq.ico` + `npm run dist` (nsis+msi) wired; `build.win.target` still `dir` so START-prod/stamp untouched. Full dist smoke-test TODO.
 
 ---
 
@@ -60,7 +60,7 @@ Process: **gauntlet-loop** (Hermes skill `software-development/gauntlet-loop`) â
 
 See `docs/LOGOS-INVENTORY.md`.
 
-**Status:** inventory + seed assets (\pq.svg\/\pq.ico\/png). Engine letter-marks / trademark pass still TODO.
+**Status:** inventory + seed assets (`pq.svg`/`pq.ico`/png). Engine letter-marks / trademark pass still TODO.
 
 ---
 
