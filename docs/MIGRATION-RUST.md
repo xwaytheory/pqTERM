@@ -167,3 +167,23 @@ Verified on DESKTOP-3I4REKQ: `rustc`/`cargo`/`rustup` **1.93.1** already install
 ## Suggested next phase
 
 **Phase 2:** Implement `store` + `env` equivalents in `pq-core`/`pq-work`, add real HTTP `ManifestFetch` (reqwest), scaffold IPC protocol crate module, and spike `portable-pty` hello-world pane — still leaving Electron as the daily driver.
+
+
+---
+
+## Night additions (2026-09-12) — product locks
+
+### Android voice = native STT (LOCKED)
+
+- **Phone/Android does NOT run Whisper.** Use Android `SpeechRecognizer` (system STT) for mic → text on device.
+- Desktop **pq-voice** remains Whisper Large v3 (`openai/whisper-large-v3` / `ggml-large-v3.bin`, `pl`).
+- Wire Android → existing remote WS intents the same way typed commands do; no on-device Whisper model download on phone.
+
+### Windows installers (target)
+
+- Ship **MSI** + classic **Setup .exe** (electron-builder `nsis` + `msi`, later WiX/cargo-wix for Rust).
+- Today: `package.json` `build.win.target` is only `"dir"` + stamped `host/pq.exe` — not a real installer yet.
+
+### Process
+
+Every non-trivial solution runs **gauntlet-loop**: propose → Krytyk pq (independent) → revise. Skill: Hermes `software-development/gauntlet-loop`. Night backlog detail: `docs/BACKLOG-NIGHT.md`, logos: `docs/LOGOS-INVENTORY.md`, live board: `docs/workbench.md`.

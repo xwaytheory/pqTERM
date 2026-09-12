@@ -16,7 +16,8 @@ Trwa migracja Electron → Rust (**Phase 1: plan + scaffold**). Electron nadal j
 
 - Plan: [docs/MIGRATION-RUST.md](docs/MIGRATION-RUST.md)
 - Workspace: crates/ (pq-work, pq-voice, pq-core)
-- STT (docelowo): **Whisper Large v3** (openai/whisper-large-v3), język PL
+- STT desktop: **Whisper Large v3** (openai/whisper-large-v3), język PL; Android: **SpeechRecognizer** (systemowe STT), nie Whisper na telefonie
+- Night backlog (installer MSI/EXE, logo, DnD, gauntlet): [docs/BACKLOG-NIGHT.md](docs/BACKLOG-NIGHT.md) · [docs/LOGOS-INVENTORY.md](docs/LOGOS-INVENTORY.md) · [docs/workbench.md](docs/workbench.md)
 - Build szkicu:
 
 `at
