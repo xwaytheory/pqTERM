@@ -6,6 +6,9 @@
 //! IPC: owns StubWorkClient (StartListen / Cancel → voice; receives Transcript / Status).
 //! Spike: `--ipc-tcp [addr]` listens on localhost TCP JSON-lines (Transport spike, not production IPC).
 
+#[cfg(feature = "pty-spike")]
+mod pty_spike;
+
 use pq_core::ipc::{
     stub_loopback_demo, IpcMessage, IpcSink, LocalTcpTransport, StubWorkClient, Transport,
     DEFAULT_TCP_ADDR, PROTOCOL_VERSION,
@@ -28,6 +31,27 @@ fn main() {
             std::process::exit(1);
         }
         return;
+    }
+    if args.iter().any(|a| a == "--pty-spike") {
+        #[cfg(feature = "pty-spike")]
+        {
+            match pty_spike::run_echo_spike() {
+                Ok(out) => {
+                    println!("pty-spike ok");
+                    print!("{out}");
+                }
+                Err(e) => {
+                    eprintln!("pty-spike: {e}");
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
+        #[cfg(not(feature = "pty-spike"))]
+        {
+            eprintln!("pty-spike: rebuild with --features pty-spike");
+            std::process::exit(2);
+        }
     }
 
     println!("pq-work {WORKSPACE_VERSION} (Phase 2 stub)");
@@ -144,6 +168,6 @@ fn print_help() {
              -V, --version           Show version\n\
              --ipc-tcp [ADDR]        Listen for voice on localhost TCP JSON-lines\n\
                                      (default {DEFAULT_TCP_ADDR})\n\n\
-         Phase 2: IPC stubs + TCP Transport spike. See docs/MIGRATION-RUST.md, docs/PORT-MAP.md."
+         Phase 2: IPC stubs + TCP/named-pipe Transport + optional pty-spike. See docs/MIGRATION-RUST.md."
     );
 }

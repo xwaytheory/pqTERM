@@ -493,6 +493,81 @@ pub fn stub_loopback_demo() -> Result<(Vec<IpcMessage>, Vec<Transcript>), IpcErr
     Ok((work.channel.take_outbound(), work.transcripts.clone()))
 }
 
+
+/// Production pipe name prefix: `\\.\pipe\pq-voice-{session}`.
+pub const PIPE_NAME_PREFIX: &str = r"\\.\pipe\pq-voice-";
+
+/// Build the Windows named-pipe path for a voice session id.
+pub fn named_pipe_path(session_id: &str) -> String {
+    format!("{PIPE_NAME_PREFIX}{session_id}")
+}
+
+/// Compile-safe **stub** for Windows named-pipe IPC (production intent).
+///
+/// Does **not** open a real pipe yet — `connect` / `listen` record the path and
+/// `send` / `try_recv` return [`IpcError::NotConnected`] until a later phase wires
+/// `std::os::windows::io` / `winapi` / `tokio` named pipes.
+///
+/// Kept alongside [`LocalTcpTransport`] (demo) and [`MemoryChannelStub`] (tests).
+#[derive(Debug, Clone)]
+pub struct NamedPipeTransport {
+    /// Full pipe path, e.g. `\\.\pipe\pq-voice-sess1`.
+    pub pipe_path: String,
+    /// Whether a peer handshake was simulated (stub never truly connects).
+    connected: bool,
+}
+
+impl NamedPipeTransport {
+    /// Prepare a client-side stub targeting `\\.\pipe\pq-voice-{session}`.
+    pub fn connect_stub(session_id: impl AsRef<str>) -> Self {
+        Self {
+            pipe_path: named_pipe_path(session_id.as_ref()),
+            connected: false,
+        }
+    }
+
+    /// Prepare a server-side stub that would create the same pipe path.
+    pub fn listen_stub(session_id: impl AsRef<str>) -> Self {
+        Self::connect_stub(session_id)
+    }
+
+    /// Mark stub as "connected" for contract tests (no OS pipe).
+    pub fn mark_connected_for_test(&mut self) {
+        self.connected = true;
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.connected
+    }
+}
+
+impl IpcSink for NamedPipeTransport {
+    fn send(&mut self, _msg: IpcMessage) -> Result<(), IpcError> {
+        if !self.connected {
+            return Err(IpcError::NotConnected);
+        }
+        // Real write deferred — production will frame JSON lines on the pipe.
+        Err(IpcError::Transport(
+            "NamedPipeTransport stub: OS pipe I/O not implemented (Phase 2 stub only)".into(),
+        ))
+    }
+}
+
+impl Transport for NamedPipeTransport {
+    fn try_recv(&mut self) -> Result<Option<IpcMessage>, IpcError> {
+        if !self.connected {
+            return Err(IpcError::NotConnected);
+        }
+        Err(IpcError::Transport(
+            "NamedPipeTransport stub: OS pipe I/O not implemented (Phase 2 stub only)".into(),
+        ))
+    }
+
+    fn kind(&self) -> &'static str {
+        "named-pipe-stub"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -590,5 +665,27 @@ mod tests {
         let mut server = accept.join().unwrap();
         let msg = server.recv_line_blocking().unwrap();
         assert!(matches!(msg, IpcMessage::Cancel(_)));
+    }
+
+    #[test]
+    fn named_pipe_path_contract() {
+        assert_eq!(
+            named_pipe_path("sess-1"),
+            r"\\.\pipe\pq-voice-sess-1"
+        );
+        let mut t = NamedPipeTransport::connect_stub("demo");
+        assert_eq!(t.kind(), "named-pipe-stub");
+        assert_eq!(t.pipe_path, r"\\.\pipe\pq-voice-demo");
+        assert!(!t.is_connected());
+        assert!(matches!(
+            t.send(IpcMessage::Cancel(Cancel {
+                session_id: "demo".into(),
+                reason: None,
+            })),
+            Err(IpcError::NotConnected)
+        ));
+        t.mark_connected_for_test();
+        assert!(t.is_connected());
+        assert!(matches!(t.try_recv(), Err(IpcError::Transport(_))));
     }
 }

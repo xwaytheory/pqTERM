@@ -16,10 +16,10 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 
 | Electron source | Role today | Target crate / module | Phase | Status |
 |-----------------|------------|------------------------|-------|--------|
-| `env.ts` | `runningDev()`, `productName()` (`pq` / `pq-dev`) | `pq-core::env` | 2 | planned |
+| `env.ts` | `runningDev()`, `productName()` (`pq` / `pq-dev`) | `pq-core::env` | 2 | **done** (unit tests) |
 | `host.ts` | Re-export Electron `app` / `BrowserWindow` / IPC | `pq-work` Tauri (or egui) host facade — **not** a 1:1 port | 5 | n/a → replace |
-| `store.ts` | `%AppData%\pq*\pq-state.json` load/save, workspace snapshot | `pq-core::store` + `pq-work` | 2 | planned |
-| `pty-manager.ts` | node-pty sessions, buf/seq, spawn/write/resize/kill | `pq-work::pty` (`portable-pty` / ConPTY) | 3 | planned |
+| `store.ts` | `%AppData%\pq*\pq-state.json` load/save, workspace snapshot | `pq-core::store` + `pq-work` | 2 | **done** lean serde; ENGINE_SPECS merge gap |
+| `pty-manager.ts` | node-pty sessions, buf/seq, spawn/write/resize/kill | `pq-work::pty` (`portable-pty` / ConPTY) | 3 | **stub** (`pty-spike` feature; see docs/PTY-SPIKE.md) |
 | `bridge.ts` | Local HTTP control bridge + `pq` CLI helper on PATH | `pq-work::bridge` | 3 | planned |
 | `engines.ts` | `ENGINE_SPECS` (bins, colors, models, hints) | `pq-core::engines` | 4 | planned |
 | `providers.ts` | Scan installed CLIs / accounts on disk | `pq-work::providers` | 4 | planned |
@@ -37,7 +37,7 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 
 | Source | Target | Phase | Status |
 |--------|--------|-------|--------|
-| `src/shared/types.ts` | `pq-core::types` (serde twins) | 2–3 | planned |
+| `src/shared/types.ts` | `pq-core::store` (+ later `types`) | 2–3 | **partial** (AppSnapshot family) |
 | Updater (new) | `pq-core::updater` | 1 done / 10 e2e | stub |
 | Version constants | `pq-core::version` | 1 | stub |
 | Voice IPC protocol | `pq-core::ipc` | **2 (this slice)** | **stub** |
@@ -56,7 +56,7 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 Stub client: `pq_core::ipc::StubWorkClient` (used from `pq-work`).  
 Stub server: `pq_core::ipc::StubVoiceServer` (used from `pq-voice`).  
 `MemoryChannelStub` = **in-process demo/test only** (not production IPC).  
-`Transport` trait + **`LocalTcpTransport`** spike (`127.0.0.1:4791` JSON-lines; `pq-work`/`pq-voice --ipc-tcp`). Demo/cross-process only — **not** production IPC (WS/named-pipe still future).  
+`Transport` trait + **`LocalTcpTransport`** spike (`127.0.0.1:4791` JSON-lines; `pq-work`/`pq-voice --ipc-tcp`). Demo/cross-process only. **`NamedPipeTransport` stub** documents `\\.\pipe\pq-voice-{session}` (compile-safe; no OS I/O yet). Demo/cross-process only — **not** production IPC (WS/named-pipe still future).  
 JSON line codec: `encode_line` / `decode_line`.
 
 ## Suggested ownership
@@ -67,4 +67,4 @@ JSON line codec: `encode_line` / `decode_line`.
 | **pq-work** | pty, bridge, providers, launch, auth, trust, resume, board, sync, usage, remote, UI host |
 | **pq-voice** | mic, VAD, Whisper Large v3, intent hints; speaks IPC only |
 
-Updated: 2026-09-12 gauntlet round 2 (Transport trait + MemoryChannelStub naming).
+Updated: 2026-09-13 env/store done; NamedPipeTransport stub; pty-spike; PARITY/TAURI docs.

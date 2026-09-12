@@ -38,6 +38,15 @@ fn main() {
     println!("STT target: {} ({})", stt::MODEL_ID, stt::GGML_FILENAME);
     println!("language: {}", stt::LANGUAGE);
     println!("{}", stt::RATIONALE);
+    match stt::intended_ggml_path() {
+        Some(p) => println!("GGML intended path: {}", p.display()),
+        None => println!("GGML intended path: (no AppData)"),
+    }
+    println!("{}", stt::GGML_MEMORY_NOTE);
+    match stt::ensure_ggml_model(false) {
+        Ok(p) => println!("GGML present: {}", p.display()),
+        Err(e) => println!("GGML ensure (no download): {e}"),
+    }
     println!("IPC protocol v{PROTOCOL_VERSION}: StubVoiceServer ready");
     println!("Tip: pq-voice --ipc-tcp  (after pq-work --ipc-tcp) for localhost TCP spike");
 

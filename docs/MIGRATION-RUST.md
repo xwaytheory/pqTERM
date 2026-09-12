@@ -15,6 +15,15 @@ Phase 1 to **plan + szkielet** — bez zastępowania Electrona.
 
 ## English detail
 
+
+### Phase 2 progress (2026-09-13 overnight)
+
+- `pq-core::env`: `running_dev()`, `product_name()`, `user_data_dir()` (+ tests).
+- `pq-core::store`: lean `AppSnapshot` serde, `load_state` / `save_state` / tempfile roundtrip.
+  Provider merge vs `ENGINE_SPECS` still Electron-only (documented gap).
+- `NamedPipeTransport` stub in `pq-core::ipc` (path contract `\\.\pipe\pq-voice-{session}`); `LocalTcpTransport` kept.
+- Optional `pq-work` feature `pty-spike` (`portable-pty` ConPTY echo) — see `docs/PTY-SPIKE.md`.
+- Spike docs: `docs/TAURI-SPIKE.md`, parity board `docs/PARITY.md`, live `docs/workbench.html`.
 ### Goals of the migration
 
 Replace the Electron shell gradually with native Rust binaries while keeping feature parity:

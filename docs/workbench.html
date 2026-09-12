@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pq workbench — Rust migration</title>
+  <style>
+    :root { --bg:#0f1419; --card:#1a2332; --fg:#e7ecf3; --muted:#8b9bb4; --ok:#3dd68c; --warn:#f5a524; --accent:#6cb6ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:14px/1.45 system-ui,Segoe UI,sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:1.25rem 1.5rem; border-bottom:1px solid #243044; }
+    h1 { margin:0 0 .25rem; font-size:1.35rem; }
+    .meta { color:var(--muted); }
+    main { display:grid; gap:1rem; padding:1rem 1.5rem 2rem; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+    section { background:var(--card); border-radius:10px; padding:1rem 1.1rem; border:1px solid #243044; }
+    h2 { margin:0 0 .75rem; font-size:0.95rem; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; }
+    .bar { height:10px; background:#243044; border-radius:999px; overflow:hidden; }
+    .bar > i { display:block; height:100%; width:55%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
+    .pct { font-size:1.6rem; font-weight:700; margin:.35rem 0; }
+    ul { margin:.25rem 0 0; padding-left:1.1rem; }
+    li { margin:.2rem 0; }
+    .tag { display:inline-block; padding:.1rem .45rem; border-radius:999px; font-size:.75rem; background:#243044; color:var(--ok); }
+    .tag.warn { color:var(--warn); }
+    code { font-family:ui-monospace,Consolas,monospace; font-size:.85em; }
+    table { width:100%; border-collapse:collapse; font-size:.85rem; }
+    td, th { text-align:left; padding:.35rem .25rem; border-bottom:1px solid #243044; }
+    footer { padding:0 1.5rem 1.5rem; color:var(--muted); font-size:.85rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>pq workbench</h1>
+    <div class="meta">Electron → Rust migration · branch <code>feat/rust-phase1</code> · last update <strong>2026-09-13 00:25 PT</strong> (Europe/Warsaw)</div>
+  </header>
+  <main>
+    <section>
+      <h2>Stage</h2>
+      <div>Phase 2 overnight — env + store + pty spike + named-pipe stub</div>
+      <div class="pct">~55%</div>
+      <div class="bar" title="Phase 2 scaffolding"><i></i></div>
+      <p class="meta" style="margin-top:.75rem">Gauntlet verdict: <span class="tag">WARUNKOWO OK</span></p>
+    </section>
+    <section>
+      <h2>Plan (this slice)</h2>
+      <ul>
+        <li><code>pq-core::env</code> — done</li>
+        <li><code>pq-core::store</code> — done (merge gap)</li>
+        <li><code>pty-spike</code> feature — done</li>
+        <li><code>NamedPipeTransport</code> stub — done</li>
+        <li>TAURI / PARITY / workbench docs — done</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Decisions</h2>
+      <ul>
+        <li>Tauri = spike only, no lock-in</li>
+        <li>Electron store remains production writer</li>
+        <li>Keep <code>LocalTcpTransport</code>; named-pipe is stub</li>
+        <li>Local commits only — never push</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Risks</h2>
+      <ul>
+        <li><span class="tag warn">gap</span> ENGINE_SPECS provider merge not in Rust</li>
+        <li>ConPTY DSR / init noise across Windows builds</li>
+        <li>Do not point Rust <code>save_state</code> at live AppData yet</li>
+      </ul>
+    </section>
+    <section style="grid-column:1/-1">
+      <h2>Parity snapshot</h2>
+      <table>
+        <tr><th>Area</th><th>Status</th></tr>
+        <tr><td>env / store</td><td>done (lean)</td></tr>
+        <tr><td>IPC messages + TCP spike</td><td>stub</td></tr>
+        <tr><td>Named pipe</td><td>stub (path contract)</td></tr>
+        <tr><td>PTY manager</td><td>spike only</td></tr>
+        <tr><td>engines / auth / remote</td><td>planned</td></tr>
+        <tr><td>Tauri shell</td><td>doc spike</td></tr>
+      </table>
+    </section>
+    <section style="grid-column:1/-1">
+      <h2>Files (this run)</h2>
+      <ul>
+        <li><code>crates/pq-core/src/env.rs</code>, <code>store.rs</code>, <code>ipc.rs</code>, <code>lib.rs</code></li>
+        <li><code>crates/pq-work/src/pty_spike.rs</code>, <code>main.rs</code>, <code>Cargo.toml</code></li>
+        <li><code>docs/PTY-SPIKE.md</code>, <code>TAURI-SPIKE.md</code>, <code>PARITY.md</code>, <code>PORT-MAP.md</code>, <code>MIGRATION-RUST.md</code>, <code>workbench.md</code>, <code>workbench.html</code></li>
+      </ul>
+    </section>
+  </main>
+  <footer>Mirror of <code>docs/workbench.md</code>. Same-session Krytyk pq applied to env/store/pty. Electron <code>src/</code> untouched as production.</footer>
+</body>
+</html>
