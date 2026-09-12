@@ -29,8 +29,8 @@ function stamp(exe) {
     '--set-version-string', 'OriginalFilename', 'pq.exe',
     '--set-version-string', 'CompanyName', 'pq',
     '--set-version-string', 'LegalCopyright', 'pq',
-    '--set-product-version', '1.0.8',
-    '--set-file-version', '1.0.8'
+    '--set-product-version', '1.1.0',
+    '--set-file-version', '1.1.0'
   ]
   const r = spawnSync(rcedit, args, { stdio: 'inherit' })
   if (r.status !== 0) throw new Error('stamp failed for ' + exe)

@@ -1,12 +1,18 @@
 package app.pq.remote
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -18,8 +24,15 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -28,21 +41,50 @@ import java.util.concurrent.Executors
 class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
     private var web: WebView? = null
+    private var retryOverlay: LinearLayout? = null
+    private var pendingPermission: PermissionRequest? = null
     private val io = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.parseColor("#07080a")
-        window.navigationBarColor = Color.parseColor("#07080a")
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.parseColor("#07080a")),
+            navigationBarStyle = SystemBarStyle.dark(Color.parseColor("#07080a"))
+        )
         prefs = getSharedPreferences("pq", MODE_PRIVATE)
+        onBackPressedDispatcher.addCallback(this, backHandler)
         val url = prefs.getString("url", null)
         val token = prefs.getString("token", null)
         if (!url.isNullOrBlank() && !token.isNullOrBlank()) showWeb(url, token)
         else showPair()
     }
 
+    private val backHandler = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            val w = web
+            if (w != null && w.canGoBack()) {
+                w.goBack()
+                return
+            }
+            // keep the session alive — user returns without re-pairing/reloading
+            moveTaskToBack(true)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_MIC) {
+            val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            pendingPermission?.let {
+                if (granted) it.grant(it.resources) else it.deny()
+            }
+            pendingPermission = null
+        }
+    }
+
     private fun showPair(prefill: String? = null, err: String? = null) {
         web = null
+        retryOverlay = null
         val host = EditText(this).apply {
             hint = "https://….trycloudflare.com"
             setText(
@@ -149,9 +191,33 @@ class MainActivity : AppCompatActivity() {
         val webView = WebView(this)
         web = webView
         webView.setBackgroundColor(Color.parseColor("#07080a"))
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                val wantsAudio = request.resources.any { it == PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+                if (!wantsAudio) {
+                    request.deny()
+                    return
+                }
+                if (ContextCompat.checkSelfPermission(
+                        this@MainActivity,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    request.grant(request.resources)
+                } else {
+                    pendingPermission = request
+                    ActivityCompat.requestPermissions(
+                        this@MainActivity,
+                        arrayOf(Manifest.permission.RECORD_AUDIO),
+                        REQ_MIC
+                    )
+                }
+            }
+        }
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
+                hideRetry()
+                injectInsets(view)
                 view.evaluateJavascript(
                     "try{localStorage.setItem('pq-token', ${JSONObject.quote(token)})}catch(e){}",
                     null
@@ -163,10 +229,8 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest,
                 error: android.webkit.WebResourceError
             ) {
-                if (request.isForMainFrame) {
-                    prefs.edit().remove("token").apply()
-                    showPair(base, "nie widzę laptopa. pq włączone? ten sam adres z panelu TELEFON.")
-                }
+                // transient WAN/LAN blip — keep the pairing, offer a retry
+                if (request.isForMainFrame) showRetry(base)
             }
         }
         val s = webView.settings
@@ -180,6 +244,10 @@ class MainActivity : AppCompatActivity() {
             setTextColor(Color.parseColor("#39ffb6"))
             textSize = 12f
             setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#ed0c0e12"))
+                cornerRadius = dp(7).toFloat()
+            }
             setOnClickListener {
                 AlertDialog.Builder(this@MainActivity)
                     .setTitle("rozłączyć?")
@@ -210,18 +278,111 @@ class MainActivity : AppCompatActivity() {
                 }
             )
         }
+        retryOverlay = retryView(base).apply {
+            visibility = View.GONE
+        }
+        root.addView(
+            retryOverlay,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
         setContentView(root)
         webView.loadUrl("$base/?token=${java.net.URLEncoder.encode(token, "UTF-8")}")
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        val w = web
-        if (w != null && w.canGoBack()) {
-            w.goBack()
-            return
+    private fun retryView(base: String): LinearLayout {
+        val title = label("pq nie łączy", 15f, Color.parseColor("#d6deea"))
+        val msg = label("laptop/Internet niedostępny. Sprawdź, czy pq na laptopie jest włączone — połączenie wróci bez ponownego parowania.", 13f, Color.parseColor("#7a8494")).apply {
+            setLineSpacing(0f, 1.15f)
         }
-        super.onBackPressed()
+        val retry = Button(this).apply {
+            text = "spróbuj znowu"
+            setTextColor(Color.parseColor("#07080a"))
+            setBackgroundColor(Color.parseColor("#39ffb6"))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46))
+            setOnClickListener {
+                hideRetry()
+                web?.reload()
+            }
+        }
+        val other = Button(this).apply {
+            text = "inne pq"
+            setTextColor(Color.parseColor("#d6deea"))
+            setBackgroundColor(Color.parseColor("#0c0e12"))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46))
+            setOnClickListener {
+                prefs.edit().remove("token").apply()
+                showPair(base)
+            }
+        }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(22), dp(22), dp(22))
+            setBackgroundColor(Color.parseColor("#ed07080a"))
+            addView(title)
+            addView(spaceDp(10))
+            addView(msg, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(spaceDp(18))
+            addView(retry)
+            addView(spaceDp(10))
+            addView(other)
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            addView(
+                col,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+    }
+
+    private fun showRetry(base: String) {
+        val o = retryOverlay
+        if (o == null) {
+            retryOverlay = retryView(base)
+            val root = findContentView() ?: return
+            (root as? FrameLayout)?.addView(
+                retryOverlay,
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            )
+        }
+        retryOverlay?.visibility = View.VISIBLE
+    }
+
+    private fun hideRetry() {
+        retryOverlay?.visibility = View.GONE
+    }
+
+    /**
+     * Android WebView only feeds display-cutout areas into env(safe-area-inset-*);
+     * system-bar insets are not reported. Pass the real status/nav bars to the page
+     * as --sat/--sab CSS vars so the phone UI pads punch-holes and gesture navs exactly.
+     */
+    private fun injectInsets(view: WebView) {
+        val top: Int
+        val bottom: Int
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val insets = view.rootWindowInsets
+            top = insets?.getInsets(WindowInsets.Type.statusBars())?.top ?: 0
+            bottom = insets?.getInsets(WindowInsets.Type.systemBars())?.bottom ?: 0
+        } else {
+            val insets = ViewCompat.getRootWindowInsets(view)
+            top = insets?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+            bottom = insets?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+        }
+        view.evaluateJavascript(
+            "try{document.documentElement.style.setProperty('--sat','${top}px');" +
+                "document.documentElement.style.setProperty('--sab','${bottom}px')}catch(e){}",
+            null
+        )
+    }
+
+    private fun findContentView(): View? {
+        val d = window.decorView as? ViewGroup
+        return d?.getChildAt(0)
     }
 
     private fun pair(base: String, pin: String): Result<String> {
@@ -279,4 +440,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private const val REQ_MIC = 401
+    }
 }
