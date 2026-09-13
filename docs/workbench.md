@@ -7,7 +7,7 @@ Product HEAD: **3a06472** (voice-host StartListen + Status reader)
 - **Stage:** Phase 2 overnight locked for morning review (docs + `--help` honesty)
 - **Rough %:** ~95% Phase 2 scaffolding (product unchanged vs 3a06472)
 - **Branch:** feat/rust-phase1 (local commits only, no push)
-- **Base:** 3a06472 + this polish (NIGHT-REPORT + workbench stamp + pq-voice `--help`)
+- **Base:** 3a06472 + polish `6a1f879` (NIGHT-REPORT + workbench stamp + pq-voice `--help`)
 - **Gauntlet A/B:** CLOSED WARUNKOWO OK (Architecture + IPC; honest StartListen/Cancel; language default pl; no auto-enable; no before-quit read block)
 - **HTML board:** docs/workbench.html
 - **Night report:** docs/NIGHT-REPORT-DRAFT.md (PL, 07:00 Szef)
