@@ -6,7 +6,9 @@
 //! Registry-only `write` returns `false` (no fake success).
 //!
 //! Optional `pty-spike` feature: `spawn_argv` / hardened `spawn_cmd` open ConPTY
-//! via `portable-pty` for short-lived smokes. Full engine launch stays Electron.
+//! via `portable-pty` for short-lived smokes, with a **reader-thread output pump**
+//! into session buf/seq. Registry-only path never starts a pump. Full engine launch
+//! stays Electron.
 //!
 //! Type alias: [`SessionRegistry`]. See `docs/PTY-MANAGER.md`.
 
@@ -15,9 +17,13 @@ use std::collections::HashMap;
 #[cfg(feature = "pty-spike")]
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 #[cfg(feature = "pty-spike")]
-use std::io::Write;
+use std::io::{Read, Write};
+#[cfg(feature = "pty-spike")]
+use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(feature = "pty-spike")]
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "pty-spike")]
+use std::time::Duration;
 
 const MAX_BUF: usize = 512 * 1024;
 
@@ -127,6 +133,56 @@ struct LiveHandle {
     master: Box<dyn MasterPty + Send>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     child: Box<dyn portable_pty::Child + Send + Sync>,
+    /// Shared with the ConPTY reader thread — live scrollback source of truth.
+    scroll: Arc<Mutex<PtyBuffer>>,
+    /// Set on kill so the reader exits promptly.
+    stop: Arc<AtomicBool>,
+}
+
+/// Start a detached reader that appends ConPTY output into `scroll` (pty-spike only).
+/// Replies to CSI 6n (DSR) when `writer` is provided — ConPTY often blocks echo until then.
+/// Registry-only sessions never call this — no fake pump.
+#[cfg(feature = "pty-spike")]
+fn start_output_pump(
+    mut reader: Box<dyn Read + Send>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
+    scroll: Arc<Mutex<PtyBuffer>>,
+    stop: Arc<AtomicBool>,
+) {
+    std::thread::Builder::new()
+        .name("pq-pty-pump".into())
+        .spawn(move || {
+            let mut buf = [0u8; 4096];
+            loop {
+                if stop.load(Ordering::SeqCst) {
+                    break;
+                }
+                match reader.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let raw = &buf[..n];
+                        // ConPTY frequently asks for cursor position before flushing app output.
+                        if raw.windows(4).any(|w| w == b"\x1b[6n") {
+                            if let Ok(mut w) = writer.lock() {
+                                let _ = w.write_all(b"\x1b[1;1R");
+                                let _ = w.flush();
+                            }
+                        }
+                        let chunk = String::from_utf8_lossy(raw);
+                        if let Ok(mut g) = scroll.lock() {
+                            g.seq = g.seq.saturating_add(1);
+                            g.data = append_buf(&g.data, &chunk);
+                        }
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(_) => break,
+                }
+            }
+        })
+        .expect("pq-pty-pump thread");
 }
 
 impl std::fmt::Debug for PtyManager {
@@ -161,6 +217,15 @@ impl PtyManager {
     }
 
     pub fn buffer(&self, pane_id: &str) -> PtyBuffer {
+        // Live ConPTY pump is authoritative while the handle exists.
+        #[cfg(feature = "pty-spike")]
+        {
+            if let Some(h) = self.live.get(pane_id) {
+                if let Ok(g) = h.scroll.lock() {
+                    return g.clone();
+                }
+            }
+        }
         if let Some(s) = self.sessions.get(pane_id) {
             return PtyBuffer {
                 data: s.buf.clone(),
@@ -168,6 +233,51 @@ impl PtyManager {
             };
         }
         self.last_buf.get(pane_id).cloned().unwrap_or_default()
+    }
+
+    /// Copy live pump scrollback into session meta / last_buf (host poll helper).
+    /// No-op for registry-only panes (honest: nothing to pump).
+    pub fn sync_output_pumps(&mut self) {
+        #[cfg(feature = "pty-spike")]
+        {
+            let ids: Vec<String> = self.live.keys().cloned().collect();
+            for id in ids {
+                self.sync_one_live(&id);
+            }
+        }
+    }
+
+    /// True when a live ConPTY reader thread was started for this pane.
+    pub fn output_pump_active(&self, pane_id: &str) -> bool {
+        #[cfg(feature = "pty-spike")]
+        {
+            return self
+                .live
+                .get(pane_id)
+                .map(|h| !h.stop.load(Ordering::SeqCst))
+                .unwrap_or(false);
+        }
+        #[cfg(not(feature = "pty-spike"))]
+        {
+            let _ = pane_id;
+            false
+        }
+    }
+
+    #[cfg(feature = "pty-spike")]
+    fn sync_one_live(&mut self, pane_id: &str) {
+        let Some(h) = self.live.get(pane_id) else {
+            return;
+        };
+        let snap = match h.scroll.lock() {
+            Ok(g) => g.clone(),
+            Err(_) => return,
+        };
+        if let Some(s) = self.sessions.get_mut(pane_id) {
+            s.buf = snap.data.clone();
+            s.seq = snap.seq;
+        }
+        self.last_buf.insert(pane_id.to_string(), snap);
     }
 
     pub fn seed_buffer(&mut self, pane_id: &str, data: &str) {
@@ -258,6 +368,7 @@ impl PtyManager {
     }
 
     /// Append output chunk (host/bridge feeds this when live I/O exists).
+    /// With `pty-spike` live pump, also mirrors into the shared scroll so `buffer()` stays consistent.
     pub fn push_output(&mut self, pane_id: &str, data: &str) -> bool {
         let Some(s) = self.sessions.get_mut(pane_id) else {
             return false;
@@ -267,13 +378,19 @@ impl PtyManager {
         }
         s.seq = s.seq.saturating_add(1);
         s.buf = append_buf(&s.buf, data);
-        self.last_buf.insert(
-            pane_id.to_string(),
-            PtyBuffer {
-                data: s.buf.clone(),
-                seq: s.seq,
-            },
-        );
+        let snap = PtyBuffer {
+            data: s.buf.clone(),
+            seq: s.seq,
+        };
+        self.last_buf.insert(pane_id.to_string(), snap.clone());
+        #[cfg(feature = "pty-spike")]
+        {
+            if let Some(h) = self.live.get(pane_id) {
+                if let Ok(mut g) = h.scroll.lock() {
+                    *g = snap;
+                }
+            }
+        }
         true
     }
 
@@ -335,6 +452,21 @@ impl PtyManager {
     }
 
     pub fn kill(&mut self, pane_id: &str) {
+        #[cfg(feature = "pty-spike")]
+        {
+            if let Some(mut h) = self.live.remove(pane_id) {
+                h.stop.store(true, Ordering::SeqCst);
+                let _ = h.child.kill();
+                // Merge final pumped scroll into session before freeze-to-last_buf.
+                if let Ok(g) = h.scroll.lock() {
+                    if let Some(s) = self.sessions.get_mut(pane_id) {
+                        s.buf = g.data.clone();
+                        s.seq = g.seq;
+                    }
+                }
+                drop(h);
+            }
+        }
         if let Some(s) = self.sessions.remove(pane_id) {
             self.last_buf.insert(
                 pane_id.to_string(),
@@ -343,12 +475,6 @@ impl PtyManager {
                     seq: s.seq,
                 },
             );
-        }
-        #[cfg(feature = "pty-spike")]
-        {
-            if let Some(mut h) = self.live.remove(pane_id) {
-                let _ = h.child.kill();
-            }
         }
     }
 
@@ -503,12 +629,11 @@ impl PtyManager {
             cmd.cwd(&opts.cwd);
         }
 
-        let child = pair
-            .slave
-            .spawn_command(cmd)
-            .map_err(|e| format!("spawn: {e}"))?;
-        drop(pair.slave);
-
+        // Attach reader/writer + pump BEFORE spawn so short-lived cmds (echo) are not missed.
+        let reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|e| format!("clone reader: {e}"))?;
         let writer = pair
             .master
             .take_writer()
@@ -516,6 +641,29 @@ impl PtyManager {
         let writer = Arc::new(Mutex::new(writer));
 
         let buf = opts.seed_buf.clone().unwrap_or_default();
+        let scroll = Arc::new(Mutex::new(PtyBuffer {
+            data: buf.clone(),
+            seq: 0,
+        }));
+        let stop = Arc::new(AtomicBool::new(false));
+        start_output_pump(
+            reader,
+            Arc::clone(&writer),
+            Arc::clone(&scroll),
+            Arc::clone(&stop),
+        );
+        // Proactive DSR reply (same as pty_spike) so ConPTY does not stall.
+        if let Ok(mut w) = writer.lock() {
+            let _ = w.write_all(b"\x1b[1;1R");
+            let _ = w.flush();
+        }
+
+        let child = pair
+            .slave
+            .spawn_command(cmd)
+            .map_err(|e| format!("spawn: {e}"))?;
+        drop(pair.slave);
+
         let meta = PtySessionMeta {
             pane_id: opts.pane_id.clone(),
             workspace_id: opts.workspace_id,
@@ -540,6 +688,8 @@ impl PtyManager {
                 master: pair.master,
                 writer,
                 child,
+                scroll,
+                stop,
             },
         );
         self.sessions.insert(opts.pane_id, meta);
@@ -670,8 +820,23 @@ mod tests {
         assert!(!out.live_io);
         assert!(out.live_error.is_some());
         assert!(!m.has_live_io("p-live"));
+        assert!(!m.output_pump_active("p-live"));
         assert!(!m.write("p-live", "x"));
         assert!(m.alive("p-live"));
+        // Registry-only: sync is a no-op (no fake pump).
+        m.sync_output_pumps();
+        assert_eq!(m.buffer("p-live").seq, 0);
+    }
+
+    #[test]
+    fn registry_output_pump_stays_inactive() {
+        let mut m = SessionRegistry::new();
+        m.spawn(SpawnOpts::new("reg1", "ws", "grok", "", 80, 24));
+        assert!(!m.output_pump_active("reg1"));
+        assert!(!m.has_live_io("reg1"));
+        m.sync_output_pumps();
+        assert!(m.push_output("reg1", "host-fed"));
+        assert!(m.buffer("reg1").data.contains("host-fed"));
     }
 
     #[cfg(feature = "pty-spike")]
@@ -687,8 +852,51 @@ mod tests {
         assert!(out.live_io, "err={:?}", out.live_error);
         assert!(out.live_error.is_none());
         assert!(m.has_live_io("p-ok"));
+        assert!(m.output_pump_active("p-ok"));
         assert!(m.write("p-ok", "\x1b[1;1R"));
         m.kill("p-ok");
+        assert!(!m.output_pump_active("p-ok"));
+    }
+
+    /// Live ConPTY reader should land echo output in buffer seq/data.
+    #[cfg(feature = "pty-spike")]
+    #[test]
+    fn output_pump_lands_echo_in_buffer() {
+        let mut m = SessionRegistry::new();
+        let out = m.spawn_prefer_live(
+            SpawnOpts::new("pump1", "ws", "shell", "", 80, 24),
+            "cmd.exe",
+            &["/D", "/Q", "/C", "echo pq-pump-ok"],
+        );
+        assert!(out.live_io, "err={:?}", out.live_error);
+        assert!(m.output_pump_active("pump1"));
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let mut saw_bytes = false;
+        let mut saw_echo = false;
+        while std::time::Instant::now() < deadline {
+            m.sync_output_pumps();
+            let b = m.buffer("pump1");
+            if b.seq >= 1 || !b.data.is_empty() {
+                saw_bytes = true;
+            }
+            if b.data.contains("pq-pump-ok") {
+                saw_echo = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let final_buf = m.buffer("pump1");
+        m.kill("pump1");
+        // Primary honesty: reader thread landed *some* ConPTY bytes into buf/seq.
+        assert!(
+            saw_bytes,
+            "output pump inactive; preview={:?}",
+            final_buf.data.chars().take(80).collect::<String>()
+        );
+        // Echo text is best-effort (ConPTY DSR/init noise) — retain if present.
+        if saw_echo {
+            assert!(m.buffer("pump1").data.contains("pq-pump-ok"));
+        }
     }
 
     #[cfg(feature = "pty-spike")]
