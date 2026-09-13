@@ -4,7 +4,7 @@
 //! Electron `src/` remains the production app until a later phase.
 //!
 //! IPC: owns StubWorkClient (StartListen / Cancel â†’ voice; receives Transcript / Status).
-//! Spike: `--ipc-tcp [addr]` listens on localhost TCP JSON-lines (Transport spike, not production IPC).
+//! Spike: `--ipc-tcp [addr]` localhost TCP; `--ipc-pipe [session]` Windows named-pipe JSON-lines.
 
 mod pty_manager;
 
@@ -14,8 +14,9 @@ use std::path::PathBuf;
 mod pty_spike;
 
 use pq_core::ipc::{
-    local_tcp_ipc_demo, stub_loopback_demo, IpcMessage, IpcSink, LocalTcpTransport, StubWorkClient,
-    Transport, VoiceIpcFlow, DEFAULT_TCP_ADDR, PROTOCOL_VERSION,
+    local_tcp_ipc_demo, stub_loopback_demo, IpcMessage, IpcSink, LocalTcpTransport,
+    NamedPipeTransport, StubWorkClient, Transport, VoiceIpcFlow, DEFAULT_TCP_ADDR,
+    PROTOCOL_VERSION,
 };
 use pq_core::{
     fetch_manifest, offer_from_manifest, CheckOnLaunchPlan, FileManifestFetch,
@@ -42,6 +43,13 @@ fn main() {
     if let Some(addr) = ipc_tcp_addr(&args) {
         if let Err(e) = run_ipc_tcp_demo(&addr) {
             eprintln!("ipc-tcp: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if let Some(session) = ipc_pipe_session(&args) {
+        if let Err(e) = run_ipc_pipe_demo(&session) {
+            eprintln!("ipc-pipe: {e}");
             std::process::exit(1);
         }
         return;
@@ -82,6 +90,7 @@ fn main() {
         "IPC protocol v{PROTOCOL_VERSION}: StubWorkClient + MemoryChannelStub (not production Transport)"
     );
     println!("Tip: pq-work --ipc-tcp  (then pq-voice --ipc-tcp) for localhost TCP Transport spike (demo only)");
+    println!("Tip: pq-work --ipc-pipe  (then pq-voice --ipc-pipe) for Windows named-pipe spike");
 
     let plan = CheckOnLaunchPlan::default();
     println!(
@@ -240,6 +249,69 @@ fn run_check_update(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+
+fn ipc_pipe_session(args: &[String]) -> Option<String> {
+    for (i, a) in args.iter().enumerate() {
+        if a == "--ipc-pipe" {
+            return Some(
+                args
+                    .get(i + 1)
+                    .filter(|p| !p.starts_with('-'))
+                    .cloned()
+                    .unwrap_or_else(|| format!("demo-{}", std::process::id())),
+            );
+        }
+    }
+    None
+}
+
+/// Listen on named pipe; wait for voice; StartListen then print Transcript.
+fn run_ipc_pipe_demo(session: &str) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(not(windows))]
+    {
+        let _ = session;
+        return Err("NamedPipeTransport requires Windows (use --ipc-tcp / --ipc-demo)".into());
+    }
+    #[cfg(windows)]
+    {
+        println!(
+            "pq-work {WORKSPACE_VERSION} ipc-pipe listen session={session}"
+        );
+        println!("waiting for pq-voice --ipc-pipe {session} ...");
+        let mut transport = NamedPipeTransport::listen(session)?;
+        println!("peer connected ({})", transport.kind());
+
+        let mut work = StubWorkClient::default();
+        work.start_listen(session)?;
+        for msg in work.channel.take_outbound() {
+            transport.send(msg)?;
+            println!("-> StartListen");
+        }
+
+        loop {
+            let msg = transport.recv_line_blocking()?;
+            match &msg {
+                IpcMessage::Transcript(tr) => {
+                    println!(
+                        "<- Transcript final={} text={:?}",
+                        tr.is_final, tr.text
+                    );
+                }
+                IpcMessage::Status(s) => {
+                    println!("<- Status {:?} {:?}", s.state, s.detail);
+                }
+                other => println!("<- {other:?}"),
+            }
+            work.handle_from_voice(msg)?;
+            if work.transcripts.iter().any(|tr| tr.is_final) {
+                break;
+            }
+        }
+        println!("ipc-pipe demo ok");
+        Ok(())
+    }
+}
+
 fn print_help() {
     println!(
         "pq-work {WORKSPACE_VERSION}\n\n\
@@ -252,6 +324,7 @@ fn print_help() {
              --ipc-demo              In-process LocalTcpTransport e2e (shared IPC types)\n\
              --ipc-tcp [ADDR]        Listen for voice on localhost TCP JSON-lines\n\
                                      (default {DEFAULT_TCP_ADDR})\n\
+             --ipc-pipe [SESSION]    Windows named-pipe listen \\\\.\\pipe\\pq-voice-{{session}}\n\
              --pty-spike             ConPTY echo spike (needs --features pty-spike)\n\n\
          Phase 2: IPC stubs + TCP/named-pipe Transport + optional pty-spike. See docs/MIGRATION-RUST.md."
     );

@@ -32,6 +32,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 | ~02:30 | 8f19da7 | resolve-launch / trust / providers szkice, `rust-smoke.cmd`, NIGHT-REPORT, workbench |
 | ~02:45 | slice10 | SessionRegistry output pump + phone PqStt→WS glue, workbench 87% |
 | ~02:50 | fixture-io | Injectable resume/providers fixture I/O (no live AppData), workbench ~89% |
+| ~02:55 | named-pipe | Real Windows NamedPipeTransport JSON-line + `--ipc-pipe`, workbench ~91% |
 
 ---
 
@@ -50,8 +51,8 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 ## 4. Co jest w Rust (fakty)
 
 **Zrobione (lean / stub / sketch):**
-- `pq-core`: env, store, engines+merge, version, updater fixtures, IPC (Memory + LocalTcp + named-pipe path contract), stt probe (bez download), auth/remote/board deepen, resume/usage/sync types, **resolve-launch / trust / providers** (pure helpers + **fixture I/O**)
-- `pq-work`: SessionRegistry + opcjonalny ConPTY prefer-live, `--help` / `--check-update` / `--ipc-demo` / `--ipc-tcp`
+- `pq-core`: env, store, engines+merge, version, updater fixtures, IPC (Memory + LocalTcp + **NamedPipeTransport Windows real**), stt probe (bez download), auth/remote/board deepen, resume/usage/sync types, **resolve-launch / trust / providers** (pure helpers + **fixture I/O**)
+- `pq-work`: SessionRegistry + opcjonalny ConPTY prefer-live, `--help` / `--check-update` / `--ipc-demo` / `--ipc-tcp` / **`--ipc-pipe`**
 - `pq-voice`: `--listen` skeleton (probe GGML), `--ipc-demo`, bez whisper.cpp
 - Docs: PORT-MAP, PARITY, VOICE-HOST-BRIDGE, ANDROID-STT, workbench
 
@@ -113,4 +114,24 @@ Noc dowiozła **rusztowanie Phase 2** i dokumentację pod poranny przegląd. Pro
 **Świadomie nie:**
 - Brak skanu żywych katalogów opencode/omp
 - Brak zapisu do `%APPDATA%\pq`
+- Brak GGML / npm dist
+
+
+---
+
+## Wave — NamedPipeTransport Windows JSON-line (~02:55 PT)
+
+**Cel:** zamiana stubu `NamedPipeTransport` na minimalny real Windows named-pipe (JSON-line) work↔voice.
+
+**Dostarczone:**
+- `pq-core::ipc`: real `CreateNamedPipeW` / `CreateFileW` + `encode_line`/`decode_line`; `kind()` = `named-pipe` vs `named-pipe-stub`
+- `sanitize_pipe_session_id` + `named_pipe_path_checked`
+- `named_pipe_loopback_demo` (cross-process PowerShell peer — same-process CreateFile↔ConnectNamedPipe deadlock omijany uczciwie)
+- CLI: `pq-work --ipc-pipe` (listen) / `pq-voice --ipc-pipe` (connect)
+- Docs: PARITY / workbench / ten wave
+- Gauntlet Architecture + IPC/security → **WARUNKOWO OK** (ACL = default creator DACL, lokalny demo; nie multi-user hardened)
+
+**Świadomie nie:**
+- Brak tokio / ciężkich crate'ów (raw `kernel32` FFI)
+- Brak hardened pipe ACL / Electron spawn cutover
 - Brak GGML / npm dist

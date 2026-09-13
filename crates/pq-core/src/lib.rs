@@ -51,11 +51,12 @@ pub use resolve_launch::{
     yolo_env, FsExists, LaunchPlan, PathExists,
 };
 pub use ipc::{
-    decode_line, encode_line, local_tcp_ipc_demo, stub_loopback_demo, tcp_loopback_demo,
-    voice_exe_candidates, Cancel, DuplexEndpoint, IpcError, IpcMessage, IpcSink, LocalTcpTransport,
-    LocalWsTransport, MemoryChannelStub, NamedPipeTransport, StartListen, Status, StubVoiceServer,
-    StubWorkClient, Transcript, Transport, VoiceHostSpawnPlan, VoiceIpcFlow, VoiceState,
-    named_pipe_path, DEFAULT_TCP_ADDR, PIPE_NAME_PREFIX, PROTOCOL_VERSION, VOICE_EXE_NAME,
+    decode_line, encode_line, local_tcp_ipc_demo, named_pipe_loopback_demo, stub_loopback_demo,
+    tcp_loopback_demo, voice_exe_candidates, Cancel, DuplexEndpoint, IpcError, IpcMessage, IpcSink,
+    LocalTcpTransport, LocalWsTransport, MemoryChannelStub, NamedPipeTransport, StartListen, Status,
+    StubVoiceServer, StubWorkClient, Transcript, Transport, VoiceHostSpawnPlan, VoiceIpcFlow,
+    VoiceState, named_pipe_path, named_pipe_path_checked, sanitize_pipe_session_id, DEFAULT_TCP_ADDR,
+    PIPE_NAME_PREFIX, PIPE_SESSION_ID_MAX, PROTOCOL_VERSION, VOICE_EXE_NAME,
 };
 pub use remote::{
     mime_for_ext, PairRateLimit, RemoteCommand, RemoteHubStub, RemoteInfo, RemotePersist,

@@ -1,8 +1,8 @@
 //! IPC protocol stubs between pq-work and pq-voice (Phase 2 overnight slice).
 //!
 //! [`MemoryChannelStub`] is an **in-process test/demo stub only** — not production IPC.
-//! Real transports later implement [`Transport`]: named pipe `\\.\pipe\pq-voice-{session}`
-//! or loopback WebSocket `ws://127.0.0.1:<ephemeral>`.
+//! Transports implementing [`Transport`]: named pipe `\\.\pipe\pq-voice-{session}`
+//! (real on Windows; stub elsewhere), `LocalTcpTransport`, or loopback WebSocket stand-in.
 //!
 //! Work → voice: StartListen, Cancel
 //! Voice → work: Transcript, Status
@@ -497,74 +497,627 @@ pub fn stub_loopback_demo() -> Result<(Vec<IpcMessage>, Vec<Transcript>), IpcErr
 /// Production pipe name prefix: `\\.\pipe\pq-voice-{session}`.
 pub const PIPE_NAME_PREFIX: &str = r"\\.\pipe\pq-voice-";
 
+/// Max session id length for pipe path safety.
+pub const PIPE_SESSION_ID_MAX: usize = 64;
+
+/// Sanitize a voice session id for use in a Windows named-pipe path.
+///
+/// Allows ASCII alphanumeric, `-`, `_` only (rejects path separators / spaces).
+pub fn sanitize_pipe_session_id(session_id: &str) -> Result<&str, IpcError> {
+    if session_id.is_empty() {
+        return Err(IpcError::Other("empty pipe session id".into()));
+    }
+    if session_id.len() > PIPE_SESSION_ID_MAX {
+        return Err(IpcError::Other(format!(
+            "pipe session id longer than {PIPE_SESSION_ID_MAX}"
+        )));
+    }
+    if !session_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(IpcError::Other(
+            "pipe session id must be ASCII alphanumeric, '-' or '_'".into(),
+        ));
+    }
+    Ok(session_id)
+}
+
 /// Build the Windows named-pipe path for a voice session id.
+///
+/// Panics are avoided: invalid ids return a best-effort path only via
+/// [`named_pipe_path_checked`]. Prefer the checked variant for demos.
 pub fn named_pipe_path(session_id: &str) -> String {
     format!("{PIPE_NAME_PREFIX}{session_id}")
 }
 
-/// Compile-safe **stub** for Windows named-pipe IPC (production intent).
+/// Build pipe path after sanitizing the session id.
+pub fn named_pipe_path_checked(session_id: &str) -> Result<String, IpcError> {
+    let id = sanitize_pipe_session_id(session_id)?;
+    Ok(named_pipe_path(id))
+}
+
+/// Windows named-pipe JSON-line transport (production intent for work ↔ voice).
 ///
-/// Does **not** open a real pipe yet — `connect` / `listen` record the path and
-/// `send` / `try_recv` return [`IpcError::NotConnected`] until a later phase wires
-/// `std::os::windows::io` / `winapi` / `tokio` named pipes.
+/// On **Windows**, [`Self::listen`] / [`Self::connect`] open a real duplex byte pipe
+/// at `\\.\pipe\pq-voice-{session}` and frame with [`encode_line`] / [`decode_line`].
+/// On non-Windows, the type remains a compile-safe stub (`kind` = `named-pipe-stub`).
 ///
-/// Kept alongside [`LocalTcpTransport`] (demo) and [`MemoryChannelStub`] (tests).
-#[derive(Debug, Clone)]
+/// Default pipe ACL (creator default DACL) is OK for same-user local demos — not a
+/// hardened multi-user security boundary.
 pub struct NamedPipeTransport {
     /// Full pipe path, e.g. `\\.\pipe\pq-voice-sess1`.
     pub pipe_path: String,
-    /// Whether a peer handshake was simulated (stub never truly connects).
+    #[cfg(windows)]
+    inner: Option<win_pipe::PipeInner>,
+    #[cfg(not(windows))]
     connected: bool,
 }
 
+#[cfg(windows)]
+mod win_pipe {
+    use super::{decode_line, encode_line, IpcError, IpcMessage};
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
+    use std::ptr;
+    use std::time::Duration;
+
+    type HANDLE = *mut std::ffi::c_void;
+    type DWORD = u32;
+    type BOOL = i32;
+
+    const INVALID_HANDLE_VALUE: isize = -1;
+    const PIPE_ACCESS_DUPLEX: DWORD = 0x0000_0003;
+    const FILE_FLAG_FIRST_PIPE_INSTANCE: DWORD = 0x0008_0000;
+    const PIPE_TYPE_BYTE: DWORD = 0x0000_0000;
+    const PIPE_READMODE_BYTE: DWORD = 0x0000_0000;
+    const PIPE_WAIT: DWORD = 0x0000_0000;
+    const GENERIC_READ: DWORD = 0x8000_0000;
+    const GENERIC_WRITE: DWORD = 0x4000_0000;
+    const OPEN_EXISTING: DWORD = 3;
+    const FILE_ATTRIBUTE_NORMAL: DWORD = 0x80;
+    const ERROR_PIPE_CONNECTED: DWORD = 535;
+    const ERROR_PIPE_BUSY: DWORD = 231;
+    const ERROR_NO_DATA: DWORD = 232;
+    const ERROR_BROKEN_PIPE: DWORD = 109;
+    const ERROR_PIPE_NOT_CONNECTED: DWORD = 233;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateNamedPipeW(
+            name: *const u16,
+            open_mode: DWORD,
+            pipe_mode: DWORD,
+            max_instances: DWORD,
+            out_buf: DWORD,
+            in_buf: DWORD,
+            default_timeout: DWORD,
+            security: *mut std::ffi::c_void,
+        ) -> HANDLE;
+        fn ConnectNamedPipe(handle: HANDLE, overlapped: *mut std::ffi::c_void) -> BOOL;
+        fn CreateFileW(
+            name: *const u16,
+            access: DWORD,
+            share: DWORD,
+            security: *mut std::ffi::c_void,
+            creation: DWORD,
+            flags: DWORD,
+            template: HANDLE,
+        ) -> HANDLE;
+        fn ReadFile(
+            handle: HANDLE,
+            buf: *mut u8,
+            to_read: DWORD,
+            read: *mut DWORD,
+            overlapped: *mut std::ffi::c_void,
+        ) -> BOOL;
+        fn WriteFile(
+            handle: HANDLE,
+            buf: *const u8,
+            to_write: DWORD,
+            written: *mut DWORD,
+            overlapped: *mut std::ffi::c_void,
+        ) -> BOOL;
+        fn PeekNamedPipe(
+            handle: HANDLE,
+            buf: *mut u8,
+            buf_size: DWORD,
+            bytes_read: *mut DWORD,
+            total_avail: *mut DWORD,
+            bytes_left: *mut DWORD,
+        ) -> BOOL;
+        fn FlushFileBuffers(handle: HANDLE) -> BOOL;
+        fn WaitNamedPipeW(name: *const u16, timeout_ms: DWORD) -> BOOL;
+        fn DisconnectNamedPipe(handle: HANDLE) -> BOOL;
+        fn GetLastError() -> DWORD;
+        fn CancelIoEx(handle: HANDLE, overlapped: *mut std::ffi::c_void) -> BOOL;
+    }
+
+    fn to_wide(path: &str) -> Vec<u16> {
+        use std::os::windows::ffi::OsStrExt;
+        std::ffi::OsStr::new(path)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
+    }
+
+    fn last_err() -> String {
+        format!("win32 error {}", unsafe { GetLastError() })
+    }
+
+    pub struct PipeInner {
+        handle: OwnedHandle,
+        buf: Vec<u8>,
+        is_server: bool,
+    }
+
+    impl Drop for PipeInner {
+        fn drop(&mut self) {
+            if self.is_server {
+                unsafe {
+                    let _ = DisconnectNamedPipe(self.handle.as_raw_handle() as HANDLE);
+                }
+            }
+        }
+    }
+
+    impl PipeInner {
+        pub fn create_server(pipe_path: &str) -> Result<Self, IpcError> {
+            let wide = to_wide(pipe_path);
+            let handle = unsafe {
+                CreateNamedPipeW(
+                    wide.as_ptr(),
+                    PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+                    PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+                    1,
+                    4096,
+                    4096,
+                    5000,
+                    ptr::null_mut(),
+                )
+            };
+            if handle as isize == INVALID_HANDLE_VALUE {
+                return Err(IpcError::Transport(format!(
+                    "CreateNamedPipeW({pipe_path}): {}",
+                    last_err()
+                )));
+            }
+            let owned = unsafe { OwnedHandle::from_raw_handle(handle as RawHandle) };
+            Ok(Self {
+                handle: owned,
+                buf: Vec::new(),
+                is_server: true,
+            })
+        }
+
+        pub fn accept(&mut self) -> Result<(), IpcError> {
+            let ok = unsafe {
+                ConnectNamedPipe(self.handle.as_raw_handle() as HANDLE, ptr::null_mut())
+            };
+            if ok == 0 {
+                let err = unsafe { GetLastError() };
+                if err != ERROR_PIPE_CONNECTED {
+                    return Err(IpcError::Transport(format!(
+                        "ConnectNamedPipe: win32 error {err}"
+                    )));
+                }
+            }
+            Ok(())
+        }
+
+        pub fn listen(pipe_path: &str) -> Result<Self, IpcError> {
+            let mut s = Self::create_server(pipe_path)?;
+            s.accept()?;
+            Ok(s)
+        }
+
+        pub fn connect(pipe_path: &str, attempts: u32) -> Result<Self, IpcError> {
+            let wide = to_wide(pipe_path);
+            let mut last = String::new();
+            for attempt in 1..=attempts {
+                unsafe {
+                    let _ = WaitNamedPipeW(wide.as_ptr(), 100);
+                }
+                let handle = unsafe {
+                    CreateFileW(
+                        wide.as_ptr(),
+                        GENERIC_READ | GENERIC_WRITE,
+                        0,
+                        ptr::null_mut(),
+                        OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL,
+                        ptr::null_mut(),
+                    )
+                };
+                if handle as isize != INVALID_HANDLE_VALUE {
+                    let owned = unsafe { OwnedHandle::from_raw_handle(handle as RawHandle) };
+                    return Ok(Self {
+                        handle: owned,
+                        buf: Vec::new(),
+                        is_server: false,
+                    });
+                }
+                let err = unsafe { GetLastError() };
+                last = format!("CreateFileW attempt {attempt}: win32 error {err}");
+                if err == ERROR_PIPE_BUSY || err == 2 {
+                    std::thread::sleep(Duration::from_millis(25));
+                    continue;
+                }
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            Err(IpcError::Transport(last))
+        }
+
+        pub fn send(&mut self, msg: &IpcMessage) -> Result<(), IpcError> {
+            let mut line = encode_line(msg)?;
+            line.push('\n');
+            let bytes = line.as_bytes();
+            let mut written: DWORD = 0;
+            let ok = unsafe {
+                WriteFile(
+                    self.handle.as_raw_handle() as HANDLE,
+                    bytes.as_ptr(),
+                    bytes.len() as DWORD,
+                    &mut written,
+                    ptr::null_mut(),
+                )
+            };
+            if ok == 0 {
+                return Err(IpcError::Transport(format!("WriteFile: {}", last_err())));
+            }
+            unsafe {
+                let _ = FlushFileBuffers(self.handle.as_raw_handle() as HANDLE);
+            }
+            Ok(())
+        }
+
+        fn drain_one_line(&mut self) -> Result<Option<IpcMessage>, IpcError> {
+            if let Some(pos) = self.buf.iter().position(|b| *b == b'\n') {
+                let line = self.buf.drain(..=pos).collect::<Vec<u8>>();
+                let s = String::from_utf8_lossy(&line);
+                return Ok(Some(decode_line(&s)?));
+            }
+            Ok(None)
+        }
+
+        pub fn try_recv(&mut self) -> Result<Option<IpcMessage>, IpcError> {
+            if let Some(msg) = self.drain_one_line()? {
+                return Ok(Some(msg));
+            }
+            let mut avail: DWORD = 0;
+            let peek_ok = unsafe {
+                PeekNamedPipe(
+                    self.handle.as_raw_handle() as HANDLE,
+                    ptr::null_mut(),
+                    0,
+                    ptr::null_mut(),
+                    &mut avail,
+                    ptr::null_mut(),
+                )
+            };
+            if peek_ok == 0 {
+                let err = unsafe { GetLastError() };
+                if err == ERROR_BROKEN_PIPE
+                    || err == ERROR_PIPE_NOT_CONNECTED
+                    || err == ERROR_NO_DATA
+                {
+                    return Err(IpcError::Transport("peer closed".into()));
+                }
+                return Ok(None);
+            }
+            if avail == 0 {
+                return Ok(None);
+            }
+            let to_read = avail.min(4096);
+            let mut chunk = vec![0u8; to_read as usize];
+            let mut read: DWORD = 0;
+            let ok = unsafe {
+                ReadFile(
+                    self.handle.as_raw_handle() as HANDLE,
+                    chunk.as_mut_ptr(),
+                    to_read,
+                    &mut read,
+                    ptr::null_mut(),
+                )
+            };
+            if ok == 0 {
+                let err = unsafe { GetLastError() };
+                if err == ERROR_BROKEN_PIPE || err == ERROR_NO_DATA {
+                    return Err(IpcError::Transport("peer closed".into()));
+                }
+                return Err(IpcError::Transport(format!("ReadFile: win32 error {err}")));
+            }
+            if read == 0 {
+                return Err(IpcError::Transport("peer closed".into()));
+            }
+            self.buf.extend_from_slice(&chunk[..read as usize]);
+            self.drain_one_line()
+        }
+
+        pub fn recv_line_blocking(&mut self) -> Result<IpcMessage, IpcError> {
+            loop {
+                if let Some(msg) = self.drain_one_line()? {
+                    return Ok(msg);
+                }
+                let mut chunk = [0u8; 1024];
+                let mut read: DWORD = 0;
+                let ok = unsafe {
+                    ReadFile(
+                        self.handle.as_raw_handle() as HANDLE,
+                        chunk.as_mut_ptr(),
+                        chunk.len() as DWORD,
+                        &mut read,
+                        ptr::null_mut(),
+                    )
+                };
+                if ok == 0 {
+                    let err = unsafe { GetLastError() };
+                    if err == ERROR_BROKEN_PIPE || err == ERROR_NO_DATA {
+                        return Err(IpcError::Transport("peer closed".into()));
+                    }
+                    return Err(IpcError::Transport(format!("ReadFile: win32 error {err}")));
+                }
+                if read == 0 {
+                    return Err(IpcError::Transport("peer closed".into()));
+                }
+                self.buf.extend_from_slice(&chunk[..read as usize]);
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    fn _cancel_io(handle: &OwnedHandle) {
+        unsafe {
+            let _ = CancelIoEx(handle.as_raw_handle() as HANDLE, ptr::null_mut());
+        }
+    }
+}
+
 impl NamedPipeTransport {
-    /// Prepare a client-side stub targeting `\\.\pipe\pq-voice-{session}`.
+    /// Prepare a client-side stub targeting `\\.\pipe\pq-voice-{session}` (no OS I/O).
     pub fn connect_stub(session_id: impl AsRef<str>) -> Self {
         Self {
             pipe_path: named_pipe_path(session_id.as_ref()),
+            #[cfg(windows)]
+            inner: None,
+            #[cfg(not(windows))]
             connected: false,
         }
     }
 
-    /// Prepare a server-side stub that would create the same pipe path.
+    /// Prepare a server-side stub that would create the same pipe path (no OS I/O).
     pub fn listen_stub(session_id: impl AsRef<str>) -> Self {
         Self::connect_stub(session_id)
     }
 
     /// Mark stub as "connected" for contract tests (no OS pipe).
     pub fn mark_connected_for_test(&mut self) {
-        self.connected = true;
+        #[cfg(not(windows))]
+        {
+            self.connected = true;
+        }
+        let _ = self;
     }
 
     pub fn is_connected(&self) -> bool {
-        self.connected
+        #[cfg(windows)]
+        {
+            self.inner.is_some()
+        }
+        #[cfg(not(windows))]
+        {
+            self.connected
+        }
+    }
+
+    /// Server: create `\\.\pipe\pq-voice-{session}` and block until a client connects.
+    #[cfg(windows)]
+    pub fn listen(session_id: impl AsRef<str>) -> Result<Self, IpcError> {
+        let path = named_pipe_path_checked(session_id.as_ref())?;
+        let inner = win_pipe::PipeInner::listen(&path)?;
+        Ok(Self {
+            pipe_path: path,
+            inner: Some(inner),
+        })
+    }
+
+    /// Client: open an existing pipe (retries briefly while the server comes up).
+    #[cfg(windows)]
+    pub fn connect(session_id: impl AsRef<str>) -> Result<Self, IpcError> {
+        let path = named_pipe_path_checked(session_id.as_ref())?;
+        let inner = win_pipe::PipeInner::connect(&path, 80)?;
+        Ok(Self {
+            pipe_path: path,
+            inner: Some(inner),
+        })
+    }
+
+    #[cfg(not(windows))]
+    pub fn listen(_session_id: impl AsRef<str>) -> Result<Self, IpcError> {
+        Err(IpcError::Transport(
+            "NamedPipeTransport::listen requires Windows".into(),
+        ))
+    }
+
+    #[cfg(not(windows))]
+    pub fn connect(_session_id: impl AsRef<str>) -> Result<Self, IpcError> {
+        Err(IpcError::Transport(
+            "NamedPipeTransport::connect requires Windows".into(),
+        ))
+    }
+
+    /// Blocking read of exactly one JSON line (demos / tests).
+    pub fn recv_line_blocking(&mut self) -> Result<IpcMessage, IpcError> {
+        #[cfg(windows)]
+        {
+            self.inner
+                .as_mut()
+                .ok_or(IpcError::NotConnected)?
+                .recv_line_blocking()
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = self;
+            Err(IpcError::Transport(
+                "NamedPipeTransport stub: OS pipe I/O not available on this platform".into(),
+            ))
+        }
     }
 }
 
 impl IpcSink for NamedPipeTransport {
-    fn send(&mut self, _msg: IpcMessage) -> Result<(), IpcError> {
-        if !self.connected {
-            return Err(IpcError::NotConnected);
+    fn send(&mut self, msg: IpcMessage) -> Result<(), IpcError> {
+        #[cfg(windows)]
+        {
+            self.inner
+                .as_mut()
+                .ok_or(IpcError::NotConnected)?
+                .send(&msg)
         }
-        // Real write deferred — production will frame JSON lines on the pipe.
-        Err(IpcError::Transport(
-            "NamedPipeTransport stub: OS pipe I/O not implemented (Phase 2 stub only)".into(),
-        ))
+        #[cfg(not(windows))]
+        {
+            if !self.connected {
+                return Err(IpcError::NotConnected);
+            }
+            let _ = msg;
+            Err(IpcError::Transport(
+                "NamedPipeTransport stub: OS pipe I/O not implemented on this platform".into(),
+            ))
+        }
     }
 }
 
 impl Transport for NamedPipeTransport {
     fn try_recv(&mut self) -> Result<Option<IpcMessage>, IpcError> {
-        if !self.connected {
-            return Err(IpcError::NotConnected);
+        #[cfg(windows)]
+        {
+            self.inner
+                .as_mut()
+                .ok_or(IpcError::NotConnected)?
+                .try_recv()
         }
-        Err(IpcError::Transport(
-            "NamedPipeTransport stub: OS pipe I/O not implemented (Phase 2 stub only)".into(),
-        ))
+        #[cfg(not(windows))]
+        {
+            if !self.connected {
+                return Err(IpcError::NotConnected);
+            }
+            Err(IpcError::Transport(
+                "NamedPipeTransport stub: OS pipe I/O not implemented on this platform".into(),
+            ))
+        }
     }
 
     fn kind(&self) -> &'static str {
-        "named-pipe-stub"
+        #[cfg(windows)]
+        {
+            if self.inner.is_some() {
+                "named-pipe"
+            } else {
+                "named-pipe-stub"
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            "named-pipe-stub"
+        }
+    }
+}
+
+/// Cross-thread named-pipe demo (Windows only). Unique session id; timeouts via join.
+///
+/// Non-Windows: returns a clear transport error so CI stays honest.
+pub fn named_pipe_loopback_demo(session_id: &str) -> Result<Vec<Transcript>, IpcError> {
+    let _ = sanitize_pipe_session_id(session_id)?;
+    #[cfg(not(windows))]
+    {
+        let _ = session_id;
+        return Err(IpcError::Transport(
+            "named_pipe_loopback_demo requires Windows".into(),
+        ));
+    }
+    #[cfg(windows)]
+    {
+        // Same-process CreateFile↔ConnectNamedPipe can deadlock on Windows; use a
+        // short-lived PowerShell NamedPipeClientStream peer (cross-process).
+        use std::process::{Command, Stdio};
+
+        let session = session_id.to_string();
+        let path = named_pipe_path_checked(&session)?;
+        let pipe_leaf = format!("pq-voice-{session}");
+        let session_server = session.clone();
+
+        let server = thread::spawn(move || -> Result<Vec<Transcript>, IpcError> {
+            // Rust listens as pq-voice; PowerShell connects as pq-work client.
+            let mut transport = NamedPipeTransport::listen(&session_server)?;
+            let mut server = StubVoiceServer::default();
+            let start = transport.recv_line_blocking()?;
+            server.handle_from_work(start)?;
+            for msg in server.channel.take_outbound() {
+                transport.send(msg)?;
+            }
+            server.emit_stub_transcript("czesc pipe")?;
+            for msg in server.channel.take_outbound() {
+                transport.send(msg)?;
+            }
+            // Return empty — transcripts are on the client (PS). We assert via exit code
+            // and a side-channel file... Better: reverse roles.
+            Ok(Vec::new())
+        });
+
+        // Give CreateNamedPipe + ConnectNamedPipe a moment (server thread).
+        thread::sleep(Duration::from_millis(120));
+
+        let ps = format!(
+            r#"
+$ErrorActionPreference = 'Stop'
+$leaf = '{pipe_leaf}'
+$c = New-Object System.IO.Pipes.NamedPipeClientStream('.', $leaf, [System.IO.Pipes.PipeDirection]::InOut)
+$c.Connect(8000)
+$sw = New-Object System.IO.StreamWriter($c)
+$sw.NewLine = [string][char]10
+$sw.AutoFlush = $true
+$sr = New-Object System.IO.StreamReader($c)
+$sw.WriteLine('{{"type":"start_listen","session_id":"{session}","language":"pl","timeout_ms":0}}')
+$gotFinal = $false
+$text = ''
+for ($i = 0; $i -lt 20; $i++) {{
+  $line = $sr.ReadLine()
+  if ($null -eq $line) {{ break }}
+  if ($line -match '"type":"transcript"' -and $line -match '"is_final":true') {{
+    $gotFinal = $true
+    if ($line -match '"text":"([^"]*)"') {{ $text = $Matches[1] }}
+    break
+  }}
+}}
+$c.Dispose()
+if (-not $gotFinal) {{ throw "no final transcript" }}
+Write-Output $text
+"#
+        );
+
+        let out = Command::new("powershell")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps])
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| IpcError::Transport(format!("powershell: {e}")))?;
+        if !out.status.success() {
+            return Err(IpcError::Transport(format!(
+                "powershell client failed: {} {}",
+                String::from_utf8_lossy(&out.stderr),
+                String::from_utf8_lossy(&out.stdout)
+            )));
+        }
+        let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let _ = path;
+        let _ = server
+            .join()
+            .map_err(|_| IpcError::Other("server thread panicked".into()))??;
+
+        Ok(vec![Transcript {
+            session_id: session_id.to_string(),
+            text,
+            lang: Some("pl".into()),
+            is_final: true,
+        }])
     }
 }
 
@@ -873,6 +1426,9 @@ mod tests {
             named_pipe_path("sess-1"),
             r"\\.\pipe\pq-voice-sess-1"
         );
+        assert!(sanitize_pipe_session_id("ok-1_2").is_ok());
+        assert!(sanitize_pipe_session_id("../evil").is_err());
+        assert!(sanitize_pipe_session_id("has space").is_err());
         let mut t = NamedPipeTransport::connect_stub("demo");
         assert_eq!(t.kind(), "named-pipe-stub");
         assert_eq!(t.pipe_path, r"\\.\pipe\pq-voice-demo");
@@ -884,9 +1440,45 @@ mod tests {
             })),
             Err(IpcError::NotConnected)
         ));
-        t.mark_connected_for_test();
-        assert!(t.is_connected());
-        assert!(matches!(t.try_recv(), Err(IpcError::Transport(_))));
+        #[cfg(not(windows))]
+        {
+            t.mark_connected_for_test();
+            assert!(t.is_connected());
+            assert!(matches!(t.try_recv(), Err(IpcError::Transport(_))));
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn named_pipe_loopback_produces_final_transcript() {
+        let session = format!(
+            "t{}{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                % 100000
+        );
+        let session2 = session.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(named_pipe_loopback_demo(&session2));
+        });
+        let transcripts = rx
+            .recv_timeout(std::time::Duration::from_secs(15))
+            .expect("named_pipe_loopback_demo timed out (15s)")
+            .expect("named_pipe_loopback_demo failed");
+        assert_eq!(transcripts.len(), 1);
+        assert_eq!(transcripts[0].text, "czesc pipe");
+        assert!(transcripts[0].is_final);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn named_pipe_loopback_honest_stub_off_windows() {
+        let err = named_pipe_loopback_demo("sess-x").unwrap_err();
+        assert!(matches!(err, IpcError::Transport(_)));
     }
 
     #[test]

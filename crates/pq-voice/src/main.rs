@@ -5,11 +5,11 @@
 //! Electron today still uses Xenova/whisper-tiny in voiceCommander.ts — upgrade on port.
 //!
 //! Pipeline: `--listen` runs the listen/transcribe skeleton (probe AppData GGML;
-//! never downloads the ~3.1 GB file). IPC: StubVoiceServer + `--ipc-tcp` / `--ipc-demo`.
+//! never downloads the ~3.1 GB file). IPC: StubVoiceServer + `--ipc-tcp` / `--ipc-pipe` / `--ipc-demo`.
 
 use pq_core::ipc::{
-    local_tcp_ipc_demo, IpcMessage, IpcSink, LocalTcpTransport, StubVoiceServer, Transport,
-    VoiceIpcFlow, DEFAULT_TCP_ADDR, PROTOCOL_VERSION,
+    local_tcp_ipc_demo, IpcMessage, IpcSink, LocalTcpTransport, NamedPipeTransport, StubVoiceServer,
+    Transport, VoiceIpcFlow, DEFAULT_TCP_ADDR, PROTOCOL_VERSION,
 };
 use pq_core::stt;
 use pq_core::WORKSPACE_VERSION;
@@ -44,6 +44,13 @@ fn main() {
         }
         return;
     }
+    if let Some(session) = ipc_pipe_session(&args) {
+        if let Err(e) = run_ipc_pipe_demo(&session) {
+            eprintln!("ipc-pipe: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     println!("pq-voice {WORKSPACE_VERSION} (Phase 2 stub)");
     println!("STT target: {} ({})", stt::MODEL_ID, stt::GGML_FILENAME);
@@ -62,6 +69,7 @@ fn main() {
     println!("IPC protocol v{PROTOCOL_VERSION}: StubVoiceServer ready");
     println!("Tip: pq-voice --ipc-demo  (in-process LocalTcpTransport e2e)");
     println!("Tip: pq-voice --ipc-tcp  (after pq-work --ipc-tcp) for localhost TCP spike");
+    println!("Tip: pq-voice --ipc-pipe  (after pq-work --ipc-pipe) for Windows named-pipe spike");
 
     let mut server = StubVoiceServer::default();
     let start = IpcMessage::StartListen(pq_core::ipc::StartListen {
@@ -166,6 +174,67 @@ fn run_ipc_tcp_demo(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+
+fn ipc_pipe_session(args: &[String]) -> Option<String> {
+    for (i, a) in args.iter().enumerate() {
+        if a == "--ipc-pipe" {
+            return Some(
+                args
+                    .get(i + 1)
+                    .filter(|p| !p.starts_with('-'))
+                    .cloned()
+                    .unwrap_or_else(|| format!("demo-{}", std::process::id())),
+            );
+        }
+    }
+    None
+}
+
+fn run_ipc_pipe_demo(session: &str) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(not(windows))]
+    {
+        let _ = session;
+        return Err("NamedPipeTransport requires Windows (use --ipc-tcp / --ipc-demo)".into());
+    }
+    #[cfg(windows)]
+    {
+        println!("pq-voice {WORKSPACE_VERSION} ipc-pipe connect session={session}");
+        let mut transport = None;
+        for attempt in 1..=80 {
+            match NamedPipeTransport::connect(session) {
+                Ok(t) => {
+                    transport = Some(t);
+                    break;
+                }
+                Err(e) => {
+                    if attempt == 80 {
+                        return Err(e.into());
+                    }
+                    thread::sleep(Duration::from_millis(50));
+                }
+            }
+        }
+        let mut transport = transport.expect("connected");
+        println!("connected ({})", transport.kind());
+
+        let mut server = StubVoiceServer::default();
+        let start = transport.recv_line_blocking()?;
+        println!("<- {start:?}");
+        server.handle_from_work(start)?;
+        for msg in server.channel.take_outbound() {
+            println!("-> {msg:?}");
+            transport.send(msg)?;
+        }
+        server.emit_stub_transcript("czesc z pipe")?;
+        for msg in server.channel.take_outbound() {
+            println!("-> {msg:?}");
+            transport.send(msg)?;
+        }
+        println!("ipc-pipe demo ok");
+        Ok(())
+    }
+}
+
 fn print_help() {
     println!(
         "pq-voice {WORKSPACE_VERSION}\n\n\
@@ -178,10 +247,11 @@ fn print_help() {
                                      (no multi-GB download)\n\
              --ipc-demo              In-process LocalTcpTransport e2e (shared IPC types)\n\
              --ipc-tcp [ADDR]        Connect to pq-work TCP JSON-lines spike\n\
-                                     (default {DEFAULT_TCP_ADDR})\n\n\
+                                     (default {DEFAULT_TCP_ADDR})\n\
+             --ipc-pipe [SESSION]    Connect to pq-work Windows named-pipe spike\n\n\
          STT INTENT: Whisper Large v3 (Polish). CURRENT Electron: Xenova/whisper-tiny.\n\
          Missing {ggml} is printed clearly; overnight never fetches it.\n\
-         IPC: MemoryChannelStub + LocalTcpTransport spike — docs/PORT-MAP.md / VOICE-HOST-BRIDGE.md.",
+         IPC: MemoryChannelStub + LocalTcp + NamedPipe (Windows) — docs/PORT-MAP.md / VOICE-HOST-BRIDGE.md.",
         ggml = stt::GGML_FILENAME
     );
 }

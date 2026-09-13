@@ -56,7 +56,7 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 Stub client: `pq_core::ipc::StubWorkClient` (used from `pq-work`).  
 Stub server: `pq_core::ipc::StubVoiceServer` (used from `pq-voice`).  
 `MemoryChannelStub` = **in-process demo/test only** (not production IPC).  
-`Transport` trait + **`LocalTcpTransport`** spike (`127.0.0.1:4791` JSON-lines; `pq-work`/`pq-voice --ipc-tcp`). **`--ipc-demo`** runs the same codec in-process (`local_tcp_ipc_demo`). **`VoiceIpcFlow`** names the e2e kinds. **`NamedPipeTransport` stub** documents `\\.\pipe\pq-voice-{session}` (compile-safe; no OS I/O yet). Host spawn plan: `docs/VOICE-HOST-BRIDGE.md`. Demo/cross-process only — **not** production IPC (WS/named-pipe still future).  
+`Transport` trait + **`LocalTcpTransport`** spike (`127.0.0.1:4791` JSON-lines; `pq-work`/`pq-voice --ipc-tcp`). **`--ipc-demo`** runs the same codec in-process (`local_tcp_ipc_demo`). **`VoiceIpcFlow`** names the e2e kinds. **`NamedPipeTransport`** real on Windows (`\\.\pipe\pq-voice-{session}`, `--ipc-pipe`); stub off-Windows. Host spawn plan: `docs/VOICE-HOST-BRIDGE.md`. Demo/cross-process only — **not** production IPC (WS/named-pipe still future).  
 JSON line codec: `encode_line` / `decode_line`.
 
 ## Suggested ownership
