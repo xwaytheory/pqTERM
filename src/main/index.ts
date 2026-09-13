@@ -915,3 +915,16 @@ app.on('before-quit', () => {
   persistSessions()
   ptys.killAll()
 })
+
+// ---------------------------------------------------------------------------
+// Overnight opt-in sketch — NOT called from app.whenReady / UI / before-quit.
+// Default OFF. Enable only via PQ_VOICE_HOST=1 or spawnVoiceHost({ enabled:true }).
+// See src/main/voice-host.ts + docs/VOICE-HOST-BRIDGE.md
+// ---------------------------------------------------------------------------
+export {
+  spawnVoiceHost,
+  stopVoiceHost,
+  resolveVoiceExe,
+  isVoiceHostEnvEnabled,
+  isVoiceHostEnabled
+} from './voice-host'

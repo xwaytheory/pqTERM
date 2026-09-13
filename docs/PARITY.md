@@ -38,7 +38,8 @@ Living board — update with PORT-MAP. Electron remains production.
 | WebSocket transport | **planned** |
 | Shared TS types serde twins | **partial** (store + board/remote/auth sketches) |
 | STT desktop | Electron CURRENT tiny; Rust INTENT Large v3 **skeleton** (`--listen`, no download) |
+| Electron pq-voice spawn | **opt-in sketch** (src/main/voice-host.ts, gate `PQ_VOICE_HOST=1`) — not boot-wired |
 | Android STT | **wired** origin lock + gauntlet B (getUserMedia deny, mic retry) |
 | Tauri shell | **spike doc only** (`docs/TAURI-SPIKE.md`) |
 
-Updated: 2026-09-13 NamedPipeTransport Windows spike + resume/providers fixture honesty.
+Updated: 2026-09-13 Electron voice-host spawn sketch (opt-in PQ_VOICE_HOST) + NamedPipeTransport spike.

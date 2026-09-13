@@ -1,6 +1,10 @@
 # Electron host → pq-voice.exe (thin bridge, future)
 
-**Status:** documentation + shared types only. Electron does **not** spawn `pq-voice.exe` yet.
+**Status:** documentation + **opt-in Electron spawn sketch** (`src/main/voice-host.ts`).
+Production path does **not** auto-spawn. Gate: `PQ_VOICE_HOST=1` **or** explicit
+`spawnVoiceHost({ enabled: true, sessionId })`. Dead re-export from `src/main/index.ts`
+(not called from `app.whenReady` / UI / `before-quit`).
+
 Production STT stays in-renderer `Xenova/whisper-tiny` (`voiceCommander.ts`).
 
 See also: `pq_core::ipc::VoiceHostSpawnPlan`, `docs/WHISPER-LARGE.md`, `docs/PORT-MAP.md`.
@@ -20,54 +24,67 @@ owns the grid, store, and command routing. They talk JSON-lines IPC:
 Codec: `encode_line` / `decode_line`. Spike transport: `LocalTcpTransport` (`127.0.0.1:4791`
 or `--ipc-demo` ephemeral). Production later: named pipe `\\.\pipe\pq-voice-{session}` or `ws://127.0.0.1`.
 
-## How the host will spawn (not wired)
+## How the host resolves / spawns (sketch, opt-in)
 
-1. Resolve `pq-voice.exe` next to the stamped host, then extraResources:
+1. Resolve `pq-voice.exe` via candidates mirroring `voice_exe_candidates(app_dir)`:
    - `{app}\pq-voice.exe`
    - `{app}\resources\pq-voice.exe`
    - `{app}\extraResources\pq-voice.exe`
-   - Dev: `crates\target\debug\pq-voice.exe` (never ship this path)
-2. `child_process.spawn(exe, ['--ipc-tcp', '127.0.0.1:4791'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })`
-3. Host listens (`pq-work --ipc-tcp` / future Electron `net.Server`) **before** spawn, or pass an ephemeral port.
-4. On `app.before-quit` / workspace close: send `Cancel`, then `child.kill()`.
-5. Do **not** pass `--allow-download`. Missing `ggml-large-v3.bin` is a printed error, not a 3 GB fetch.
+   - Also searches: same dir as host (`dirname(process.execPath)`), `process.resourcesPath`,
+     and **dev last-resort** `crates\target\debug\pq-voice.exe` (never ship this path)
+2. **Windows:** prefer `--ipc-pipe <sessionId>` (session sanitized: ASCII alnum / `-` / `_`, max 64).
+   **Else:** `--ipc-tcp 127.0.0.1:4791` (or override).
+3. `child_process.spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })`
+4. Host should listen (`pq-work --ipc-pipe` / `--ipc-tcp` / future Electron `net.Server`) **before** spawn when using TCP.
+5. On quit (future wiring): send `Cancel`, then `child.kill()` / `stopVoiceHost(child)`.
+6. Do **not** pass `--allow-download`. Missing `ggml-large-v3.bin` is a printed error, not a 3 GB fetch.
+7. Missing exe → structured `{ ok: false, code: 'missing-exe', candidates }` — **never** treated as success.
 
-Shared helper (Rust, types only):
+Shared helper (Rust, types + candidates):
 
 ```rust
 pq_core::ipc::voice_exe_candidates(app_dir)  // three candidate PathBufs
-VoiceHostSpawnPlan::default().default_args   // ["--ipc-tcp"]
+VoiceHostSpawnPlan::default().default_args   // ["--ipc-tcp"]  // Electron prefers pipe on win32
 ```
 
-## Electron sketch (do not import yet)
+## Electron module (`src/main/voice-host.ts`)
 
 ```ts
-// future src/main/voice-bridge.ts — not imported from index.ts
-import { spawn, type ChildProcess } from 'child_process'
-import { existsSync } from 'fs'
-import { join } from 'path'
+import {
+  spawnVoiceHost,
+  resolveVoiceExe,
+  isVoiceHostEnvEnabled
+} from './voice-host'
 
-export function resolveVoiceExe(appDir: string): string | null {
-  const rel = ['pq-voice.exe', join('resources', 'pq-voice.exe'), join('extraResources', 'pq-voice.exe')]
-  for (const r of rel) {
-    const p = join(appDir, r)
-    if (existsSync(p)) return p
-  }
-  return null
-}
+// Off by default:
+spawnVoiceHost({ sessionId: 'demo1' })
+// → { ok: false, code: 'disabled', ... }
 
-export function spawnVoice(exe: string, addr = '127.0.0.1:4791'): ChildProcess {
-  return spawn(exe, ['--ipc-tcp', addr], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+// Opt-in:
+process.env.PQ_VOICE_HOST = '1'
+const r = spawnVoiceHost({ sessionId: 'demo1' })
+// or: spawnVoiceHost({ sessionId: 'demo1', enabled: true })
+if (!r.ok) {
+  // missing-exe | bad-session | spawn-failed | disabled
+  console.warn('[pq-voice]', r.code, r.message)
+} else {
+  // r.child, r.transport ('ipc-pipe' | 'ipc-tcp'), r.exe, r.args
 }
 ```
 
-Keep this file out of the Electron boot graph until pq-voice is a stamped extraResource.
+Gauntlet blockers that must not ship:
+
+- Auto-spawn on every launch
+- Swallowing missing-binary as success
+- Pointing at / triggering whisper model download
 
 ## Demo flags (already in the Rust bins)
 
 ```
 pq-work  --ipc-demo     # in-process LocalTcpTransport e2e
 pq-voice --ipc-demo     # same
+pq-work  --ipc-pipe [session]   # Windows named-pipe listen
+pq-voice --ipc-pipe [session]   # connect
 pq-voice --listen       # AppData GGML probe + skeleton pipeline (no download)
 ```
 
@@ -76,3 +93,4 @@ pq-voice --listen       # AppData GGML probe + skeleton pipeline (no download)
 - Packaging pq-voice into NSIS/MSI extraResources
 - Mic capture / whisper.cpp
 - Replacing `voiceCommander.ts`
+- Wiring spawn into UI click paths or `app.whenReady`

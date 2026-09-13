@@ -135,3 +135,24 @@ Noc dowiozła **rusztowanie Phase 2** i dokumentację pod poranny przegląd. Pro
 - Brak tokio / ciężkich crate'ów (raw `kernel32` FFI)
 - Brak hardened pipe ACL / Electron spawn cutover
 - Brak GGML / npm dist
+
+---
+
+## Wave — Electron pq-voice spawn sketch (~03:15 PT)
+
+**Cel:** opt-in Electron main-process sketch do spawnu `pq-voice.exe` (mirror Rust `VoiceHostSpawnPlan` / `voice_exe_candidates`), bez zmiany production path.
+
+**Dostarczone:**
+- `src/main/voice-host.ts`: resolve candidates, Win `--ipc-pipe` + session / else `--ipc-tcp`, `spawnVoiceHost` structured result
+- Gate: `PQ_VOICE_HOST=1` **lub** `enabled:true` — brak auto-spawn na boot
+- Dead re-export w `src/main/index.ts` (komentarz: overnight default off; nie wołane z whenReady/UI)
+- Docs: `VOICE-HOST-BRIDGE.md`, workbench.md/html, PARITY one-liner, ten wave
+- Gauntlet Architecture + Electron-process → **WARUNKOWO OK**
+  - blocker auto-spawn = uniknięty
+  - missing-exe ≠ success
+  - brak `--allow-download` / whisper fetch
+
+**Świadomie nie:**
+- Brak cargo / GGML / `npm run dist`
+- Brak wiring do UI click paths
+- Brak packaging pq-voice jako extraResource

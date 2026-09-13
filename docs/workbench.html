@@ -15,7 +15,7 @@
     section { background:var(--card); border-radius:10px; padding:1rem 1.1rem; border:1px solid #243044; }
     h2 { margin:0 0 .75rem; font-size:0.95rem; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; }
     .bar { height:10px; background:#243044; border-radius:999px; overflow:hidden; }
-    .bar > i { display:block; height:100%; width:91%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
+    .bar > i { display:block; height:100%; width:92%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
     .pct { font-size:1.6rem; font-weight:700; margin:.35rem 0; }
     ul { margin:.25rem 0 0; padding-left:1.1rem; }
     li { margin:.2rem 0; }
@@ -33,24 +33,24 @@
 <body>
   <header>
     <h1>pq workbench — status board</h1>
-    <div class="meta">Electron → Rust · branch <code>feat/rust-phase1</code> · update <strong>2026-09-13 ~02:55 PT</strong> · target report <strong>07:00</strong> · local commits only · no push</div>
+    <div class="meta">Electron → Rust · branch <code>feat/rust-phase1</code> · update <strong>2026-09-13 ~03:15 PT</strong> · target report <strong>07:00</strong> · local commits only · no push</div>
   </header>
   <main>
     <section>
       <h2>Stage</h2>
-      <div>Phase 2 overnight — Windows NamedPipeTransport JSON-line IPC</div>
-      <div class="pct">~91%</div>
+      <div>Phase 2 overnight — Electron pq-voice spawn sketch (opt-in)</div>
+      <div class="pct">~92%</div>
       <div class="bar" title="Phase 2 scaffolding"><i></i></div>
       <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag warn">A/B WARUNKOWO OK</span> · product = <strong>Electron</strong></p>
     </section>
     <section>
       <h2>This slice</h2>
       <ul>
-        <li><code>NamedPipeTransport</code> real on Windows — JSON-line over <code>\\.\pipe\pq-voice-{session}</code></li>
-        <li><code>--ipc-pipe</code> demo (work listen / voice connect)</li>
-        <li>Cross-process unit round-trip · session id sanitation</li>
-        <li>Docs: PARITY / workbench / night report</li>
-        <li>No model download · keep ≥2 GB free</li>
+        <li><code>src/main/voice-host.ts</code> opt-in spawn sketch (mirrors Rust candidates)</li>
+        <li>Gate: <code>PQ_VOICE_HOST=1</code> or <code>enabled:true</code> — no boot auto-spawn</li>
+        <li>Win prefer <code>--ipc-pipe</code>; else <code>--ipc-tcp</code>; never <code>--allow-download</code></li>
+        <li>Missing exe → structured error (not success)</li>
+        <li>Docs: VOICE-HOST-BRIDGE / PARITY / workbench / night report</li>
       </ul>
     </section>
     <section>
@@ -84,7 +84,7 @@
         <tr><td>IPC duplex + LocalTcp + --ipc-demo</td><td><span class="tag">spike e2e</span></td><td>not production IPC</td></tr>
         <tr><td>Named pipe</td><td><span class="tag">Windows spike</span></td><td>real OS I/O + --ipc-pipe; stub else</td></tr>
         <tr><td>pq-voice listen/transcribe</td><td><span class="tag warn">skeleton</span></td><td>GGML probe; no whisper.cpp</td></tr>
-        <tr><td>Electron pq-voice spawn</td><td><span class="tag warn">doc only</span></td><td>VOICE-HOST-BRIDGE</td></tr>
+        <tr><td>Electron pq-voice spawn</td><td><span class="tag">opt-in sketch</span></td><td>voice-host.ts + PQ_VOICE_HOST</td></tr>
         <tr><td>SessionRegistry / PTY</td><td><span class="tag">registry + pump</span></td><td>pty-spike reader pump</td></tr>
         <tr><td>auth / remote / board</td><td><span class="tag warn">deep stubs</span></td><td>no live I/O</td></tr>
         <tr><td>resume / usage / sync</td><td><span class="tag">types+fixtures</span></td><td>resume path/fixture I/O; usage/sync still lean</td></tr>
