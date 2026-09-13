@@ -31,6 +31,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 | 02:01 | `f63fec6` | Slice8: voice pipeline skeleton, `--ipc-demo`, resume/usage/sync |
 | ~02:30 | 8f19da7 | resolve-launch / trust / providers szkice, `rust-smoke.cmd`, NIGHT-REPORT, workbench |
 | ~02:45 | slice10 | SessionRegistry output pump + phone PqStt→WS glue, workbench 87% |
+| ~02:50 | fixture-io | Injectable resume/providers fixture I/O (no live AppData), workbench ~89% |
 
 ---
 
@@ -49,7 +50,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 ## 4. Co jest w Rust (fakty)
 
 **Zrobione (lean / stub / sketch):**
-- `pq-core`: env, store, engines+merge, version, updater fixtures, IPC (Memory + LocalTcp + named-pipe path contract), stt probe (bez download), auth/remote/board deepen, resume/usage/sync types, **resolve-launch / trust / providers** (pure helpers)
+- `pq-core`: env, store, engines+merge, version, updater fixtures, IPC (Memory + LocalTcp + named-pipe path contract), stt probe (bez download), auth/remote/board deepen, resume/usage/sync types, **resolve-launch / trust / providers** (pure helpers + **fixture I/O**)
 - `pq-work`: SessionRegistry + opcjonalny ConPTY prefer-live, `--help` / `--check-update` / `--ipc-demo` / `--ipc-tcp`
 - `pq-voice`: `--listen` skeleton (probe GGML), `--ipc-demo`, bez whisper.cpp
 - Docs: PORT-MAP, PARITY, VOICE-HOST-BRIDGE, ANDROID-STT, workbench
@@ -85,7 +86,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 
 1. ~~Phone JS mic → PqStt / WS~~ (landed `pqSttGlue.ts`)  
 2. ~~SessionRegistry output pump~~ (landed `pty-spike`)  
-3. Opcjonalnie: fixture’owe I/O dla resume/providers (bez zapisu do live configs)  
+3. ~~Opcjonalnie: fixture’owe I/O dla resume/providers~~ (landed: explicit path / in-memory only)  
 4. Code signing gdy będzie cert  
 5. Dopiero potem: real whisper.cpp w pq-voice (osobna decyzja dyskowa)
 
@@ -95,3 +96,21 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 
 Noc dowiozła **rusztowanie Phase 2** i dokumentację pod poranny przegląd. Product path nadal = **Electron**. Rust ma typy, stuby CLI i testy jednostkowe; nie ma cutoveru, nie ma Large v3 w runtime, nie ma pełnej paryty PTY/IPC production.
 
+
+
+---
+
+## Wave — fixture I/O resume/providers (~02:50 PT)
+
+**Cel:** injectable loaders for resume session lists + provider auth texts without touching live Electron AppData.
+
+**Dostarczone:**
+- `resume`: `sessions_from_json` / `ndjson` / `fixture` / `path`, `write_sessions_to` (explicit path), `ResumeCache::prime_from_path` / `prime_from_fixture`
+- `providers`: `probe_from_auth_texts` / `probe_from_auth_map` / `probe_from_auth_paths`, `probe_auth_candidates` + `AuthFileReader` (inject home)
+- Docs: `workbench.md` / `workbench.html` / this wave
+- Gauntlet: Architecture + correctness → **WARUNKOWO OK** (blocker prod AppData write = uniknięty)
+
+**Świadomie nie:**
+- Brak skanu żywych katalogów opencode/omp
+- Brak zapisu do `%APPDATA%\pq`
+- Brak GGML / npm dist

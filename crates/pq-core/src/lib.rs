@@ -41,8 +41,10 @@ pub use env::{
     user_data_dir_for,
 };
 pub use providers::{
-    apply_email_match, auth_candidate_paths, emails_in, empty_probes, merge_provider_probes,
-    text_looks_authed, ProviderProbe,
+    apply_email_match, auth_candidate_paths, emails_in, empty_probes, load_auth_texts_from_paths,
+    merge_provider_probes, probe_auth_candidates, probe_from_auth_map, probe_from_auth_paths,
+    probe_from_auth_texts, text_looks_authed, AuthFileReader, FsAuthReader, ProviderIoError,
+    ProviderProbe,
 };
 pub use resolve_launch::{
     known_launch, known_launch_candidates, npm_dir, quote_arg, resolve_launch, sanitize_env_keys,
@@ -59,7 +61,10 @@ pub use remote::{
     mime_for_ext, PairRateLimit, RemoteCommand, RemoteHubStub, RemoteInfo, RemotePersist,
     RemoteWsEvent, TunnelState, CLOUDFLARED_WINDOWS_AMD64_URL, DEFAULT_REMOTE_PORT,
 };
-pub use resume::{resume_flag, ResumeCache, ResumeSlot, SessionRef};
+pub use resume::{
+    resume_flag, sessions_from_fixture, sessions_from_json, sessions_from_ndjson, sessions_from_path,
+    sort_sessions_newest_first, write_sessions_to, ResumeCache, ResumeIoError, ResumeSlot, SessionRef,
+};
 pub use store::{
     empty_snapshot, exists_state, exists_state_at, load_state, load_state_from, save_state,
     save_state_to, state_path, state_path_in, touch_workspace, AppSnapshot, AuthProvider,
