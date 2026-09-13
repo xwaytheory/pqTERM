@@ -28,9 +28,6 @@
     "win": {
       "target": "dir",
       "icon": "resources/brand/pq.ico",
-      "publisherName": [
-        "pq (unsigned placeholder)"
-      ],
       "signAndEditExecutable": false
     },
     "nsis": {
@@ -64,7 +61,6 @@
     ]
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
     "@xterm/addon-webgl": "^0.18.0",

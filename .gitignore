@@ -23,3 +23,5 @@ android/emu-*
 
 # Rust
 crates/target/
+src-tauri/target/
+src-tauri/gen/

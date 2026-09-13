@@ -81,6 +81,7 @@ function exitedInternally(proc: IPty): boolean {
 export class PtyManager {
   private sessions = new Map<string, PtySession>()
   private lastBuf = new Map<string, { data: string; seq: number }>()
+  private gen = new Map<string, number>()
 
   constructor(
     private getWin: () => BrowserWindow | null,
@@ -152,6 +153,8 @@ export class PtyManager {
       return
     }
 
+    const generation = (this.gen.get(opts.paneId) ?? 0) + 1
+    this.gen.set(opts.paneId, generation)
     const session: PtySession = {
       id: opts.paneId,
       paneId: opts.paneId,
@@ -174,6 +177,8 @@ export class PtyManager {
       this.getWin()?.webContents.send('term:data', opts.paneId, data, session.seq)
     })
     proc.onExit(({ exitCode }) => {
+      if (this.gen.get(opts.paneId) !== generation) return
+      if (this.sessions.get(opts.paneId) !== session) return
       session.alive = false
       this.sessions.delete(opts.paneId)
       this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
@@ -221,6 +226,8 @@ export class PtyManager {
     } catch {
       /* ignore */
     }
+    const w = this.getWin()
+    if (w && !w.isDestroyed()) w.webContents.send('term:exit', paneId, 0)
   }
 
   killWorkspace(workspaceId: string): void {

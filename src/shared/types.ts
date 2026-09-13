@@ -262,3 +262,65 @@ export interface RemoteInfo {
   tunnelError: string
   clients: number
 }
+
+export type UpdatePhase =
+  | 'disabled' // dev mode / brak wsparcia (brak git itd.) — aktualizacje wyłączone
+  | 'checking' // trwa sprawdzanie
+  | 'uptodate' // sprawdzono — najnowsza wersja
+  | 'available' // jest nowsza wersja, czeka na akcję
+  | 'applying' // aktualizacja w toku, app zrestartuje się sam
+  | 'applied' // świeżo po aktualizacji (komunikat 1 raz)
+  | 'error' // sprawdzanie/aktualizacja nie powiodły się
+
+/** Co konkretnie updater zrobi po pobraniu zmian (kroki maszynowe). */
+export interface UpdateSteps {
+  install: boolean // npm install (package.json / package-lock.json się zmieniły)
+  stamp: boolean // refresh host/ (binarka electron się zmieniła)
+  build: boolean // npm run build (src/renderer/main/preload/phone się zmieniły)
+}
+
+export interface UpdateStatus {
+  phase: UpdatePhase
+  channel: string
+  currentVersion: string
+  currentCommit: string
+  nextVersion?: string
+  nextCommit?: string
+  commitsBehind: number
+  message: string
+  steps: UpdateSteps
+  lastCheckAt?: number
+  lastAppliedAt?: number
+  lastAppliedVersion?: string
+  ignoredVersion?: string
+  error?: string
+  logPath?: string
+}
+
+/** Job zlecony detached updaterowi (scripts/updater.cjs). */
+export interface UpdateJob {
+  id: string
+  root: string
+  channel: string
+  targetCommit: string
+  targetVersion: string
+  exePath: string
+  exeArgs: string[]
+  relaunch: boolean
+  steps: UpdateSteps
+  appPid?: number
+  updaterPid?: number
+  ts: number
+}
+
+export function compareVersions(a: string, b: string): number {
+  const pa = String(a || '0').split('.').map((n) => parseInt(n, 10) || 0)
+  const pb = String(b || '0').split('.').map((n) => parseInt(n, 10) || 0)
+  const n = Math.max(pa.length, pb.length)
+  for (let i = 0; i < n; i++) {
+    const x = pa[i] ?? 0
+    const y = pb[i] ?? 0
+    if (x !== y) return x < y ? -1 : 1
+  }
+  return 0
+}

@@ -393,7 +393,6 @@ async function dispatchRemote(cmd: RemoteCommand): Promise<unknown> {
         })
       })
       persist()
-      board.paneEnd(paneId)
       return true
     }
     case 'panes.fill': {
