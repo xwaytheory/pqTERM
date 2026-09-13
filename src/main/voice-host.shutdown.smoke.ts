@@ -10,7 +10,11 @@ import {
   getActiveVoiceHost,
   setActiveVoiceHostForTest,
   encodeCancelLine,
+  encodeStartListenLine,
   trySendCancelToActiveVoiceHost,
+  trySendStartListenToActiveVoiceHost,
+  sendStartListen,
+  ingestVoiceHostIpcLine,
   listenVoiceIpc,
   namedPipePath,
   sanitizePipeSessionId,
@@ -68,6 +72,7 @@ function fakeWritableSocket(): Socket & { _chunks: string[] } {
   }
   return ee
 }
+
 
 // 1) No active → no throw
 setActiveVoiceHostForTest(null)
@@ -186,6 +191,141 @@ assert(pipeArgs.ok && pipeArgs.args[0] === '--ipc-pipe' && pipeArgs.args[1] === 
   }
 }
 
+// 9) Encode StartListen — defaults language=pl, timeout_ms=0; tag type snake_case
+const sl = encodeStartListenLine('smoke-sl')
+assert(sl.includes('"type":"start_listen"'), 'start_listen type')
+assert(sl.includes('"session_id":"smoke-sl"'), 'start_listen session')
+assert(sl.includes('"language":"pl"'), 'start_listen default language pl')
+assert(sl.includes('"timeout_ms":0'), 'start_listen default timeout')
+assert(!sl.endsWith('\n'), 'encodeStartListenLine has no trailing newline')
+const slEn = encodeStartListenLine('smoke-sl', { language: 'en', timeoutMs: 1500 })
+assert(slEn.includes('"language":"en"'), 'override language')
+assert(slEn.includes('"timeout_ms":1500'), 'override timeout')
+
+// 10) StartListen without socket → honest false
+{
+  const c = fakeChild()
+  setActiveVoiceHostForTest({
+    child: c,
+    sessionId: 'sl-nosock',
+    transport: 'ipc-tcp',
+    exe: 'fake-pq-voice.exe',
+    server: null,
+    socket: null,
+    lastStatus: null,
+    lastTranscripts: []
+  })
+  assert(trySendStartListenToActiveVoiceHost() === false, 'StartListen must not pretend success without socket')
+  assert(sendStartListen() === false, 'sendStartListen alias honest false')
+  setActiveVoiceHostForTest(null)
+}
+
+// 11) StartListen with writable socket → true + JSON line
+{
+  const c = fakeChild()
+  const sock = fakeWritableSocket()
+  setActiveVoiceHostForTest({
+    child: c,
+    sessionId: 'sl-sock',
+    transport: 'ipc-pipe',
+    exe: 'fake-pq-voice.exe',
+    server: null,
+    socket: sock,
+    lastStatus: null,
+    lastTranscripts: []
+  })
+  assert(trySendStartListenToActiveVoiceHost() === true, 'StartListen should succeed with writable socket')
+  assert(sock._chunks.length === 1, 'expected one StartListen write')
+  assert(sock._chunks[0]!.endsWith('\n'), 'StartListen write must be a JSON line')
+  assert(sock._chunks[0]!.includes('"type":"start_listen"'), 'written type start_listen')
+  assert(sock._chunks[0]!.includes('"language":"pl"'), 'written default pl')
+  assert(sock._chunks[0]!.includes('"session_id":"sl-sock"'), 'written session')
+  setActiveVoiceHostForTest(null)
+}
+
+// 12) Status / Transcript reader — ingest + partial lines (no throw)
+{
+  const c = fakeChild()
+  const sock = fakeWritableSocket()
+  setActiveVoiceHostForTest({
+    child: c,
+    sessionId: 'stat1',
+    transport: 'ipc-tcp',
+    exe: 'fake-pq-voice.exe',
+    server: null,
+    socket: sock,
+    lastStatus: null,
+    lastTranscripts: []
+  })
+  const h = getActiveVoiceHost()!
+  // Direct ingest
+  ingestVoiceHostIpcLine(h, '{"type":"status","source":"pq-voice","state":"listening","session_id":"stat1"}')
+  assert(h.lastStatus?.state === 'listening', 'lastStatus listening')
+  assert(h.lastStatus?.source === 'pq-voice', 'lastStatus source')
+  ingestVoiceHostIpcLine(h, '{"type":"transcript","session_id":"stat1","text":"czesc","lang":"pl","is_final":true}')
+  assert(h.lastTranscripts.length === 1 && h.lastTranscripts[0]!.text === 'czesc', 'transcript kept')
+  // Partial / garbage must not throw
+  ingestVoiceHostIpcLine(h, '{not-json')
+  ingestVoiceHostIpcLine(h, '')
+  // Socket data path: split across chunks
+  sock.emit('data', Buffer.from('{"type":"status","source":"pq-voice","state":"process'))
+  sock.emit('data', Buffer.from('ing","session_id":"stat1"}\n'))
+  assert(h.lastStatus?.state === 'processing', 'status via buffered data chunks')
+  setActiveVoiceHostForTest(null)
+}
+
+// 13) TCP: peer sends Status; host StartListen over real duplex
+{
+  const tcpAddr = '127.0.0.1:47992'
+  const bound = await listenVoiceIpc({
+    transport: 'ipc-tcp',
+    sessionId: 'tcp-sl',
+    tcpAddr
+  })
+  let peerSock: Socket | null = null
+  bound.server.on('connection', (s) => {
+    peerSock = s
+  })
+  const client = createConnection({ host: '127.0.0.1', port: 47992 })
+  await new Promise<void>((resolve, reject) => {
+    client.once('connect', () => resolve())
+    client.once('error', reject)
+  })
+  for (let i = 0; i < 40 && !peerSock; i++) await new Promise((r) => setTimeout(r, 25))
+  assert(peerSock, 'tcp-sl peer')
+
+  const childSl = fakeChild()
+  const got: string[] = []
+  client.on('data', (buf) => got.push(buf.toString('utf8')))
+
+  setActiveVoiceHostForTest({
+    child: childSl,
+    sessionId: 'tcp-sl',
+    transport: 'ipc-tcp',
+    exe: 'fake-pq-voice.exe',
+    server: bound.server,
+    socket: peerSock,
+    listenAddr: tcpAddr,
+    lastStatus: null,
+    lastTranscripts: []
+  })
+  assert(sendStartListen({ language: 'pl', timeoutMs: 0 }) === true, 'real socket StartListen')
+  await new Promise((r) => setTimeout(r, 50))
+  const joined = got.join('')
+  assert(joined.includes('"type":"start_listen"'), `start_listen on wire: ${joined}`)
+  assert(joined.includes('"language":"pl"'), 'pl on wire')
+
+  // Peer → host Status (client writes, server-side socket receives)
+  client.write('{"type":"status","source":"pq-voice","state":"ready","session_id":"tcp-sl"}\n')
+  await new Promise((r) => setTimeout(r, 50))
+  const h2 = getActiveVoiceHost()
+  assert(h2?.lastStatus?.state === 'ready', `status from peer got ${h2?.lastStatus?.state}`)
+
+  shutdownVoiceHost()
+  assert(getActiveVoiceHost() === null, 'tcp-sl cleared')
+  try { client.destroy() } catch { /* ignore */ }
+}
+
 console.log(
   JSON.stringify({
     ok: true,
@@ -194,7 +334,10 @@ console.log(
     defaultTcp: DEFAULT_TCP_ADDR,
     cancelWithoutSocket: false,
     cancelWithSocket: true,
-    listenBeforeSpawn: true
+    listenBeforeSpawn: true,
+    startListenDefaultPl: true,
+    startListenHonesty: true,
+    statusReader: true
   })
 )
 

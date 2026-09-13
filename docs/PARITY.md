@@ -38,8 +38,8 @@ Living board — update with PORT-MAP. Electron remains production.
 | WebSocket transport | **planned** |
 | Shared TS types serde twins | **partial** (store + board/remote/auth sketches) |
 | STT desktop | Electron CURRENT tiny; Rust INTENT Large v3 **skeleton** (`--listen`, no download) |
-| Electron pq-voice spawn | **opt-in sketch + listen-before-spawn + Cancel JSON-line** (`net.Server` before spawn; honest Cancel) |
+| Electron pq-voice spawn | **opt-in sketch + listen-before-spawn + Cancel/StartListen + Status reader** (`net.Server` before spawn; honest send; language default pl) |
 | Android STT | **wired** origin lock + gauntlet B (getUserMedia deny, mic retry) |
 | Tauri shell | **spike doc only** (`docs/TAURI-SPIKE.md`) |
 
-Updated: 2026-09-13 voice-host listen-before-spawn + Cancel JSON-line (pipe/TCP) + prior quit lifecycle / spawn sketch / NamedPipe spike.
+Updated: 2026-09-13 voice-host StartListen/Status over held duplex + listen-before-spawn + Cancel + prior quit lifecycle / spawn sketch / NamedPipe spike.

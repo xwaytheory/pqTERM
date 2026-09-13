@@ -1,6 +1,6 @@
 # Electron host → pq-voice.exe (thin bridge, future)
 
-**Status:** documentation + **opt-in Electron spawn sketch** + **listen-before-spawn IPC** + **quit shutdown when active** (`src/main/voice-host.ts`).
+**Status:** documentation + **opt-in Electron spawn sketch** + **listen-before-spawn IPC** + **Cancel / StartListen JSON-lines** + **best-effort Status/Transcript reader** + **quit shutdown when active** (`src/main/voice-host.ts`).
 Production path does **not** auto-spawn. Gate: `PQ_VOICE_HOST=1` **or** explicit
 `spawnVoiceHost({ enabled: true, sessionId })`. Re-export from `src/main/index.ts`. `before-quit` calls `shutdownVoiceHost()` (no-op when never spawned).
 Not called from `app.whenReady` / UI. No auto-spawn.
@@ -45,10 +45,11 @@ Electron must bind the pipe/TCP server **before** spawning `pq-voice`, or the pe
    **Else:** `--ipc-tcp 127.0.0.1:4791` (or override).
 3. **Listen first:** Node `net.Server` on `\\.\pipe\pq-voice-{sanitizedSession}` (pipe) or `127.0.0.1:4791` / `opts.tcpAddr` (TCP).
 4. Then `child_process.spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })` — connect args unchanged.
-5. On peer connect, keep the `Socket` on the active handle.
-6. On quit: `shutdownVoiceHost()` from `before-quit` — no-op if never spawned; if socket writable, write one Cancel JSON line (`{"type":"cancel","session_id":"...","reason":"host-shutdown"}\n`) matching Rust `IpcMessage`; else skip Cancel honestly (`false`); then destroy socket/server + orderly `child.kill()` (+ win32 `SIGKILL` after ~800ms).
-7. Do **not** pass `--allow-download`. Missing `ggml-large-v3.bin` is a printed error, not a 3 GB fetch.
-8. Missing exe → structured `{ ok: false, code: 'missing-exe', candidates }` — **never** treated as success. Listen bind failure → `listen-failed` (no spawn).
+5. On peer connect, keep the `Socket` on the active handle and attach a non-blocking line reader (Status / Transcript → `lastStatus` / `lastTranscripts`).
+6. Host may send `StartListen` (`{"type":"start_listen","session_id","language":"pl","timeout_ms":0}\n`) via `sendStartListen` / `trySendStartListenToActiveVoiceHost` — honest `false` without writable socket; language default **pl**.
+7. On quit: `shutdownVoiceHost()` from `before-quit` — no-op if never spawned; if socket writable, write one Cancel JSON line (`{"type":"cancel","session_id":"...","reason":"host-shutdown"}\n`) matching Rust `IpcMessage`; else skip Cancel honestly (`false`); then destroy socket/server + orderly `child.kill()` (+ win32 `SIGKILL` after ~800ms). **Never blocks** on read loops.
+8. Do **not** pass `--allow-download`. Missing `ggml-large-v3.bin` is a printed error, not a 3 GB fetch.
+9. Missing exe → structured `{ ok: false, code: 'missing-exe', candidates }` — **never** treated as success. Listen bind failure → `listen-failed` (no spawn).
 
 Shared helper (Rust, types + candidates):
 
@@ -88,6 +89,8 @@ if (!r.ok) {
 - `getActiveVoiceHost()` / `shutdownVoiceHost()` — safe no-op when nothing active.
 - `app.on('before-quit')` calls `shutdownVoiceHost()` — production unchanged when never spawned.
 - **Cancel honesty:** spawn uses `stdio: ['ignore', ...]` so Cancel **cannot** go via stdin. When a peer socket is held and writable, `trySendCancelToActiveVoiceHost()` writes one JSON line and returns `true`. If no socket yet (peer not connected), returns `false` — do not pretend Cancel was sent.
+- **StartListen honesty:** same contract — `sendStartListen()` / `trySendStartListenToActiveVoiceHost()`; defaults `language:"pl"`, `timeout_ms:0`; never fake success.
+- **Status reader:** best-effort line buffer on socket `data`; parses `type:status` / `type:transcript` into `lastStatus` / `lastTranscripts` (capped); no throw on partial lines; does not block `before-quit`.
 - Smoke: `node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts`
 
 Gauntlet blockers that must not ship:
@@ -96,8 +99,9 @@ Gauntlet blockers that must not ship:
 - Swallowing missing-binary as success
 - Pointing at / triggering whisper model download
 - Killing unrelated processes / auto-spawn on quit
-- Pretending IPC Cancel was sent when it was not
+- Pretending IPC Cancel / StartListen was sent when it was not
 - Listen-after-spawn race / binding wrong pipe name
+- Blocking before-quit on inbound read loops
 
 ## Demo flags (already in the Rust bins)
 
@@ -115,3 +119,4 @@ pq-voice --listen       # AppData GGML probe + skeleton pipeline (no download)
 - Mic capture / whisper.cpp
 - Replacing `voiceCommander.ts`
 - Wiring spawn into UI click paths or `app.whenReady` (quit cleanup is wired; spawn still opt-in only)
+- Full duplex protocol state machine / UI STT cutover

@@ -923,7 +923,7 @@ app.on('before-quit', () => {
 // ---------------------------------------------------------------------------
 // Overnight opt-in sketch — NOT called from app.whenReady / UI.
 // Default OFF. Enable only via PQ_VOICE_HOST=1 or spawnVoiceHost({ enabled:true }).
-// Host listens before spawn (pipe/TCP); before-quit shutdownVoiceHost() — no-op when never spawned.
+// Host listens before spawn (pipe/TCP); StartListen/Cancel JSON-lines + Status reader; before-quit shutdownVoiceHost() — no-op when never spawned.
 // See src/main/voice-host.ts + docs/VOICE-HOST-BRIDGE.md
 // ---------------------------------------------------------------------------
 export {

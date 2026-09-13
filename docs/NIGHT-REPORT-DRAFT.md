@@ -224,3 +224,22 @@ Noc dowiozła **rusztowanie Phase 2** i dokumentację pod poranny przegląd. Pro
 **Dysk:** ~0.74 GB free → ~1.80 GB free. Honest: MSI/NSIS smoke artifacts removed to free disk; rebuild later via `npm run dist`.
 
 **Świadomie nie:** brak push; brak GGML; brak pełnego refill release tej nocy.
+
+
+---
+
+## Wave — voice-host StartListen / Status (~03:45 PT)
+
+**Cel:** framing StartListen + lekki Status/Transcript reader na trzymanym duplexie (TS only, bez cargo).
+
+**Dostarczone:**
+- `encodeStartListenLine` / `sendStartListen` / `trySendStartListenToActiveVoiceHost` — JSON `{"type":"start_listen","session_id","language":"pl","timeout_ms":0}` (Rust IpcMessage)
+- Uczciwy boolean: `true` tylko gdy writable peer socket + write ok; inaczej `false`
+- Status reader: buffer po liniach na `data`; `lastStatus` / `lastTranscripts` (cap 32); brak throw na partial
+- Gate bez zmian; before-quit **nie** blokuje na read loop
+- Smoke rozszerzony; docs: VOICE-HOST-BRIDGE / workbench / PARITY / ten wave
+- Gauntlet Architecture + IPC → **WARUNKOWO OK**
+
+**Świadomie nie:**
+- Brak cargo / GGML / `npm run dist` / push
+- Brak UI spawn / production STT cutover

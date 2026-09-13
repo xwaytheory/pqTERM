@@ -9,15 +9,16 @@
  * Host listens BEFORE spawn (pq-voice connects; Electron / pq-work listens):
  *   - Windows pipe: \\.\pipe\pq-voice-{sanitizedSession}
  *   - TCP: 127.0.0.1:4791 (or opts.tcpAddr)
- * Peer Socket kept on the active handle for Cancel JSON-line.
+ * Peer Socket kept on the active handle for Cancel / StartListen JSON-lines + best-effort Status/Transcript reader.
  *
  * Do NOT import this into app.whenReady / UI click paths without the gate.
  * Never passes --allow-download (missing GGML = error, not a 3 GB fetch).
  *
  * Quit lifecycle: successful spawn registers a module-level active handle;
  * `shutdownVoiceHost()` (wired from `app.on('before-quit')`) is a no-op when
- * nothing was ever spawned. Cancel writes one JSON line when a writable peer
- * socket exists; otherwise returns false honestly (no pretend success).
+ * nothing was ever spawned. Cancel / StartListen write one JSON line when a writable peer
+ * socket exists; otherwise return false honestly (no pretend success).
+ * Status/Transcript inbound: non-blocking line buffer on socket data (never blocks before-quit).
  *
  * See docs/VOICE-HOST-BRIDGE.md
  */
@@ -85,6 +86,25 @@ export type SpawnVoiceHostOpts = {
 }
 
 /** Tracked active child — set on successful spawn, cleared on stop/shutdown/exit. */
+export type VoiceIpcStatus = {
+  type: 'status'
+  source: string
+  state: string
+  detail?: string | null
+  session_id?: string | null
+}
+
+export type VoiceIpcTranscript = {
+  type: 'transcript'
+  session_id: string
+  text: string
+  lang?: string | null
+  is_final: boolean
+}
+
+/** Cap inbound transcripts kept on the active handle (best-effort ring). */
+export const VOICE_HOST_TRANSCRIPT_CAP = 32
+
 export type ActiveVoiceHost = {
   child: ChildProcess
   sessionId: string
@@ -92,10 +112,16 @@ export type ActiveVoiceHost = {
   exe: string
   /** Node listen server (pipe or TCP); closed on shutdown. */
   server: Server | null
-  /** Peer duplex after pq-voice connects; used for Cancel JSON-line. */
+  /** Peer duplex after pq-voice connects; used for Cancel / StartListen JSON-line. */
   socket: Socket | null
   pipePath?: string
   listenAddr?: string
+  /** Last parsed Status from peer (best-effort). */
+  lastStatus: VoiceIpcStatus | null
+  /** Recent Transcript messages from peer (capped). */
+  lastTranscripts: VoiceIpcTranscript[]
+  /** Incomplete trailing line from socket data buffer. */
+  _lineBuf?: string
 }
 
 let activeVoiceHost: ActiveVoiceHost | null = null
@@ -232,6 +258,12 @@ export function getActiveVoiceHost(): ActiveVoiceHost | null {
  * Do not call from production UI / whenReady paths.
  */
 export function setActiveVoiceHostForTest(handle: ActiveVoiceHost | null): void {
+  if (handle) {
+    ensureHandleIpcFields(handle)
+    if (handle.socket && !handle.socket.destroyed) {
+      attachVoiceHostSocketReader(handle, handle.socket)
+    }
+  }
   activeVoiceHost = handle
 }
 
@@ -249,16 +281,119 @@ export function encodeCancelLine(sessionId: string, reason?: string): string {
   return JSON.stringify(body)
 }
 
-function writeCancelOnHandle(handle: ActiveVoiceHost, reason?: string): boolean {
+export type EncodeStartListenOpts = {
+  /** BCP-47 / Whisper hint — default "pl" (matches Rust default_lang). */
+  language?: string
+  /** 0 = unlimited stub (Rust default). */
+  timeoutMs?: number
+}
+
+/**
+ * Encode a StartListen JSON line matching Rust `IpcMessage::StartListen` /
+ * `encode_line` (`{"type":"start_listen","session_id","language","timeout_ms"}`).
+ * No trailing newline — callers append `\n` when writing.
+ */
+export function encodeStartListenLine(
+  sessionId: string,
+  opts: EncodeStartListenOpts = {}
+): string {
+  return JSON.stringify({
+    type: 'start_listen',
+    session_id: sessionId,
+    language: opts.language ?? 'pl',
+    timeout_ms: opts.timeoutMs ?? 0
+  })
+}
+
+function writeJsonLineOnHandle(handle: ActiveVoiceHost, lineWithoutNl: string): boolean {
   const sock = handle.socket
   if (!sock || sock.destroyed || !sock.writable) return false
   try {
-    const line = `${encodeCancelLine(handle.sessionId, reason)}\n`
-    sock.write(line)
+    sock.write(lineWithoutNl + String.fromCharCode(10))
     return true
   } catch {
     return false
   }
+}
+
+function writeCancelOnHandle(handle: ActiveVoiceHost, reason?: string): boolean {
+  return writeJsonLineOnHandle(handle, encodeCancelLine(handle.sessionId, reason))
+}
+
+function writeStartListenOnHandle(handle: ActiveVoiceHost, opts?: EncodeStartListenOpts): boolean {
+  return writeJsonLineOnHandle(handle, encodeStartListenLine(handle.sessionId, opts))
+}
+
+/**
+ * Best-effort parse of one inbound JSON line. Never throws — partial / unknown = ignored.
+ */
+export function ingestVoiceHostIpcLine(handle: ActiveVoiceHost, rawLine: string): void {
+  const trimmed = rawLine.trim()
+  if (!trimmed) return
+  let msg: unknown
+  try {
+    msg = JSON.parse(trimmed)
+  } catch {
+    return
+  }
+  if (!msg || typeof msg !== 'object') return
+  const m = msg as Record<string, unknown>
+  if (m.type === 'status' && typeof m.source === 'string' && typeof m.state === 'string') {
+    handle.lastStatus = {
+      type: 'status',
+      source: m.source,
+      state: m.state,
+      detail: (m.detail as string | null | undefined) ?? null,
+      session_id: (m.session_id as string | null | undefined) ?? null
+    }
+    return
+  }
+  if (
+    m.type === 'transcript' &&
+    typeof m.session_id === 'string' &&
+    typeof m.text === 'string' &&
+    typeof m.is_final === 'boolean'
+  ) {
+    const t: VoiceIpcTranscript = {
+      type: 'transcript',
+      session_id: m.session_id,
+      text: m.text,
+      lang: (m.lang as string | null | undefined) ?? null,
+      is_final: m.is_final
+    }
+    handle.lastTranscripts.push(t)
+    if (handle.lastTranscripts.length > VOICE_HOST_TRANSCRIPT_CAP) {
+      handle.lastTranscripts.splice(0, handle.lastTranscripts.length - VOICE_HOST_TRANSCRIPT_CAP)
+    }
+  }
+}
+
+/**
+ * Non-blocking line reader on the peer socket. Buffers partial lines; never awaits /
+ * never blocks before-quit. Safe to call once per socket.
+ */
+export function attachVoiceHostSocketReader(handle: ActiveVoiceHost, sock: Socket): void {
+  handle._lineBuf = handle._lineBuf ?? ''
+  const onData = (buf: Buffer | string) => {
+    try {
+      const chunk = typeof buf === 'string' ? buf : buf.toString('utf8')
+      handle._lineBuf = (handle._lineBuf ?? '') + chunk
+      let nl: number
+      while ((nl = handle._lineBuf.indexOf('\n')) >= 0) {
+        const line = handle._lineBuf.slice(0, nl)
+        handle._lineBuf = handle._lineBuf.slice(nl + 1)
+        ingestVoiceHostIpcLine(handle, line)
+      }
+    } catch {
+      /* best-effort — never throw into the event loop */
+    }
+  }
+  sock.on('data', onData)
+}
+
+function ensureHandleIpcFields(handle: ActiveVoiceHost): void {
+  if (handle.lastStatus === undefined) handle.lastStatus = null
+  if (!Array.isArray(handle.lastTranscripts)) handle.lastTranscripts = []
 }
 
 /**
@@ -273,6 +408,23 @@ export function trySendCancelToActiveVoiceHost(reason?: string): boolean {
   const active = activeVoiceHost
   if (!active) return false
   return writeCancelOnHandle(active, reason)
+}
+
+/**
+ * Best-effort IPC StartListen over the held peer Socket.
+ * Honesty: returns true only when writable peer socket exists and write succeeds;
+ * false when inactive / not connected / write fails — never pretend success.
+ * Language defaults to "pl"; timeout_ms defaults to 0.
+ */
+export function trySendStartListenToActiveVoiceHost(opts?: EncodeStartListenOpts): boolean {
+  const active = activeVoiceHost
+  if (!active) return false
+  return writeStartListenOnHandle(active, opts)
+}
+
+/** Alias — same honesty contract as trySendStartListenToActiveVoiceHost. */
+export function sendStartListen(opts?: EncodeStartListenOpts): boolean {
+  return trySendStartListenToActiveVoiceHost(opts)
 }
 
 /**
@@ -432,7 +584,9 @@ export async function spawnVoiceHost(opts: SpawnVoiceHostOpts): Promise<VoiceHos
     server: bound.server,
     socket: null,
     pipePath: bound.pipePath,
-    listenAddr: bound.listenAddr
+    listenAddr: bound.listenAddr,
+    lastStatus: null,
+    lastTranscripts: []
   }
 
   // Keep first peer only; extra connects are dropped.
@@ -446,6 +600,7 @@ export async function spawnVoiceHost(opts: SpawnVoiceHostOpts): Promise<VoiceHos
       return
     }
     handle.socket = sock
+    attachVoiceHostSocketReader(handle, sock)
   })
 
   try {
