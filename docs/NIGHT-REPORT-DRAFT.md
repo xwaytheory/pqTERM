@@ -3,7 +3,8 @@
 **Data:** 2026-09-13 (noc 12/13 → poranek)  
 **Strefa:** Europe/Warsaw (PT)  
 **Branch:** `feat/rust-phase1`  
-**HEAD (ten raport / polish):** `92c8459` — verify-night.cmd + trustWorkspace catch-ignore docs  
+**HEAD (ten raport):** tip po commitcie sanity ~04:20 (cargo 98 / npm unit 24 OK; baza `8377b37`)  
+**HEAD polish content:** `92c8459` — verify-night.cmd + trustWorkspace catch-ignore docs  
 **HEAD produktu (ostatni feature):** `3a06472` — voice-host StartListen + Status reader  
 **Zasada nocy:** commity **lokalne, bez push**. Bez pobierania `ggml-large-v3` (~3.1 GB). Dysk ciasny — pełny `npm run dist` nie jest bramką poranną.
 
@@ -54,6 +55,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): crate’y `pq-core` / `p
 | 04:07 | `391287f` | Unit: spawn_cmd denylist (%/^/|), dropPaths %/^, originsMatch contract; DAY-PLAN; LOCKED→frozen |
 | 04:09 | `00bb7e2` | Stamp polish HEAD 391287f into 07:00 report / workbench |
 | 04:15 | `92c8459` | verify-night.cmd + trustWorkspace catch-ignore docs; DAY-PLAN/workbench stamp |
+| 04:20 | *(commit)* | Pre-dawn sanity: git clean; cargo 98; npm unit 24; `release\` tylko yml/log (MSI nadal reclaim); tip stamp |
 
 ---
 
@@ -102,7 +104,7 @@ Późniejsze fale voice-host / IPC / fixture I/O: Architecture + IPC **WARUNKOWO
 3. **03:45** `1004423` — reclaim: skasowane `release\pq 1.1.1.msi`, `pq Setup 1.1.1.exe` (+ blockmap), cały `win-unpacked\`. Zostawione małe `builder-debug.yml` / `dist-wave2.log` / `latest.yml`.  
 4. **Nie ruszane:** `node_modules`, `crates\target`, `.git`, źródła.
 
-**Teraz:** C: ~1.6 GB wolnego (po reclaimu było ~1.8 GB; target Rust ~611 MB). Tej nocy **nie** powtarzać `npm run dist` i **nie** ciągnąć GGML.
+**Teraz:** C: ~1.49 GB wolnego (po reclaimu było ~1.8 GB; target Rust ~611 MB). Tej nocy **nie** powtarzać `npm run dist` i **nie** ciągnąć GGML.
 
 Rebuild installerów = osobna decyzja dzienna, gdy będzie ≥4–5 GB i (najlepiej) cert.
 
@@ -123,7 +125,7 @@ Smoke voice-host (TS, bez cargo; nie powtarzane w tej fali):
 
 ## 7. Blokery / ryzyka
 
-1. **Dysk** — ~1.6 GB. Nie robić pełnego release refill, nie pobierać GGML.  
+1. **Dysk** — ~1.49 GB. Nie robić pełnego release refill, nie pobierać GGML.  
 2. **Code signing** — brak certu; unsigned MSI/NSIS = SmartScreen.  
 3. **whisper.cpp** — niezlinkowane; INTENT Large v3 to dokument + probe, nie runtime.  
 4. ConPTY — szum DSR/init zależny od buildu Windows.  

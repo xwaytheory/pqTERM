@@ -1,8 +1,8 @@
-# Day plan — after 07:00 (Europe/Warsaw)
+﻿# Day plan — after 07:00 (Europe/Warsaw)
 
 **Branch:** `feat/rust-phase1` (local commits only overnight; **push is a morning decision**)
-**HEAD overnight tip:** `92c8459` (polish) / product tip `3a06472` (voice-host StartListen + Status).  
-**Disk:** ~1.6 GB free — treat as hard constraint until reclaim/expand.  
+**HEAD overnight tip:** `8377b37` (docs stamp + 04:20 sanity) / polish content `92c8459` / product tip `3a06472` (voice-host StartListen + Status).  
+**Disk:** ~1.49 GB free — treat as hard constraint until reclaim/expand.  
 **Product path:** still Electron. No cutover claim.
 
 Drafted overnight (~04:07 PT). Revise with Szef after reading `docs/NIGHT-REPORT-DRAFT.md` + `docs/workbench.html`.
