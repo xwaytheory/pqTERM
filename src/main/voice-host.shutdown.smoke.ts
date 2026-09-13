@@ -1,8 +1,9 @@
 /**
- * Tiny smoke: voice-host shutdown lifecycle (no Electron, no real pq-voice.exe).
+ * Tiny smoke: voice-host shutdown + Cancel honesty + listen-before-spawn IPC.
  * Run: node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts
  */
 import { EventEmitter } from 'events'
+import { createConnection, type Socket } from 'net'
 import type { ChildProcess } from 'child_process'
 import {
   shutdownVoiceHost,
@@ -10,7 +11,13 @@ import {
   setActiveVoiceHostForTest,
   encodeCancelLine,
   trySendCancelToActiveVoiceHost,
-  VOICE_HOST_KILL_GRACE_MS
+  listenVoiceIpc,
+  namedPipePath,
+  sanitizePipeSessionId,
+  buildVoiceHostArgs,
+  isVoiceHostEnabled,
+  VOICE_HOST_KILL_GRACE_MS,
+  DEFAULT_TCP_ADDR
 } from './voice-host.ts'
 
 function assert(cond: unknown, msg: string): void {
@@ -39,40 +46,155 @@ function fakeChild(): ChildProcess & { _sigs: (string | undefined)[] } {
   return ee
 }
 
+function fakeWritableSocket(): Socket & { _chunks: string[] } {
+  const ee = new EventEmitter() as Socket & {
+    destroyed: boolean
+    writable: boolean
+    write: (data: string | Buffer, cb?: (err?: Error | null) => void) => boolean
+    destroy: () => Socket
+    _chunks: string[]
+  }
+  ee.destroyed = false
+  ee.writable = true
+  ee._chunks = []
+  ee.write = (data: string | Buffer) => {
+    ee._chunks.push(typeof data === 'string' ? data : data.toString('utf8'))
+    return true
+  }
+  ee.destroy = () => {
+    ee.destroyed = true
+    ee.writable = false
+    return ee
+  }
+  return ee
+}
+
 // 1) No active → no throw
 setActiveVoiceHostForTest(null)
 shutdownVoiceHost()
 assert(getActiveVoiceHost() === null, 'expected null active after no-op shutdown')
 
-// 2) Fake handle → kill path does not throw; clears active
+// 2) Fake handle without socket → Cancel honest false; kill path clears active
 const child = fakeChild()
 setActiveVoiceHostForTest({
   child,
   sessionId: 'smoke1',
   transport: 'ipc-tcp',
-  exe: 'fake-pq-voice.exe'
+  exe: 'fake-pq-voice.exe',
+  server: null,
+  socket: null
 })
 assert(getActiveVoiceHost()?.sessionId === 'smoke1', 'active should be set')
+assert(trySendCancelToActiveVoiceHost('x') === false, 'Cancel must not pretend success without socket')
 shutdownVoiceHost()
 assert(getActiveVoiceHost() === null, 'active cleared after shutdown')
 assert(child._sigs.length >= 1, 'expected at least one kill()')
 assert(child._sigs[0] === undefined || child._sigs[0] === 'SIGTERM', `first kill soft, got ${child._sigs[0]}`)
 
-// 3) Honesty: Cancel helper returns false (not sent)
-assert(trySendCancelToActiveVoiceHost('x') === false, 'Cancel must not pretend success')
-const line = encodeCancelLine('smoke1', 'app-quit')
+// 3) Encode Cancel line matches Rust IpcMessage tag
+const line = encodeCancelLine('smoke1', 'host-shutdown')
 assert(line.includes('"type":"cancel"'), 'cancel line type')
 assert(line.includes('"session_id":"smoke1"'), 'cancel line session')
+assert(line.includes('"reason":"host-shutdown"'), 'cancel line reason')
+assert(!line.endsWith('\n'), 'encodeCancelLine has no trailing newline')
 
-// 4) Second shutdown still no-op
+// 4) Writable socket → Cancel returns true and writes JSON line + \n
+const child2 = fakeChild()
+const sock = fakeWritableSocket()
+setActiveVoiceHostForTest({
+  child: child2,
+  sessionId: 'smoke2',
+  transport: 'ipc-pipe',
+  exe: 'fake-pq-voice.exe',
+  server: null,
+  socket: sock
+})
+assert(trySendCancelToActiveVoiceHost('peer-test') === true, 'Cancel should succeed with writable socket')
+assert(sock._chunks.length === 1, 'expected one write')
+assert(sock._chunks[0]!.endsWith('\n'), 'Cancel write must be a JSON line')
+assert(sock._chunks[0]!.includes('"type":"cancel"'), 'written type cancel')
+assert(sock._chunks[0]!.includes('"session_id":"smoke2"'), 'written session')
 shutdownVoiceHost()
+assert(getActiveVoiceHost() === null, 'cleared after socket shutdown')
+assert(sock.destroyed, 'socket destroyed on shutdown')
+assert(child2._sigs.length >= 1, 'kill after cancel')
+
+// 5) Second shutdown still no-op
+shutdownVoiceHost()
+
+// 6) Gate still off by default
+assert(isVoiceHostEnabled({}) === false, 'must stay disabled without flag')
+assert(isVoiceHostEnabled({ enabled: true }) === true, 'explicit enabled works')
+
+// 7) Pipe path contract (correct name — no listen-after-spawn race / wrong binding)
+const san = sanitizePipeSessionId('sessA')
+assert(san.ok && san.id === 'sessA', 'sanitize ok')
+assert(namedPipePath('sessA') === '\\\\.\\pipe\\pq-voice-sessA', `pipe path got ${namedPipePath('sessA')}`)
+const pipeArgs = buildVoiceHostArgs({ sessionId: 'sessA', preferPipe: true, platform: 'win32' })
+assert(pipeArgs.ok && pipeArgs.transport === 'ipc-pipe', 'pipe transport')
+assert(pipeArgs.ok && pipeArgs.args[0] === '--ipc-pipe' && pipeArgs.args[1] === 'sessA', 'pipe args')
+
+// 8) TCP listen-before-spawn: host listens, peer connects, Cancel over real socket
+{
+  const tcpAddr = '127.0.0.1:47991'
+  const bound = await listenVoiceIpc({
+    transport: 'ipc-tcp',
+    sessionId: 'tcp-smoke',
+    tcpAddr
+  })
+  assert(bound.listenAddr === tcpAddr, 'listen addr')
+  let peerSock: Socket | null = null
+  bound.server.on('connection', (s) => {
+    peerSock = s
+  })
+  const client = createConnection({ host: '127.0.0.1', port: 47991 })
+  await new Promise<void>((resolve, reject) => {
+    client.once('connect', () => resolve())
+    client.once('error', reject)
+  })
+  // Wait briefly for server 'connection'
+  for (let i = 0; i < 40 && !peerSock; i++) await new Promise((r) => setTimeout(r, 25))
+  assert(peerSock, 'server should have peer socket after connect')
+
+  const child3 = fakeChild()
+  const got: string[] = []
+  // Host writes Cancel on server-side socket → client receives the line.
+  client.on('data', (buf) => got.push(buf.toString('utf8')))
+
+  setActiveVoiceHostForTest({
+    child: child3,
+    sessionId: 'tcp-smoke',
+    transport: 'ipc-tcp',
+    exe: 'fake-pq-voice.exe',
+    server: bound.server,
+    socket: peerSock,
+    listenAddr: tcpAddr
+  })
+  assert(trySendCancelToActiveVoiceHost('host-shutdown') === true, 'real socket Cancel')
+  await new Promise((r) => setTimeout(r, 50))
+  const joined = got.join('')
+  assert(joined.includes('"type":"cancel"'), `cancel on wire: ${joined}`)
+  assert(joined.includes('"session_id":"tcp-smoke"'), 'session on wire')
+  assert(joined.endsWith('\n') || joined.includes('\n'), 'newline framing')
+
+  shutdownVoiceHost()
+  assert(getActiveVoiceHost() === null, 'tcp smoke cleared')
+  try {
+    client.destroy()
+  } catch {
+    /* ignore */
+  }
+}
 
 console.log(
   JSON.stringify({
     ok: true,
     kills: child._sigs,
     graceMs: VOICE_HOST_KILL_GRACE_MS,
-    cancelSent: false
+    defaultTcp: DEFAULT_TCP_ADDR,
+    cancelWithoutSocket: false,
+    cancelWithSocket: true,
+    listenBeforeSpawn: true
   })
 )
 

@@ -916,14 +916,14 @@ app.on('before-quit', () => {
   persistSessions()
   ptys.killAll()
   // No-op when voice-host was never spawned (production default unchanged).
-  // Does not auto-spawn. Cancel-over-IPC is best-effort TODO — see voice-host.ts.
+  // Does not auto-spawn. Cancel JSON-line over held peer socket when connected; else honest skip.
   shutdownVoiceHost()
 })
 
 // ---------------------------------------------------------------------------
 // Overnight opt-in sketch — NOT called from app.whenReady / UI.
 // Default OFF. Enable only via PQ_VOICE_HOST=1 or spawnVoiceHost({ enabled:true }).
-// before-quit calls shutdownVoiceHost() — no-op when never spawned.
+// Host listens before spawn (pipe/TCP); before-quit shutdownVoiceHost() — no-op when never spawned.
 // See src/main/voice-host.ts + docs/VOICE-HOST-BRIDGE.md
 // ---------------------------------------------------------------------------
 export {

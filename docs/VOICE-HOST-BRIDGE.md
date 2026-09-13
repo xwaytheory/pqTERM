@@ -1,6 +1,6 @@
 # Electron host → pq-voice.exe (thin bridge, future)
 
-**Status:** documentation + **opt-in Electron spawn sketch** + **quit shutdown when active** (`src/main/voice-host.ts`).
+**Status:** documentation + **opt-in Electron spawn sketch** + **listen-before-spawn IPC** + **quit shutdown when active** (`src/main/voice-host.ts`).
 Production path does **not** auto-spawn. Gate: `PQ_VOICE_HOST=1` **or** explicit
 `spawnVoiceHost({ enabled: true, sessionId })`. Re-export from `src/main/index.ts`. `before-quit` calls `shutdownVoiceHost()` (no-op when never spawned).
 Not called from `app.whenReady` / UI. No auto-spawn.
@@ -24,6 +24,15 @@ owns the grid, store, and command routing. They talk JSON-lines IPC:
 Codec: `encode_line` / `decode_line`. Spike transport: `LocalTcpTransport` (`127.0.0.1:4791`
 or `--ipc-demo` ephemeral). Production later: named pipe `\\.\pipe\pq-voice-{session}` or `ws://127.0.0.1`.
 
+## Roles (listen vs connect)
+
+| Side | Flag | Role |
+|------|------|------|
+| Host (`pq-work` / Electron `voice-host`) | `--ipc-pipe` / `net.Server` | **listens** first |
+| `pq-voice` | `--ipc-pipe` / `--ipc-tcp` | **connects** to host |
+
+Electron must bind the pipe/TCP server **before** spawning `pq-voice`, or the peer fails to connect (listen-after-spawn race).
+
 ## How the host resolves / spawns (sketch, opt-in)
 
 1. Resolve `pq-voice.exe` via candidates mirroring `voice_exe_candidates(app_dir)`:
@@ -34,11 +43,12 @@ or `--ipc-demo` ephemeral). Production later: named pipe `\\.\pipe\pq-voice-{ses
      and **dev last-resort** `crates\target\debug\pq-voice.exe` (never ship this path)
 2. **Windows:** prefer `--ipc-pipe <sessionId>` (session sanitized: ASCII alnum / `-` / `_`, max 64).
    **Else:** `--ipc-tcp 127.0.0.1:4791` (or override).
-3. `child_process.spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })`
-4. Host should listen (`pq-work --ipc-pipe` / `--ipc-tcp` / future Electron `net.Server`) **before** spawn when using TCP.
-5. On quit: `shutdownVoiceHost()` from `before-quit` — no-op if never spawned; orderly `child.kill()` (+ win32 `SIGKILL` after ~800ms). IPC `Cancel` is **best-effort TODO** (stdin is `ignore`; no duplex held — do not pretend Cancel was sent).
-6. Do **not** pass `--allow-download`. Missing `ggml-large-v3.bin` is a printed error, not a 3 GB fetch.
-7. Missing exe → structured `{ ok: false, code: 'missing-exe', candidates }` — **never** treated as success.
+3. **Listen first:** Node `net.Server` on `\\.\pipe\pq-voice-{sanitizedSession}` (pipe) or `127.0.0.1:4791` / `opts.tcpAddr` (TCP).
+4. Then `child_process.spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })` — connect args unchanged.
+5. On peer connect, keep the `Socket` on the active handle.
+6. On quit: `shutdownVoiceHost()` from `before-quit` — no-op if never spawned; if socket writable, write one Cancel JSON line (`{"type":"cancel","session_id":"...","reason":"host-shutdown"}\n`) matching Rust `IpcMessage`; else skip Cancel honestly (`false`); then destroy socket/server + orderly `child.kill()` (+ win32 `SIGKILL` after ~800ms).
+7. Do **not** pass `--allow-download`. Missing `ggml-large-v3.bin` is a printed error, not a 3 GB fetch.
+8. Missing exe → structured `{ ok: false, code: 'missing-exe', candidates }` — **never** treated as success. Listen bind failure → `listen-failed` (no spawn).
 
 Shared helper (Rust, types + candidates):
 
@@ -57,29 +67,29 @@ import {
 } from './voice-host'
 
 // Off by default:
-spawnVoiceHost({ sessionId: 'demo1' })
+await spawnVoiceHost({ sessionId: 'demo1' })
 // → { ok: false, code: 'disabled', ... }
 
 // Opt-in:
 process.env.PQ_VOICE_HOST = '1'
-const r = spawnVoiceHost({ sessionId: 'demo1' })
-// or: spawnVoiceHost({ sessionId: 'demo1', enabled: true })
+const r = await spawnVoiceHost({ sessionId: 'demo1' })
+// or: await spawnVoiceHost({ sessionId: 'demo1', enabled: true })
 if (!r.ok) {
-  // missing-exe | bad-session | spawn-failed | disabled
+  // missing-exe | bad-session | spawn-failed | listen-failed | disabled
   console.warn('[pq-voice]', r.code, r.message)
 } else {
-  // r.child, r.transport ('ipc-pipe' | 'ipc-tcp'), r.exe, r.args
+  // r.child, r.transport ('ipc-pipe' | 'ipc-tcp'), r.exe, r.args, r.pipePath / r.listenAddr
 }
 ```
 
+### Quit lifecycle + Cancel
 
-### Quit lifecycle (this wave)
-
-- Successful `spawnVoiceHost` registers a module-level **active handle** (child + sessionId + transport + exe).
+- Successful `spawnVoiceHost` registers a module-level **active handle** (child + sessionId + transport + exe + server + socket).
 - `getActiveVoiceHost()` / `shutdownVoiceHost()` — safe no-op when nothing active.
 - `app.on('before-quit')` calls `shutdownVoiceHost()` — production unchanged when never spawned.
-- **Cancel honesty:** spawn uses `stdio: ['ignore', ...]` so Cancel **cannot** go via stdin. Opening named pipe / TCP briefly to send a Cancel JSON line is deferred (TODO). `trySendCancelToActiveVoiceHost()` always returns `false` this wave.
+- **Cancel honesty:** spawn uses `stdio: ['ignore', ...]` so Cancel **cannot** go via stdin. When a peer socket is held and writable, `trySendCancelToActiveVoiceHost()` writes one JSON line and returns `true`. If no socket yet (peer not connected), returns `false` — do not pretend Cancel was sent.
 - Smoke: `node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts`
+
 Gauntlet blockers that must not ship:
 
 - Auto-spawn on every launch
@@ -87,6 +97,7 @@ Gauntlet blockers that must not ship:
 - Pointing at / triggering whisper model download
 - Killing unrelated processes / auto-spawn on quit
 - Pretending IPC Cancel was sent when it was not
+- Listen-after-spawn race / binding wrong pipe name
 
 ## Demo flags (already in the Rust bins)
 

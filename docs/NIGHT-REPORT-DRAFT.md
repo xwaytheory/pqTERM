@@ -181,3 +181,26 @@ Noc dowiozła **rusztowanie Phase 2** i dokumentację pod poranny przegląd. Pro
 - Brak real Cancel-over-pipe/TCP client na quit
 - Brak UI spawn
 
+---
+
+## Wave — voice-host listen-before-spawn + Cancel (~03:40 PT)
+
+**Cel:** Electron `voice-host` musi **słuchać** (pipe/TCP) zanim spawnnie `pq-voice` (connect); Cancel JSON-line po peer socket — bez udawania sukcesu.
+
+**Dostarczone:**
+- `src/main/voice-host.ts`: `listenVoiceIpc` → `net.Server` na `\\.\pipe\pq-voice-{session}` lub `127.0.0.1:4791` / `opts.tcpAddr` **przed** `spawn`
+- Peer `Socket` na active handle; `trySendCancelToActiveVoiceHost` / `shutdownVoiceHost` piszą `{"type":"cancel","session_id":"...","reason":"host-shutdown"}\n` gdy writable
+- Bez socketa → Cancel `false` (uczciwie), potem destroy server/socket + kill (+ win32 SIGKILL)
+- Gate bez zmian: `PQ_VOICE_HOST=1` / `enabled:true`; `before-quit` no-op gdy inactive
+- Smoke: Cancel bez/z socketem + TCP listen+peer; pipe path contract
+- Docs: VOICE-HOST-BRIDGE / workbench.md/html / PARITY / ten wave
+- Gauntlet Architecture + IPC → **WARUNKOWO OK**
+  - blocker listen-after-spawn = uniknięty
+  - blocker fake Cancel = uniknięty
+  - blocker auto-enable = uniknięty
+  - blocker wrong pipe name = uniknięty (`pq-voice-{sanitized}`)
+
+**Świadomie nie:**
+- Brak cargo / GGML / `npm run dist`
+- Brak UI spawn / StartListen framing wave
+- Brak push
