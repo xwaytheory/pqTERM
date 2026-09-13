@@ -94,6 +94,8 @@ export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: str
       const exe = firstExisting([join(homedir(), 'AppData', 'Local', 'agy', 'bin', 'agy.exe')])
       return exe ? { spawnFile: exe, args: extra } : null
     }
+    case 'ori':
+    case 'cursor':
     case 'aider': {
       const exe = firstExisting([
         join(homedir(), 'AppData', 'Roaming', 'Python', 'Python314', 'Scripts', 'aider.exe'),

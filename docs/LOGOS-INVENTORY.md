@@ -45,6 +45,8 @@ monogram-only trademark caution — these ship inside the user's own local app):
 | `crush` | `crush.png` (Charm org avatar — Crush ships no square icon; same brand family) | https://github.com/charmbracelet.png |
 | `aider` | `aider.png` (official square touch icon) | Aider-AI/aider repo `aider/website/assets/icons/apple-touch-icon.png` |
 | `copilot` | `copilot.svg` (Copilot mark path) | simple-icons `githubcopilot` (CC0) |
+| `ori` | `ori.png` (OpenRouter glyph mark) | Google favicon `openrouter.ai` |
+| `cursor` | `cursor.svg` (Cursor cube/C mark) | cursor.com/favicon.svg |
 | `shell` | `shell.svg` (generic `>_` glyph, not a vendor mark) | drawn for pq |
 
 | id | name | vendor | color | asset |
@@ -61,6 +63,8 @@ monogram-only trademark caution — these ship inside the user's own local app):
 | `crush` | Crush | Charmbracelet | `#ff387b` | Cr (letter-mark chip + color) |
 | `aider` | Aider | Aider-AI | `#e8c547` | A (letter-mark chip + color) |
 | `copilot` | Copilot CLI | GitHub | `#f0f6fc` | Co (letter-mark chip + color) |
+| `ori` | Ori | OpenRouter | `#8b5cf6` | Or (letter-mark chip + color) |
+| `cursor` | Cursor CLI | Anysphere | `#2563eb` | Cu (letter-mark chip + color) |
 | `shell` | PowerShell | Windows | `#5b9fd6` | PS (letter-mark chip + color) |
 
 ## Letter-mark chip plan

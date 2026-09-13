@@ -13,6 +13,8 @@ export type EngineId =
   | 'copilot'
   | 'antigravity'
   | 'zcode'
+  | 'ori'
+  | 'cursor'
   | 'shell'
 
 /** Any number of panes is allowed (the UI shows presets, +/- stepper, and drag-to-snap). */
@@ -35,7 +37,7 @@ export function parseGridIntent(
   if (quoted) prompt = quoted[1].trim()
   else if (labeled) prompt = labeled[1].replace(/^[„""]|[”""]$/g, '').trim()
   let engine: EngineId | undefined
-  const ids: EngineId[] = [
+const ids: EngineId[] = [
     'grok',
     'omp',
     'hermes',
@@ -49,7 +51,9 @@ export function parseGridIntent(
     'aider',
     'copilot',
     'antigravity',
-    'zcode'
+    'zcode',
+    'ori',
+    'cursor'
   ]
   for (const id of ids) {
     if (new RegExp(`\\b${id}\\b`, 'i').test(t)) {
@@ -213,6 +217,8 @@ export const ENGINE_ORDER: EngineId[] = [
   'copilot',
   'antigravity',
   'zcode',
+  'ori',
+  'cursor',
   'shell'
 ]
 

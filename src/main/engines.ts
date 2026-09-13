@@ -253,6 +253,47 @@ export const ENGINE_SPECS: EngineSpec[] = [
     models: []
   },
   {
+    id: 'ori',
+    name: 'Ori',
+    vendor: 'OpenRouter',
+    color: '#8b5cf6',
+    mark: 'Or',
+    binaries: ['ori', 'ori.exe'],
+    args: ['--yolo'],
+    hint: 'Ori CLI (OpenRouter) — wszystkie modele OpenRouter. Instalacja: curl -fsSL https://openrouter.ai/labs/ori/install.sh | bash',
+    extraPathDirs: ['%USERPROFILE%\\.local\\bin', '%APPDATA%\\npm'],
+    npmPackage: '@openrouter/ori',
+    modelFlag: (id) => ['-m', id],
+    models: [
+      { id: 'anthropic/claude-sonnet-4', name: 'Sonnet 4' },
+      { id: 'anthropic/claude-opus-4', name: 'Opus 4' },
+      { id: 'openai/gpt-5', name: 'GPT-5' },
+      { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+      { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
+      { id: 'xai/grok-4', name: 'Grok 4' }
+    ]
+  },
+  {
+    id: 'cursor',
+    name: 'Cursor CLI',
+    vendor: 'Anysphere',
+    color: '#2563eb',
+    mark: 'Cu',
+    binaries: ['cursor', 'cursor.exe'],
+    args: ['--yolo'],
+    hint: 'Cursor CLI — agenci w terminalu. Instalacja: curl https://cursor.com/install -fsS | bash',
+    extraPathDirs: ['%LOCALAPPDATA%\\Cursor\\resources\\app\\bin', '%APPDATA%\\npm'],
+    npmPackage: '@cursor/cursor',
+    modelFlag: (id) => ['--model', id],
+    models: [
+      { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
+      { id: 'gpt-5.5', name: 'GPT-5.5' },
+      { id: 'claude-opus-5', name: 'Opus 5' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+      { id: 'grok-4.6', name: 'Grok 4.6' }
+    ]
+  },
+  {
     id: 'shell',
     name: 'PowerShell',
     vendor: 'Windows',
