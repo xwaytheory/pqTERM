@@ -670,6 +670,92 @@ impl Transport for LocalWsTransport {
 }
 
 
+
+/// Shared e2e voice-IPC flow (work ↔ voice). Documents the typed sequence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceIpcFlow {
+    pub protocol: u32,
+    pub session_id: String,
+    pub language: String,
+    pub transport: &'static str,
+}
+
+impl VoiceIpcFlow {
+    pub fn tcp_demo(session_id: impl Into<String>) -> Self {
+        Self {
+            protocol: PROTOCOL_VERSION,
+            session_id: session_id.into(),
+            language: "pl".into(),
+            transport: "localhost-tcp",
+        }
+    }
+
+    /// Expected message kinds for one listen turn (work→voice then voice→work).
+    pub fn expected_kinds(&self) -> &'static [&'static str] {
+        &[
+            "start_listen",
+            "status", // listening
+            "status", // processing
+            "transcript",
+            "status", // idle
+        ]
+    }
+}
+
+impl IpcMessage {
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            IpcMessage::StartListen(_) => "start_listen",
+            IpcMessage::Transcript(_) => "transcript",
+            IpcMessage::Cancel(_) => "cancel",
+            IpcMessage::Status(_) => "status",
+        }
+    }
+}
+
+/// Windows host binary name Electron will someday spawn.
+pub const VOICE_EXE_NAME: &str = "pq-voice.exe";
+
+/// How the Electron host will locate `pq-voice.exe` (doc + tests; no spawn).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceHostSpawnPlan {
+    pub exe_name: &'static str,
+    pub default_args: &'static [&'static str],
+    /// Relative candidates under the app / extraResources dir.
+    pub search_rel: &'static [&'static str],
+}
+
+impl Default for VoiceHostSpawnPlan {
+    fn default() -> Self {
+        Self {
+            exe_name: VOICE_EXE_NAME,
+            default_args: &["--ipc-tcp"],
+            search_rel: &[
+                "pq-voice.exe",
+                r"resources\pq-voice.exe",
+                r"extraResources\pq-voice.exe",
+            ],
+        }
+    }
+}
+
+/// Candidate paths for a future `child_process.spawn` of pq-voice.
+pub fn voice_exe_candidates(app_dir: impl AsRef<std::path::Path>) -> Vec<std::path::PathBuf> {
+    let plan = VoiceHostSpawnPlan::default();
+    let root = app_dir.as_ref();
+    plan.search_rel.iter().map(|rel| root.join(rel)).collect()
+}
+
+/// Self-contained `--ipc-demo` helper: LocalTcpTransport e2e on an ephemeral port.
+pub fn local_tcp_ipc_demo() -> Result<Vec<Transcript>, IpcError> {
+    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| IpcError::Transport(e.to_string()))?;
+    let addr = listener
+        .local_addr()
+        .map_err(|e| IpcError::Transport(e.to_string()))?;
+    drop(listener);
+    tcp_loopback_demo(&addr.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -802,4 +888,40 @@ mod tests {
         assert!(t.is_connected());
         assert!(matches!(t.try_recv(), Err(IpcError::Transport(_))));
     }
+
+    #[test]
+    fn voice_ipc_flow_kinds_and_message_names() {
+        let flow = VoiceIpcFlow::tcp_demo("sess-e2e");
+        assert_eq!(flow.protocol, PROTOCOL_VERSION);
+        assert_eq!(flow.transport, "localhost-tcp");
+        assert_eq!(flow.expected_kinds()[0], "start_listen");
+        assert_eq!(
+            IpcMessage::StartListen(StartListen {
+                session_id: "s".into(),
+                language: "pl".into(),
+                timeout_ms: 0,
+            })
+            .kind_name(),
+            "start_listen"
+        );
+    }
+
+    #[test]
+    fn voice_host_spawn_candidates() {
+        let plan = VoiceHostSpawnPlan::default();
+        assert_eq!(plan.exe_name, "pq-voice.exe");
+        assert_eq!(plan.default_args, &["--ipc-tcp"]);
+        let c = voice_exe_candidates(r"C:\app");
+        assert!(c.iter().any(|p| p.ends_with("pq-voice.exe")));
+        assert_eq!(c.len(), 3);
+    }
+
+    #[test]
+    fn local_tcp_ipc_demo_flag_e2e() {
+        let transcripts = local_tcp_ipc_demo().unwrap();
+        assert_eq!(transcripts.len(), 1);
+        assert_eq!(transcripts[0].text, "czesc tcp");
+        assert!(transcripts[0].is_final);
+    }
+
 }

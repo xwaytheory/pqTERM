@@ -15,7 +15,7 @@
     section { background:var(--card); border-radius:10px; padding:1rem 1.1rem; border:1px solid #243044; }
     h2 { margin:0 0 .75rem; font-size:0.95rem; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; }
     .bar { height:10px; background:#243044; border-radius:999px; overflow:hidden; }
-    .bar > i { display:block; height:100%; width:76%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
+    .bar > i { display:block; height:100%; width:80%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
     .pct { font-size:1.6rem; font-weight:700; margin:.35rem 0; }
     ul { margin:.25rem 0 0; padding-left:1.1rem; }
     li { margin:.2rem 0; }
@@ -30,22 +30,23 @@
 <body>
   <header>
     <h1>pq workbench</h1>
-    <div class="meta">Electron → Rust migration · branch <code>feat/rust-phase1</code> · last update <strong>2026-09-13 ~01:50 PT</strong> (Europe/Warsaw)</div>
+    <div class="meta">Electron → Rust migration · branch <code>feat/rust-phase1</code> · last update <strong>2026-09-13 ~02:15 PT</strong> (Europe/Warsaw) · toward <strong>07:00</strong> report</div>
   </header>
   <main>
     <section>
       <h2>Stage</h2>
-      <div>Phase 2 overnight — slice7 ConPTY prefer-live + auth/remote/board deepen + updater CLI</div>
-      <div class="pct">~76%</div>
+      <div>Phase 2 overnight — slice8 voice pipeline + IPC demo + resume/usage/sync types</div>
+      <div class="pct">~80%</div>
       <div class="bar" title="Phase 2 scaffolding"><i></i></div>
-      <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag">A/B WARUNKOWO OK</span> · slice7</p>
+      <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag">A/B WARUNKOWO OK</span> · slice8 · night → 07:00</p>
     </section>
     <section>
       <h2>This slice</h2>
       <ul>
-        <li><code>spawn_prefer_live</code> — ConPTY when feature+spawn ok; honest fail</li>
-        <li>auth / remote / board Electron-parity types deepened</li>
-        <li><code>pq-work --check-update</code> → <code>OfferUpdate</code></li>
+        <li><code>pq-voice --listen</code> — GGML probe, no download</li>
+        <li><code>--ipc-demo</code> LocalTcpTransport e2e types</li>
+        <li>Electron spawn plan: <code>VOICE-HOST-BRIDGE.md</code></li>
+        <li>resume / usage / sync types + tests in <code>pq-core</code></li>
         <li>No dist rebuild (disk ≥2 GB)</li>
       </ul>
     </section>
@@ -56,6 +57,7 @@
         <li>Electron store remains production writer</li>
         <li>Phone STT = SpeechRecognizer only (no Whisper)</li>
         <li>Local commits only — never push</li>
+        <li>Never auto-fetch ggml-large-v3 (~3.1 GB)</li>
       </ul>
     </section>
     <section>
@@ -72,16 +74,19 @@
       <table>
         <tr><th>Area</th><th>Status</th></tr>
         <tr><td>env / store / engines merge</td><td>done (lean)</td></tr>
-        <tr><td>IPC duplex + LocalWs / TCP</td><td>spike</td></tr>
+        <tr><td>IPC duplex + LocalWs / TCP + --ipc-demo</td><td>spike e2e</td></tr>
         <tr><td>Named pipe</td><td>stub (path contract)</td></tr>
+        <tr><td>pq-voice listen/transcribe</td><td>skeleton (probe only)</td></tr>
+        <tr><td>Electron pq-voice spawn</td><td>doc only</td></tr>
         <tr><td>SessionRegistry / PTY</td><td>registry + spawn_prefer_live (feature)</td></tr>
         <tr><td>auth / remote / board</td><td>deepened sketches (still stub I/O)</td></tr>
+        <tr><td>resume / usage / sync</td><td>pq-core types + tests (no I/O)</td></tr>
         <tr><td>updater fixtures</td><td>FileManifestFetch + OfferUpdate CLI</td></tr>
         <tr><td>Android STT bridge</td><td>gauntlet B revise</td></tr>
         <tr><td>Tauri shell</td><td>doc spike</td></tr>
       </table>
     </section>
   </main>
-  <footer>Silent overnight · report HEAD to parent only · no push</footer>
+  <footer>Silent overnight · report HEAD to parent only · no push · 07:00 report target</footer>
 </body>
 </html>

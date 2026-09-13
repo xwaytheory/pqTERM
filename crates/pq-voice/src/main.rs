@@ -4,12 +4,12 @@
 //! Model: openai/whisper-large-v3 (GGML: ggml-large-v3.bin), language=pl.
 //! Electron today still uses Xenova/whisper-tiny in voiceCommander.ts — upgrade on port.
 //!
-//! IPC: owns StubVoiceServer (handles StartListen / Cancel; emits Transcript / Status).
-//! Spike: `--ipc-tcp [addr]` connects to pq-work localhost TCP JSON-lines (Transport spike, not prod).
+//! Pipeline: `--listen` runs the listen/transcribe skeleton (probe AppData GGML;
+//! never downloads the ~3.1 GB file). IPC: StubVoiceServer + `--ipc-tcp` / `--ipc-demo`.
 
 use pq_core::ipc::{
-    IpcMessage, IpcSink, LocalTcpTransport, StubVoiceServer, Transport, DEFAULT_TCP_ADDR,
-    PROTOCOL_VERSION,
+    local_tcp_ipc_demo, IpcMessage, IpcSink, LocalTcpTransport, StubVoiceServer, Transport,
+    VoiceIpcFlow, DEFAULT_TCP_ADDR, PROTOCOL_VERSION,
 };
 use pq_core::stt;
 use pq_core::WORKSPACE_VERSION;
@@ -24,6 +24,17 @@ fn main() {
     }
     if args.iter().any(|a| a == "-V" || a == "--version") {
         println!("pq-voice {WORKSPACE_VERSION}");
+        return;
+    }
+    if args.iter().any(|a| a == "--ipc-demo") {
+        if let Err(e) = run_ipc_demo() {
+            eprintln!("ipc-demo: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if args.iter().any(|a| a == "--listen" || a == "--pipeline") {
+        run_listen_cli();
         return;
     }
     if let Some(addr) = ipc_tcp_addr(&args) {
@@ -43,11 +54,13 @@ fn main() {
         None => println!("GGML intended path: (no AppData)"),
     }
     println!("{}", stt::GGML_MEMORY_NOTE);
-    match stt::ensure_ggml_model(false) {
-        Ok(p) => println!("GGML present: {}", p.display()),
-        Err(e) => println!("GGML ensure (no download): {e}"),
+    let probe = stt::probe_ggml_model();
+    println!("{}", stt::model_status_message(&probe));
+    if !probe.is_present() {
+        println!("Tip: pq-voice --listen  (same probe; no download)");
     }
     println!("IPC protocol v{PROTOCOL_VERSION}: StubVoiceServer ready");
+    println!("Tip: pq-voice --ipc-demo  (in-process LocalTcpTransport e2e)");
     println!("Tip: pq-voice --ipc-tcp  (after pq-work --ipc-tcp) for localhost TCP spike");
 
     let mut server = StubVoiceServer::default();
@@ -66,6 +79,39 @@ fn main() {
         }
         Err(e) => eprintln!("ipc stub: {e}"),
     }
+}
+
+fn run_listen_cli() {
+    println!("pq-voice {WORKSPACE_VERSION} listen/transcribe skeleton");
+    println!("STT INTENT: {} lang={} — no whisper.cpp yet", stt::MODEL_ID, stt::LANGUAGE);
+    let result = stt::run_listen_transcribe_skeleton("listen-cli");
+    for ev in &result.events {
+        println!("[{:?}] {}", ev.stage, ev.detail);
+    }
+    let _ = std::io::Write::flush(&mut std::io::stdout());
+    if result.ok {
+        println!("pipeline ok (model present; inference unwired)");
+    } else {
+        println!("pipeline failed: model not usable — no download attempted");
+        std::process::exit(2);
+    }
+}
+
+fn run_ipc_demo() -> Result<(), Box<dyn std::error::Error>> {
+    let flow = VoiceIpcFlow::tcp_demo("sess-tcp");
+    println!(
+        "pq-voice {WORKSPACE_VERSION} --ipc-demo protocol={} transport={} session={}",
+        flow.protocol, flow.transport, flow.session_id
+    );
+    println!("expected kinds: {:?}", flow.expected_kinds());
+    let probe = stt::probe_ggml_model();
+    println!("{}", stt::model_status_message(&probe));
+    let transcripts = local_tcp_ipc_demo()?;
+    for t in &transcripts {
+        println!("transcript final={} lang={:?} text={:?}", t.is_final, t.lang, t.text);
+    }
+    println!("ipc-demo ok (LocalTcpTransport e2e)");
+    Ok(())
 }
 
 fn ipc_tcp_addr(args: &[String]) -> Option<String> {
@@ -128,9 +174,14 @@ fn print_help() {
          OPTIONS:\n\
              -h, --help              Show help\n\
              -V, --version           Show version\n\
+             --listen                Probe AppData GGML + listen/transcribe skeleton\n\
+                                     (no multi-GB download)\n\
+             --ipc-demo              In-process LocalTcpTransport e2e (shared IPC types)\n\
              --ipc-tcp [ADDR]        Connect to pq-work TCP JSON-lines spike\n\
                                      (default {DEFAULT_TCP_ADDR})\n\n\
          STT INTENT: Whisper Large v3 (Polish). CURRENT Electron: Xenova/whisper-tiny.\n\
-         IPC: MemoryChannelStub + LocalTcpTransport spike — docs/PORT-MAP.md / pq_core::ipc."
+         Missing {ggml} is printed clearly; overnight never fetches it.\n\
+         IPC: MemoryChannelStub + LocalTcpTransport spike — docs/PORT-MAP.md / VOICE-HOST-BRIDGE.md.",
+        ggml = stt::GGML_FILENAME
     );
 }

@@ -39,11 +39,23 @@ Prod Electron already uses `%AppData%\pq` / `%AppData%\pq-dev` for state — mod
 
 ```rust
 pq_core::stt::intended_ggml_path()           // Option<PathBuf>
+pq_core::stt::probe_ggml_model()             // Present / Missing / AppDataUnset
 pq_core::stt::ensure_ggml_model(false)       // Ok if file exists; Err without download
 pq_core::stt::ensure_ggml_model(true)        // still stub: describes URL, does not fetch yet
+pq_core::stt::run_listen_transcribe_skeleton(session_id)
 ```
 
-`pq-voice` boot prints intended path + `ensure_ggml_model(false)` result.
+`pq-voice` boot prints intended path + `probe_ggml_model()` / `model_status_message`.
+
+`--listen` runs `run_listen_transcribe_skeleton`: Idle → Probe → (Listen/Transcribe/Emit/Done **or** Failed).
+Missing weights → `VoiceState::Error` and a clear **not downloading** message. File present → stub transcript
+(`inference not wired`) — still no whisper.cpp.
+
+```
+pq-voice --listen
+pq-voice --ipc-demo
+```
+
 
 ## Out of scope this slice
 

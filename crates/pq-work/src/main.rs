@@ -14,8 +14,8 @@ use std::path::PathBuf;
 mod pty_spike;
 
 use pq_core::ipc::{
-    stub_loopback_demo, IpcMessage, IpcSink, LocalTcpTransport, StubWorkClient, Transport,
-    DEFAULT_TCP_ADDR, PROTOCOL_VERSION,
+    local_tcp_ipc_demo, stub_loopback_demo, IpcMessage, IpcSink, LocalTcpTransport, StubWorkClient,
+    Transport, VoiceIpcFlow, DEFAULT_TCP_ADDR, PROTOCOL_VERSION,
 };
 use pq_core::{
     fetch_manifest, offer_from_manifest, CheckOnLaunchPlan, FileManifestFetch,
@@ -30,6 +30,13 @@ fn main() {
     }
     if args.iter().any(|a| a == "-V" || a == "--version") {
         println!("pq-work {WORKSPACE_VERSION}");
+        return;
+    }
+    if args.iter().any(|a| a == "--ipc-demo") {
+        if let Err(e) = run_ipc_demo() {
+            eprintln!("ipc-demo: {e}");
+            std::process::exit(1);
+        }
         return;
     }
     if let Some(addr) = ipc_tcp_addr(&args) {
@@ -120,6 +127,22 @@ fn main() {
         }
         Err(e) => eprintln!("ipc stub loopback: {e}"),
     }
+}
+
+
+fn run_ipc_demo() -> Result<(), Box<dyn std::error::Error>> {
+    let flow = VoiceIpcFlow::tcp_demo("sess-tcp");
+    println!(
+        "pq-work {WORKSPACE_VERSION} --ipc-demo protocol={} transport={} session={}",
+        flow.protocol, flow.transport, flow.session_id
+    );
+    println!("expected kinds: {:?}", flow.expected_kinds());
+    let transcripts = local_tcp_ipc_demo()?;
+    for t in &transcripts {
+        println!("transcript final={} lang={:?} text={:?}", t.is_final, t.lang, t.text);
+    }
+    println!("ipc-demo ok (LocalTcpTransport e2e)");
+    Ok(())
 }
 
 fn ipc_tcp_addr(args: &[String]) -> Option<String> {
@@ -225,6 +248,7 @@ fn print_help() {
          OPTIONS:\n\
              -h, --help              Show help\n\
              -V, --version           Show version\n\
+             --ipc-demo              In-process LocalTcpTransport e2e (shared IPC types)\n\
              --ipc-tcp [ADDR]        Listen for voice on localhost TCP JSON-lines\n\
                                      (default {DEFAULT_TCP_ADDR})\n\n\
          Phase 2: IPC stubs + TCP/named-pipe Transport + optional pty-spike. See docs/MIGRATION-RUST.md."
