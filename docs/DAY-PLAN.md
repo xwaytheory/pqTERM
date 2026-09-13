@@ -1,8 +1,8 @@
 # Day plan — after 07:00 (Europe/Warsaw)
 
 **Branch:** `feat/rust-phase1` (local commits only overnight; **push is a morning decision**)
-**HEAD overnight tip:** `cabba7f` (docs stamp + 04:20 sanity) / polish content `92c8459` / product tip `3a06472` (voice-host StartListen + Status).  
-**Disk:** ~1.49 GB free — treat as hard constraint until reclaim/expand.  
+**HEAD overnight tip:** `0ec9f0f` (~06:15 verify-night OK) / polish `92c8459` / product tip `3a06472`.  
+**Disk:** ~0.43 GB free after ENOSPC reclaim — hard constraint. **First:** restore Electron (`npm rebuild` / reinstall `electron`) — overnight zeroed `node_modules/electron/dist/electron.exe` to free Shell.  
 **Product path:** still Electron. No cutover claim.
 
 Drafted overnight (~04:07 PT). Revise with Szef after reading `docs/NIGHT-REPORT-DRAFT.md` + `docs/workbench.html`.
@@ -14,6 +14,7 @@ Drafted overnight (~04:07 PT). Revise with Szef after reading `docs/NIGHT-REPORT
 1. Read **Werdykt** in `NIGHT-REPORT-DRAFT.md` — scaffolding + opt-in voice-host bridge only.
 2. Open `docs/workbench.html` — freeze-for-review, not lock-in.
 3. Confirm `git status` / HEAD; decide **push?** (overnight did **not** push).
+4. Restore Electron binary (overnight disk emergency truncated `electron.exe`); then optional push.
 
 ---
 

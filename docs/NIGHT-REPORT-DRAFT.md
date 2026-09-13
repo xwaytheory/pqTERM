@@ -3,7 +3,7 @@
 **Data:** 2026-09-13 (noc 12/13 → poranek)  
 **Strefa:** Europe/Warsaw (PT)  
 **Branch:** `feat/rust-phase1`  
-**HEAD (ten raport / tip):** `cabba7f` — pre-dawn sanity ~04:20 (cargo 98 / npm unit 24 OK)  
+**HEAD (ten raport / tip):** `0ec9f0f` — ~06:15 sanity (cargo 98 / npm unit 24 OK; dysk ENOSPC→~0.43 GB)  
 **HEAD polish content:** `92c8459` — verify-night.cmd + trustWorkspace catch-ignore docs  
 **HEAD produktu (ostatni feature):** `3a06472` — voice-host StartListen + Status reader  
 **Zasada nocy:** commity **lokalne, bez push**. Bez pobierania `ggml-large-v3` (~3.1 GB). Dysk ciasny — pełny `npm run dist` nie jest bramką poranną.
@@ -268,3 +268,16 @@ Usunięte tylko regenerowalne artefakty `release\`. Dysk ~0.74 → ~1.80 GB. Źr
 - HEAD stamp w raporcie: polish `92c8459` / product tip `3a06472`
 
 **Świadomie nie:** brak dist, brak GGML, brak push, brak zmiany logiki trust (tylko docs/komentarze).
+
+### Wave — pre-7:00 sanity + ENOSPC reclaim (~06:15 PT) — HEAD `0ec9f0f`
+
+**Cel:** krótki sanity przed 07:00; odzyskać C: gdy Shell padł na ENOSPC (~0 B free).
+
+**Dostarczone:**
+- `verify-night.cmd` **ALL OK** — cargo workspace **98** + npm unit **24**
+- git clean na `feat/rust-phase1` tip `0ec9f0f` (bez push)
+- reclaim: usunięte regenerowalne `release\win-unpacked` + setup exes; dysk ~0 → ~0.43 GB
+- awaryjnie wyzerowany `node_modules/electron/dist/electron.exe` (żeby odzyskać miejsce pod Shell) — **rano: `npm rebuild` / reinstall electron**, bez GGML/dist
+
+**Świadomie nie:** brak dist, brak GGML, brak push, brak nowych feature.
+

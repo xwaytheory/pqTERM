@@ -1,13 +1,13 @@
 # pq workbench (gauntlet live board)
 
-Last update: 2026-09-13 ~04:20 PT (Europe/Warsaw) — tip stamp + green sanity toward **07:00** Szef report
+Last update: 2026-09-13 ~06:15 PT (Europe/Warsaw) — verify-night OK after ENOSPC reclaim; toward **07:00** Szef report
 Product HEAD: **3a06472** (voice-host StartListen + Status reader)
 
 ## Stage / progress
 - **Stage:** Phase 2 overnight **frozen for 07:00 review** (docs + `--help` honesty) — not a cutover lock-in
 - **Rough %:** ~95% Phase 2 scaffolding (product unchanged vs 3a06472)
 - **Branch:** feat/rust-phase1 (local commits only, no push)
-- **Base:** product `3a06472` + polish `92c8459` + tip `cabba7f` (denylist/originsMatch + DAY-PLAN + verify-night + frozen-for-review)
+- **Base:** product `3a06472` + polish `92c8459` + tip `0ec9f0f` (verify-night OK ~06:15; disk ~0.43 GB; electron.exe needs restore)
 - **Gauntlet A/B:** CLOSED WARUNKOWO OK (Architecture + IPC; honest StartListen/Cancel; language default pl; no auto-enable; no before-quit read block)
 - **HTML board:** docs/workbench.html
 - **Night report:** docs/NIGHT-REPORT-DRAFT.md (PL, 07:00 Szef)
@@ -21,7 +21,7 @@ Product HEAD: **3a06472** (voice-host StartListen + Status reader)
 | Gate | `PQ_VOICE_HOST=1` or `enabled:true`; `before-quit` no-op when inactive |
 | MSI / NSIS | Built unsigned overnight, then **reclaimed** from `release\` (disk). Rebuild later. |
 | resolve-launch / trust | Present in `pq-core` (pure helpers; no spawn / no live write) |
-| Dist / GGML | skipped on purpose (disk ~1.49 GB free) |
+| Dist / GGML | skipped (disk ~0.43 GB after ENOSPC reclaim; electron.exe truncated overnight — restore before `npm run dev`) |
 
 ## This polish slice
 | Item | Outcome |
