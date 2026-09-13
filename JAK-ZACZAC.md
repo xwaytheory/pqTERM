@@ -2,10 +2,10 @@
 
 ## Obrazek do zapamiętania: masz 3 rzeczy
 
-1. **pq-prod (Twoje biurko)** — normalne okno pq, Twoje workspace'y, Twoja praca.
-   Otwierasz: dwuklik `host\pq.exe` albo skrót `pq-prod` z pulpitu.
-2. **pq-dev (piaskownica)** — drugie, identycznie wyglądające okno do TESTÓW.
-   Otwierasz: skrót `pq-dev` z pulpitu albo plik `START-dev.cmd`.
+1. **pqTERM-pr (Twoje biurko)** — normalne okno pqTERM, Twoje workspace'y, Twoja praca.
+   Otwierasz: dwuklik `host\pqterm.exe` albo skrót `pqTERM-pr` z pulpitu.
+2. **pqTERM-dev (piaskownica)** — drugie, identycznie wyglądające okno do TESTÓW.
+   Otwierasz: skrót `pqTERM-dev` z pulpitu albo plik `START-dev.cmd`.
    Możesz je psuć i zamykać — biurku nic się nie stanie.
 3. **Osobny pokój na remont** — kiedy chcesz coś ZMIENIĆ w samym pq,
    remont robisz nie na biurku, tylko w osobnym pokoiku (folderze).
@@ -13,7 +13,7 @@
 
 ## Scenariusz A: po prostu pracujesz
 
-Kliknij pq-prod. Koniec. Nic się nie zmieniło.
+Kliknij pqTERM-pr. Koniec. Nic się nie zmieniło.
 
 ## Scenariusz B: chcesz coś zmienić w pq (krok po kroku)
 
@@ -28,14 +28,14 @@ node scripts/new-work.cjs create moj-pomysl
 (Pisz małymi literami, bez polskich znaków, zamiast spacji myślnik.)
 
 **Krok 3 — otwórz ten pokoik w pq:**
-W pq-prod kliknij domek ⌂ (lewy pasek) → `+ new` →
+W pqTERM-pr kliknij domek ⌂ (lewy pasek) → `+ new` →
 TYTUŁ: `moj-pomysl`, KATALOG: `C:\Users\pq\pq-trees\moj-pomysl` → `create`.
 Masz workspace. W pustym okienku odpal agenta (np. OpenCode).
 
 **Krok 4 — powiedz agentowi, co ma zrobić** — normalnymi słowami,
 np. „dodaj przycisk, który robi X". Agent grzebie TYLKO w pokoiku.
 
-**Krok 5 — sprawdź:** otwórz pq-dev (piaskownica) i zobacz, czy działa.
+**Krok 5 — sprawdź:** otwórz pqTERM-dev (piaskownica) i zobacz, czy działa.
 Jak coś sypie błędami — nic strasznego, to jest okno do psucia.
 
 **Krok 6 — powiedz mi: „włącz to do głównej".**
@@ -44,7 +44,7 @@ rozumieć, co dzieje się pod spodem.
 
 ## Scenariusz C: coś się zepsuło / pogubiłeś się
 
-1. Zamknij pq-dev. Twoje biurko (pq-prod) jest całe.
+1. Zamknij pqTERM-dev. Twoje biurko (pqTERM-pr) jest całe.
 2. Nieudany pokoik usuń komendą:
    ```
    node scripts/new-work.cjs remove moj-pomysl

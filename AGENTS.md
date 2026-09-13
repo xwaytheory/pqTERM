@@ -1,11 +1,13 @@
 # AGENTS.md — instructions for AI coding agents working in pq
 
-pq is a Windows-first Electron terminal grid for AI coding agents
+pqTERM is a Windows-first Electron terminal grid for AI coding agents
 (React 18 + xterm.js + node-pty, TypeScript strict, Electron 33).
+Editions: `pqTERM-pr` (production, profile `%AppData%\pqTERM-pr`)
+and `pqTERM-dev` (dev/test, profile `%AppData%\pqTERM-dev`).
 
 ## Golden commands (run from repo root)
 
-- `npm run dev` — dev instance (hot reload, profile `%AppData%\pq-dev`)
+- `npm run dev` — dev instance (hot reload, profile `%AppData%\pqTERM-dev`)
 - `npm run build` — production bundles into `out/`
 - `npm run test:unit` — unit tests, must be green before "done"
 - `npx tsc --noEmit -p tsconfig.json` — typecheck (`TS5097` in `*.test.ts`

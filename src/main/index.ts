@@ -44,24 +44,24 @@ import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag } from './resume'
 import { shutdownVoiceHost } from './voice-host'
 
-app.setName('pq')
-process.title = 'pq'
-app.setAppUserModelId('pq.app')
-app.setPath('userData', join(app.getPath('appData'), runningDev() ? 'pq-dev' : 'pq'))
+app.setName('pqTERM')
+process.title = 'pqTERM'
+app.setAppUserModelId('com.pqterm.app')
+app.setPath('userData', join(app.getPath('appData'), runningDev() ? 'pqTERM-dev' : 'pqTERM-pr'))
 
 process.on('uncaughtException', (err) => {
-  const msg = (err?.message ? String(err.message) : String(err)).replace(/electron/gi, 'pq')
+  const msg = (err?.message ? String(err.message) : String(err)).replace(/electron/gi, 'pqTERM')
   if (/pty that has already exited|Cannot resize a pty|AttachConsole failed/i.test(msg)) {
     return
   }
-  console.error('[pq]', msg)
+  console.error('[pqTERM]', msg)
 })
 process.on('unhandledRejection', (reason) => {
-  const msg = (reason instanceof Error ? reason.message : String(reason)).replace(/electron/gi, 'pq')
+  const msg = (reason instanceof Error ? reason.message : String(reason)).replace(/electron/gi, 'pqTERM')
   if (/pty that has already exited|Cannot resize a pty|AttachConsole failed/i.test(msg)) {
     return
   }
-  console.error('[pq]', msg)
+  console.error('[pqTERM]', msg)
 })
 
 let mainWindow: BrowserWindow | null = null
@@ -431,7 +431,7 @@ async function dispatchRemote(cmd: RemoteCommand): Promise<unknown> {
   }
 }
 
-const userDataDir = join(app.getPath('appData'), runningDev() ? 'pq-dev' : 'pq')
+const userDataDir = join(app.getPath('appData'), runningDev() ? 'pqTERM-dev' : 'pqTERM-pr')
 remote = new RemoteHub({
   rootDir: join(__dirname, '..', '..'),
   persistFile: join(userDataDir, 'remote.json'),
@@ -501,7 +501,7 @@ function createWindow(): void {
     frame: false,
     backgroundColor: '#07080a',
     autoHideMenuBar: true,
-    title: 'pq',
+    title: 'pqTERM',
     show: false,
     ...(icon ? { icon } : {}),
     webPreferences: {
@@ -518,11 +518,11 @@ function createWindow(): void {
   const reveal = () => {
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) mainWindow.show()
   }
-  mainWindow.setTitle('pq')
+  mainWindow.setTitle('pqTERM')
   mainWindow.on('ready-to-show', reveal)
   mainWindow.webContents.on('did-finish-load', reveal)
   mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
-    console.error('[pq] load fail', code, desc, url)
+    console.error('[pqTERM] load fail', code, desc, url)
     reveal()
   })
   setTimeout(reveal, 2500)
@@ -542,8 +542,8 @@ function createWindow(): void {
         'data:text/html;charset=utf-8,' +
           encodeURIComponent(
             `<html><body style="background:#07080a;color:#39ffb6;font-family:Consolas,monospace;padding:40px">
-             <h1>pq</h1><p>brak zbudowanego UI (out/renderer).</p>
-             <p>odpal <b>pq-dev</b> albo w katalogu projektu: npm run build</p>
+<h1>pqTERM</h1><p>brak zbudowanego UI (out/renderer).</p>
+<p>odpal <b>pqTERM-dev</b> albo w katalogu projektu: npm run build</p>
              </body></html>`
           )
       )
@@ -561,7 +561,7 @@ function registerIpc(): void {
   ipcMain.on('window:close', () => mainWindow?.close())
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('app:info', () => ({
-    mode: productName() === 'pq-dev' ? 'dev' : 'prod',
+    mode: productName() === 'pqTERM-dev' ? 'dev' : 'prod',
     name: productName()
   }))
   ipcMain.handle('app:toggleSidebar', () => {
@@ -944,8 +944,8 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(async () => {
-  app.setName('pq')
-  app.setAppUserModelId('pq.app')
+  app.setName('pqTERM')
+  app.setAppUserModelId('com.pqterm.app')
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
     callback(permission === 'media')
   })
@@ -979,12 +979,12 @@ app.whenReady().then(async () => {
   try {
     await primeResume(state.workspaces, state.providers)
   } catch (err) {
-    console.error('[pq]', err instanceof Error ? err.message : String(err))
+    console.error('[pqTERM]', err instanceof Error ? err.message : String(err))
   }
   restoreSessions()
   createWindow()
   usage.start()
-  void remote.restore().catch((err) => console.error('[pq] remote', err))
+  void remote.restore().catch((err) => console.error('[pqTERM] remote', err))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

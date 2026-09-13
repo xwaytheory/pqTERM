@@ -1,15 +1,15 @@
 import { createServer, type Server } from 'http'
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { randomBytes } from 'crypto'
 import { runningDev } from './env'
 
 export const PQ_HINT =
-  'You are inside pq, a Windows terminal grid. Sibling panes are NOT Windows Terminal. Control them with the pq command (on PATH): `pq list` · `pq fill grok` · `pq spawn 2 grok` · `pq send 2 Siemanko`. Never run wt, conhost, or start to open extra terminals.'
+  'You are inside pqTERM, a Windows terminal grid. Sibling panes are NOT Windows Terminal. Control them with the pqterm command (on PATH): `pqterm list` · `pqterm fill grok` · `pqterm spawn 2 grok` · `pqterm send 2 Siemanko`. Never run wt, conhost, or start to open extra terminals.'
 
 export function binDir(): string {
-  return join(homedir(), 'AppData', 'Roaming', runningDev() ? 'pq-dev' : 'pq', 'bin')
+  return join(homedir(), 'AppData', 'Roaming', runningDev() ? 'pqTERM-dev' : 'pqTERM-pr', 'bin')
 }
 
 function findNode(): string {
@@ -59,13 +59,13 @@ async function call(method, path, body) {
 }
 
 function help() {
-  console.log(\`pq — sterowanie siatką z wnętrza CLI
+  console.log(\`pqterm — sterowanie siatką z wnętrza CLI
 
-  pq list
-  pq fill [engine]              idle sloty → silnik (domyślnie grok)
-  pq fill grok --send Siemanko  fill + ten sam prompt w nowych oknach
-  pq spawn <slot> [engine]      slot 1..N
-  pq send <slot> <tekst...>     wyślij prompt + Enter
+  pqterm list
+  pqterm fill [engine]              idle sloty → silnik (domyślnie grok)
+  pqterm fill grok --send Siemanko  fill + ten sam prompt w nowych oknach
+  pqterm spawn <slot> [engine]      slot 1..N
+  pqterm send <slot> <tekst...>     wyślij prompt + Enter
 \`)
 }
 
@@ -101,7 +101,7 @@ async function main() {
   if (cmd === 'spawn') {
     const slot = Number(argv[1])
     const engine = argv[2] || 'grok'
-    if (!slot) { console.error('pq spawn <slot> [engine]'); process.exit(1) }
+    if (!slot) { console.error('pqterm spawn <slot> [engine]'); process.exit(1) }
     await call('POST', '/v1/panes/' + slot + '/spawn', { engine })
     console.log('ok')
     return
@@ -109,7 +109,7 @@ async function main() {
   if (cmd === 'send') {
     const slot = Number(argv[1])
     const text = argv.slice(2).join(' ')
-    if (!slot || !text) { console.error('pq send <slot> <tekst>'); process.exit(1) }
+    if (!slot || !text) { console.error('pqterm send <slot> <tekst>'); process.exit(1) }
     await call('POST', '/v1/panes/' + slot + '/write', { text })
     console.log('ok')
     return
@@ -140,14 +140,22 @@ export class PaneBridge {
     mkdirSync(dir, { recursive: true })
     const node = findNode()
     writeFileSync(
-      join(dir, 'pq.cmd'),
-      `@echo off\r\n"${node}" "%~dp0pq-ctl.cjs" %*\r\n`,
+      join(dir, 'pqterm.cmd'),
+      `@echo off\r\n"${node}" "%~dp0pqterm-ctl.cjs" %*\r\n`,
       'utf8'
     )
-    writeFileSync(join(dir, 'pq-ctl.cjs'), CTL, 'utf8')
+    writeFileSync(join(dir, 'pqterm-ctl.cjs'), CTL, 'utf8')
+    // one-time cleanup of the pre-rebrand helper names
+    for (const legacy of ['pq.cmd', 'pq-ctl.cjs']) {
+      try {
+        unlinkSync(join(dir, legacy))
+      } catch {
+        /* ignore */
+      }
+    }
     writeFileSync(
       join(dir, 'wt.cmd'),
-      `@echo off\r\necho [pq] to nie Windows Terminal.\r\necho   pq list\r\necho   pq fill grok\r\necho   pq send 2 Siemanko\r\nexit /b 1\r\n`,
+      `@echo off\r\necho [pqTERM] to nie Windows Terminal.\r\necho   pqterm list\r\necho   pqterm fill grok\r\necho   pqterm send 2 Siemanko\r\nexit /b 1\r\n`,
       'utf8'
     )
   }

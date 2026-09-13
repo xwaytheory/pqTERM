@@ -1,11 +1,11 @@
 {
-  "name": "pq",
+  "name": "pqterm",
   "version": "1.1.1",
-  "description": "pq — nerd terminal grid for AI coding agents",
+  "description": "pqTERM — nerd terminal grid for AI coding agents",
   "main": "./out/main/index.js",
   "author": "pq",
   "license": "MIT",
-  "productName": "pq",
+  "productName": "pqTERM",
   "scripts": {
     "dev": "node scripts/pq.cjs dev",
     "build": "node scripts/pq.cjs build",
@@ -20,9 +20,9 @@
     "test:unit": "node --experimental-strip-types --test src/renderer/src/lib/dropPaths.test.ts src/renderer/src/lib/engineMarkLetter.test.ts src/renderer/src/components/engineLogoMeta.test.ts src/phone/src/originsMatch.test.ts src/shared/grid.test.ts"
   },
   "build": {
-    "appId": "com.pq.app",
-    "productName": "pq",
-    "executableName": "pq",
+    "appId": "com.pqterm.app",
+    "productName": "pqTERM",
+    "executableName": "pqterm",
     "directories": {
       "output": "release"
     },

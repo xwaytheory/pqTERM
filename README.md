@@ -1,8 +1,8 @@
-# pq
+# pqTERM
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–9 żywych TUI po prawej.
 
-**Wersja: 1.1.1**
+**Wersja: 1.1.1** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
 
 Na razie **prywatne**. Publicznie wyjdzie dopiero gdy zdecydujesz.
 
@@ -43,22 +43,22 @@ npm run rebuild
 npm run dev
 ```
 
-4. Zaloguj się w aplikacji (Google lub lokalnie). Workspace'y i logowanie **nie** jadą w gicie — są w `%AppData%\pq-dev`. Na nowym PC logujesz się od nowa i wskazujesz foldery projektów.
+4. Zaloguj się w aplikacji (Google lub lokalnie). Workspace'y i logowanie **nie** jadą w gicie — są w `%AppData%\pqTERM-dev`. Na nowym PC logujesz się od nowa i wskazujesz foldery projektów.
 
 ---
 
 ## Dwa środowiska
 
-| | **pq-dev** | **pq** |
+| | **pqTERM-dev** | **pqTERM-pr** |
 |---|---|---|
-| start | `npm run dev` | `START-prod.cmd` (lub skrót na pulpicie) |
-| plik | `START-dev.cmd` | `START-prod.cmd` |
-| dane | `%AppData%\pq-dev` | `%AppData%\pq` |
+| start | `npm run dev` | `START-pr.cmd` (lub skrót na pulpicie) |
+| plik | `START-dev.cmd` | `START-pr.cmd` |
+| dane | `%AppData%\pqTERM-dev` | `%AppData%\pqTERM-pr` |
 | po co | łamiesz produkt | codziennie odpalasz agentów |
 
-**W produkcji** (`pq`):
-- `host/pq.exe` to skopiowany Electron podpisany rcedit jako "pq"
-- UI buduje się raz (`npm run build`), potem `START-prod.cmd` odpala bez serwera dev
+**W produkcji** (`pqTERM-pr`):
+- `host/pqterm.exe` to skopiowany Electron podpisany rcedit jako "pqTERM"
+- UI buduje się raz (`npm run build`), potem `START-pr.cmd` odpala bez serwera dev
 
 Nie commituj z katalogu, z którego leci akurat `npm run dev` w tym samym drzewie co agenty — trzymaj **klon gita** jako cwd workspace'u.
 
@@ -104,9 +104,9 @@ pq/
 ├── scripts/
 │   ├── pq.cjs         # dev/build/preview orchestrator
 │   ├── rebuild.cjs    # electron-builder install-app-deps + stamp-host
-│   ├── stamp-host.cjs # kopiuje electron dist → host/, rcedit → pq.exe
+│   ├── stamp-host.cjs # kopiuje electron dist → host/, rcedit → pqterm.exe
 │   └── make-shortcuts.cjs # skróty .lnk na pulpicie (PowerShell)
-├── host/              # ⭐ skompilowany Electron podpisany jako "pq" (gitignore)
+├── host/              # ⭐ skompilowany Electron podpisany jako "pqTERM" (gitignore)
 ├── out/               # build output (gitignore)
 ├── resources/         # zasoby
 ├── .pq/               # board.json + BOARD.md (gitignore, per workspace)
@@ -116,7 +116,7 @@ pq/
 ├── tsconfig.json
 ├── START.cmd          # → START-dev.cmd
 ├── START-dev.cmd      # dev: npm install → rebuild → npm run dev
-└── START-prod.cmd     # prod: npm install → rebuild → build → stamp-host → host/pq.exe
+└── START-pr.cmd       # prod: npm install → rebuild → build → stamp-host → host/pqterm.exe
 ```
 
 ---
@@ -125,13 +125,13 @@ pq/
 
 | Komenda | Opis |
 |---|---|
-| `npm run dev` | Tryb dev (vite watch + electron, dane w `%AppData%\pq-dev`) |
+| `npm run dev` | Tryb dev (vite watch + electron, dane w `%AppData%\pqTERM-dev`) |
 | `npm run build` | Zbuduj renderer + phone do `out/` |
 | `npm run preview` | Podgląd produkcji z dev serwerem |
 | `npm run start` | Alias: `npm run preview` |
 | `npm run rebuild` | `electron-builder install-app-deps` + `stamp-host` |
 | `npm run stamp` | Tylko stamp-host (skopiuj electron → host/) |
-| `npm run shortcuts` | Utwórz skróty na pulpicie (pq-dev.lnk, pq-prod.lnk) |
+| `npm run shortcuts` | Utwórz skróty na pulpicie (pqTERM-dev.lnk, pqTERM-pr.lnk) |
 | `npm run dist` | Installery NSIS+MSI → `release/` (nadpisuje target; `build.win.target` zostaje `dir` dla stamp-host) |
 | `npm run test:unit` | Testy jednostkowe (m.in. `quotePath` / DnD) |
 | `npm postinstall` | Automatycznie po `npm install`: `rebuild` |
@@ -140,11 +140,11 @@ pq/
 
 ## Packaging (Windows)
 
-- **Daily / portable:** `npm run stamp` / `START-prod.cmd` → `host/pq.exe` (`build.win.target: "dir"`).
-- **Installers:** `npm run dist` → NSIS Setup + MSI in `release/` (`appId: com.pq.app`, stable MSI `upgradeCode`).
+- **Daily / portable:** `npm run stamp` / `START-pr.cmd` → `host/pqterm.exe` (`build.win.target: "dir"`).
+- **Installers:** `npm run dist` → NSIS Setup + MSI in `release/` (`appId: com.pqterm.app`, stable MSI `upgradeCode`).
 - Brand icons: `resources/brand/pq.ico`, `pq-256.png`, `pq-512.png` (not `pq.png`).
 - Builds are **unsigned** — expect SmartScreen warnings until a signing cert is configured (`publisherName` placeholder in `package.json`; not a real cert).
-- `npm run dist` smoke: run when convenient; **do not claim** NSIS/MSI exist until `release/` artifacts are present. Daily path remains `stamp` → `host/pq.exe`.
+- `npm run dist` smoke: run when convenient; **do not claim** NSIS/MSI exist until `release/` artifacts are present. Daily path remains `stamp` → `host/pqterm.exe`.
 
 ## Engines (agenty AI)
 
@@ -246,16 +246,16 @@ cd %USERPROFILE%\pq
 npm install
 npm run build
 npm run stamp
-:: host/pq.exe gotowy
-START-prod.cmd
+:: host/pqterm.exe gotowy
+START-pr.cmd
 ```
 
 Albo jednym strzałem:
 ```bat
-START-prod.cmd
+START-pr.cmd
 ```
 
-**Uwaga**: `scripts/stamp-host.cjs` używa `rcedit` do podpisania `electron.exe` → `pq.exe` (zmiana ProductName, FileDescription, wersja 1.1.1). Wymaga `node_modules/rcedit/bin/rcedit-x64.exe`.
+**Uwaga**: `scripts/stamp-host.cjs` używa `rcedit` do podpisania `electron.exe` → `pqterm.exe` (zmiana ProductName, FileDescription, wersja 1.1.1). Wymaga `node_modules/rcedit/bin/rcedit-x64.exe`.
 
 ---
 
@@ -266,8 +266,8 @@ npm run shortcuts
 ```
 
 Tworzy na pulpicie:
-- `pq-dev.lnk` → `START-dev.cmd`
-- `pq-prod.lnk` → `host/pq.exe <root>`
+- `pqTERM-dev.lnk` → `START-dev.cmd`
+- `pqTERM-pr.lnk` → `host/pqterm.exe <root>`
 
 ---
 

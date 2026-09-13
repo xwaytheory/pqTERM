@@ -11,6 +11,8 @@ export type EngineId =
   | 'crush'
   | 'aider'
   | 'copilot'
+  | 'antigravity'
+  | 'zcode'
   | 'shell'
 
 /** Any number of panes is allowed (the UI shows presets, +/- stepper, and drag-to-snap). */
@@ -45,7 +47,9 @@ export function parseGridIntent(
     'gemini',
     'crush',
     'aider',
-    'copilot'
+    'copilot',
+    'antigravity',
+    'zcode'
   ]
   for (const id of ids) {
     if (new RegExp(`\\b${id}\\b`, 'i').test(t)) {
@@ -207,6 +211,8 @@ export const ENGINE_ORDER: EngineId[] = [
   'crush',
   'aider',
   'copilot',
+  'antigravity',
+  'zcode',
   'shell'
 ]
 

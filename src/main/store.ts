@@ -1,29 +1,43 @@
 import { app } from './host'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
 import type { AppSnapshot, PaneState, ProviderInfo, Workspace } from '../shared/types'
 import { looksLikePathTitle } from '../shared/types'
 import { defaultProvider, ENGINE_SPECS } from './engines'
+import { runningDev } from './env'
 
 function saveFile(): string {
   return join(app.getPath('userData'), 'pq-state.json')
 }
 
+/** Pre-rebrand profile dir (pqTERM-pr ← pq, pqTERM-dev ← pq-dev). */
+function legacyDir(): string {
+  return join(homedir(), 'AppData', 'Roaming', runningDev() ? 'pq-dev' : 'pq')
+}
+
 function loadFile(): string {
   const dest = saveFile()
   if (!existsSync(dest)) {
-    const fromProd = join(homedir(), 'AppData', 'Roaming', 'pq', 'pq-state.json')
-    if (existsSync(fromProd)) {
+    // First boot under the pqTERM name — carry over workspaces/settings.
+    const fromLegacy = join(legacyDir(), 'pq-state.json')
+    if (existsSync(fromLegacy)) {
       mkdirSync(dirname(dest), { recursive: true })
       try {
-        copyFileSync(fromProd, dest)
+        copyFileSync(fromLegacy, dest)
+      } catch {
+        /* ignore */
+      }
+      try {
+        cpSync(join(legacyDir(), 'sessions'), join(dirname(dest), 'sessions'), {
+          recursive: true
+        })
       } catch {
         /* ignore */
       }
     }
   }
-  const candidates = [dest, join(homedir(), 'AppData', 'Roaming', 'pq', 'pq-state.json')]
+  const candidates = [dest, join(legacyDir(), 'pq-state.json')]
   return candidates.find((p) => existsSync(p)) ?? dest
 }
 

@@ -8,26 +8,26 @@ const srcExe = join(dist, 'electron.exe')
 const rcedit = join(root, 'node_modules', 'rcedit', 'bin', 'rcedit-x64.exe')
 const pathTxt = join(root, 'node_modules', 'electron', 'path.txt')
 const host = join(root, 'host')
-const hostExe = join(host, 'pq.exe')
-const distExe = join(dist, 'pq.exe')
+const hostExe = join(host, 'pqterm.exe')
+const distExe = join(dist, 'pqterm.exe')
 
 if (!existsSync(srcExe)) {
-  console.error('[pq] host binary missing — npm install first')
+  console.error('[pqTERM] host binary missing — npm install first')
   process.exit(1)
 }
 if (!existsSync(rcedit)) {
-  console.error('[pq] rcedit missing')
+  console.error('[pqTERM] rcedit missing')
   process.exit(1)
 }
 
 function stamp(exe) {
   const args = [
     exe,
-    '--set-version-string', 'ProductName', 'pq',
-    '--set-version-string', 'FileDescription', 'pq',
-    '--set-version-string', 'InternalName', 'pq',
-    '--set-version-string', 'OriginalFilename', 'pq.exe',
-    '--set-version-string', 'CompanyName', 'pq',
+    '--set-version-string', 'ProductName', 'pqTERM',
+    '--set-version-string', 'FileDescription', 'pqTERM',
+    '--set-version-string', 'InternalName', 'pqterm',
+    '--set-version-string', 'OriginalFilename', 'pqterm.exe',
+    '--set-version-string', 'CompanyName', 'pqTERM',
     '--set-version-string', 'LegalCopyright', 'pq',
     '--set-product-version', '1.1.1',
     '--set-file-version', '1.1.1'
@@ -38,7 +38,7 @@ function stamp(exe) {
 
 function pathIsPq() {
   try {
-    return readFileSync(pathTxt, 'utf8').trim() === 'pq.exe'
+    return readFileSync(pathTxt, 'utf8').trim() === 'pqterm.exe'
   } catch {
     return false
   }
@@ -52,10 +52,18 @@ if (hostNeedsDist) {
     recursive: true,
     filter: (src) => {
       const base = src.split(/[/\\]/).pop()
-      return base !== 'electron.exe' && base !== 'pq.exe'
+      return base !== 'electron.exe' && base !== 'pq.exe' && base !== 'pqterm.exe'
     }
   })
   copyFileSync(srcExe, hostExe)
+}
+// one-time cleanup of the pre-rebrand host binary
+for (const legacy of [join(host, 'pq.exe'), join(dist, 'pq.exe')]) {
+  try {
+    if (existsSync(legacy)) unlinkSync(legacy)
+  } catch {
+    /* locked — leave it, harmless */
+  }
 }
 
 stamp(hostExe)
@@ -63,27 +71,27 @@ stamp(hostExe)
 try {
   copyFileSync(hostExe, distExe)
 } catch (err) {
-  console.log('[pq] dist/pq.exe locked —', err instanceof Error ? err.message : err)
+  console.log('[pqTERM] dist/pqterm.exe locked —', err instanceof Error ? err.message : err)
 }
 
 try {
-  writeFileSync(pathTxt, 'pq.exe')
+  writeFileSync(pathTxt, 'pqterm.exe')
 } catch (err) {
-  console.log('[pq] path.txt locked —', err instanceof Error ? err.message : err)
+  console.log('[pqTERM] path.txt locked —', err instanceof Error ? err.message : err)
 }
 
 if (!pathIsPq()) {
-  console.error('[pq] failed to point host at pq.exe')
+    console.error('[pqTERM] failed to point host at pqterm.exe')
   process.exit(1)
 }
 
 try {
   stamp(srcExe)
 } catch {
-  console.log('[pq] live electron.exe locked — pq.exe stamped')
+  console.log('[pqTERM] live electron.exe locked — pqterm.exe stamped')
 }
 
-// Bare `host\pq.exe` (double-click, no argv) must boot pq — not Electron's
+// Bare `host\pqterm.exe` (double-click, no argv) must boot pqTERM — not Electron's
 // demo. Link host/resources/app -> project root (its package.json points at
 // out/), same layout START-prod.cmd uses via argv.
 try {
@@ -106,13 +114,13 @@ try {
   }
   if (!st) {
     symlinkSync(root, link, 'junction')
-    console.log('[pq] host app link →', link)
+    console.log('[pqTERM] host app link →', link)
   } else {
-    console.log('[pq] host app link present — skipped')
+    console.log('[pqTERM] host app link present — skipped')
   }
 } catch (err) {
-  console.log('[pq] app link skipped —', err instanceof Error ? err.message : err)
+  console.log('[pqTERM] app link skipped —', err instanceof Error ? err.message : err)
 }
 
-console.log('[pq] host stamped →', hostExe)
-console.log('[pq] dev host →', distExe)
+console.log('[pqTERM] host stamped →', hostExe)
+console.log('[pqTERM] dev host →', distExe)

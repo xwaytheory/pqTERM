@@ -122,14 +122,14 @@ const pq = {
       try {
         const p = webUtils.getPathForFile(file)
         if (!p) {
-          console.warn('[pq] files.pathFor: empty path for', file?.name)
+          console.warn('[pqTERM] files.pathFor: empty path for', file?.name)
           return ''
         }
         return p
       } catch (err) {
         const legacy = (file as File & { path?: string }).path
         if (legacy) return legacy
-        console.warn('[pq] files.pathFor failed:', file?.name, err)
+        console.warn('[pqTERM] files.pathFor failed:', file?.name, err)
         return ''
       }
     }

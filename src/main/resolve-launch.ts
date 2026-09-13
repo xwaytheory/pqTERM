@@ -80,6 +80,7 @@ export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: str
     case 'dsh':
     case 'gemini':
     case 'crush':
+    case 'zcode':
     case 'copilot': {
       const name = engine
       const exe = firstExisting([
@@ -87,6 +88,10 @@ export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: str
         join(npm, `${name}.exe`),
         join(npm, 'node_modules', '.bin', `${name}.cmd`)
       ])
+      return exe ? { spawnFile: exe, args: extra } : null
+    }
+    case 'antigravity': {
+      const exe = firstExisting([join(homedir(), 'AppData', 'Local', 'agy', 'bin', 'agy.exe')])
       return exe ? { spawnFile: exe, args: extra } : null
     }
     case 'aider': {

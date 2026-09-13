@@ -51,7 +51,7 @@ function envFor(
   const extras = [
     extraEnv?.PQ_BIN || '',
     extraPath ? dirname(extraPath) : '',
-    `${homedir()}\\AppData\\Roaming\\${runningDev() ? 'pq-dev' : 'pq'}\\bin`,
+    `${homedir()}\\AppData\\Roaming\\${runningDev() ? 'pqTERM-dev' : 'pqTERM-pr'}\\bin`,
     `${homedir()}\\.grok\\bin`,
     `${homedir()}\\AppData\\Roaming\\npm`,
     `${homedir()}\\AppData\\Local\\hermes\\bin`,
@@ -147,7 +147,7 @@ export class PtyManager {
       win0?.webContents.send(
         'term:data',
         opts.paneId,
-        `\x1b[31m[pq] spawn failed: ${spawnFile}\r\n${msg}\x1b[0m\r\n`
+        `\x1b[31m[pqTERM] spawn failed: ${spawnFile}\r\n${msg}\x1b[0m\r\n`
       )
       win0?.webContents.send('term:exit', opts.paneId, 1)
       return

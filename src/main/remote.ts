@@ -269,6 +269,8 @@ export class RemoteHub {
   }
 
   private openFirewall(): void {
+    // drop the pre-rebrand rule (best effort, needs elevation anyway)
+    execFile('netsh', ['advfirewall', 'firewall', 'delete', 'rule', 'name=pq-remote'], () => undefined)
     execFile(
       'netsh',
       [
@@ -276,7 +278,7 @@ export class RemoteHub {
         'firewall',
         'add',
         'rule',
-        'name=pq-remote',
+        'name=pqterm-remote',
         'dir=in',
         'action=allow',
         'protocol=TCP',

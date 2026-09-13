@@ -434,7 +434,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                         className="broadcast"
                         value={cast}
                         placeholder="wyślij do wszystkich…"
-                        title="pq wyśle ten prompt do wszystkich okien tego silnika; puste od razu odpali"
+                        title="pqTERM wyśle ten prompt do wszystkich okien tego silnika; puste od razu odpali"
                         onChange={(e) => setCast(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key !== 'Enter' || !cast.trim()) return
@@ -522,7 +522,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
         </main>
       </div>
       <footer className="status">
-        <span className="ok">pq {snap.user?.provider}</span>
+<span className="ok">pqTERM {snap.user?.provider}</span>
         <span>{snap.user?.email}</span>
         <span>
           engines {detected} installed · {authed} auth

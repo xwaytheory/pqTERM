@@ -229,6 +229,30 @@ export const ENGINE_SPECS: EngineSpec[] = [
     models: []
   },
   {
+    id: 'antigravity',
+    name: 'Antigravity CLI',
+    vendor: 'Google',
+    color: '#ea4335',
+    mark: 'Ag',
+    binaries: ['agy', 'agy.exe'],
+    args: [],
+    hint: 'Antigravity CLI (agy) — TUI Google. Instalacja: curl -fsSL https://antigravity.google/cli/install.cmd -o install.cmd && install.cmd. Logowanie przez keyring/Google przy pierwszym starcie.',
+    extraPathDirs: ['%LOCALAPPDATA%\\agy\\bin'],
+    models: []
+  },
+  {
+    id: 'zcode',
+    name: 'ZCode',
+    vendor: 'Z.AI',
+    color: '#ff8c1a',
+    binaries: ['zcode', 'zcode.cmd'],
+    args: [],
+    hint: 'ZCode (Z.AI, GLM) — TUI. Instalacja: npm install -g zcode-app-cli. Setup wizard przy pierwszym starcie (/setup wraca do kreatora).',
+    extraPathDirs: ['%APPDATA%\\npm'],
+    npmPackage: 'zcode-app-cli',
+    models: []
+  },
+  {
     id: 'shell',
     name: 'PowerShell',
     vendor: 'Windows',

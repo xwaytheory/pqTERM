@@ -78,7 +78,7 @@ export default function App() {
   if (phase === 'boot') {
     return (
       <div className="boot">
-        <div className="brand">pq</div>
+        <div className="brand">pqTERM</div>
         connecting…
       </div>
     )
@@ -87,7 +87,7 @@ export default function App() {
   if (phase === 'pin') {
     return (
       <div className="boot">
-        <div className="brand">pq</div>
+        <div className="brand">pqTERM</div>
         <p>Wpisz PIN z panelu TELEFON. Zobaczysz te same workspace’y co na laptopie.</p>
         <input
           className="pin"
@@ -180,7 +180,7 @@ export default function App() {
   return (
     <div className="screen">
       <header>
-        <div className="brand">pq</div>
+        <div className="brand">pqTERM</div>
         <div className="sub">{snap.user?.email || 'laptop'}</div>
       </header>
       <div className="list">

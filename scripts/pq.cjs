@@ -4,14 +4,14 @@ const { join } = require('path')
 
 const root = join(__dirname, '..')
 const pathTxt = join(root, 'node_modules', 'electron', 'path.txt')
-const distPq = join(root, 'node_modules', 'electron', 'dist', 'pq.exe')
+const distPq = join(root, 'node_modules', 'electron', 'dist', 'pqterm.exe')
 let hostName = ''
 try {
   hostName = readFileSync(pathTxt, 'utf8').trim()
 } catch {
   hostName = ''
 }
-if (!existsSync(distPq) || hostName !== 'pq.exe') {
+if (!existsSync(distPq) || hostName !== 'pqterm.exe') {
   const stamped = spawnSync(process.execPath, [join(root, 'scripts', 'stamp-host.cjs')], {
     cwd: root,
     stdio: 'inherit'

@@ -16,6 +16,8 @@ export const ENGINE_LOGO_IDS = [
   'crush',
   'aider',
   'copilot',
+  'antigravity',
+  'zcode',
   'shell'
 ] as const
 
@@ -34,5 +36,7 @@ export const ENGINE_LOGO_FILES: Record<EngineLogoId, string> = {
   crush: 'crush.png',
   aider: 'aider.png',
   copilot: 'copilot.svg',
+  antigravity: 'antigravity.png',
+  zcode: 'zcode.png',
   shell: 'shell.svg'
 }

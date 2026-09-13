@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 
 export default function Titlebar({ center }: { center?: ReactNode }) {
-  const [name, setName] = useState('pq')
+  const [name, setName] = useState('pqTERM')
   useEffect(() => {
     void window.pq.app.info().then((i) => setName(i.name))
   }, [])

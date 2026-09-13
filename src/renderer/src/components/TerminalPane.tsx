@@ -181,7 +181,7 @@ export default function TerminalPane({
     })
     const offExit = window.pq.terminals.onExit((id, code) => {
       if (id === pane.id) {
-        term.write(`\r\n\x1b[90m[pq] process exit ${code}\x1b[0m\r\n`)
+        term.write(`\r\n\x1b[90m[pqTERM] process exit ${code}\x1b[0m\r\n`)
       }
     })
     term.onData((d) => {
@@ -401,7 +401,7 @@ export default function TerminalPane({
     }
     if (failed.length) {
       const msg = `DnD: failed to resolve path (${failed.length}/${files.length}): ${failed.slice(0, 3).join(', ')}`
-      console.warn('[pq]', msg)
+      console.warn('[pqTERM]', msg)
       setDropStatus(msg)
       window.setTimeout(() => setDropStatus(null), 4000)
     }
@@ -451,7 +451,7 @@ export default function TerminalPane({
           mark={provider?.mark}
           size={20}
         />
-        <span className="slot" title={`pq send ${index} …`}>
+<span className="slot" title={`pqterm send ${index} …`}>
           {index}
         </span>
         {editing ? (
