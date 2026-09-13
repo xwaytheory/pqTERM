@@ -16,6 +16,7 @@
     "shortcuts": "node scripts/make-shortcuts.cjs",
     "postinstall": "node scripts/rebuild.cjs",
     "dist": "npm run build && electron-builder --win nsis msi",
+    "new-work": "node scripts/new-work.cjs",
     "test:unit": "node --experimental-strip-types --test src/renderer/src/lib/dropPaths.test.ts src/renderer/src/lib/engineMarkLetter.test.ts src/renderer/src/components/engineLogoMeta.test.ts src/phone/src/originsMatch.test.ts src/shared/grid.test.ts"
   },
   "build": {
