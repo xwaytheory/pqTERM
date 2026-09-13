@@ -1,9 +1,9 @@
-//! pq-work — workbench host (Phase 2 stub).
+//! pq-work â€” workbench host (Phase 2 stub).
 //!
 //! Future: Tauri UI, ConPTY/portable-pty terminals, auto-update on launch.
 //! Electron `src/` remains the production app until a later phase.
 //!
-//! IPC: owns StubWorkClient (StartListen / Cancel → voice; receives Transcript / Status).
+//! IPC: owns StubWorkClient (StartListen / Cancel â†’ voice; receives Transcript / Status).
 //! Spike: `--ipc-tcp [addr]` listens on localhost TCP JSON-lines (Transport spike, not production IPC).
 
 mod pty_manager;
@@ -159,10 +159,10 @@ fn ipc_tcp_addr(args: &[String]) -> Option<String> {
     None
 }
 
-/// Listen as work side; wait for voice to connect; StartListen → print Transcript.
+/// Listen as work side; wait for voice to connect; StartListen â†’ print Transcript.
 fn run_ipc_tcp_demo(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("pq-work {WORKSPACE_VERSION} ipc-tcp listen on {addr}");
-    println!("waiting for pq-voice --ipc-tcp {addr} …");
+    println!("waiting for pq-voice --ipc-tcp {addr} â€¦");
     let mut transport = LocalTcpTransport::listen_once(addr)?;
     println!("peer connected ({})", transport.kind());
 
@@ -170,7 +170,7 @@ fn run_ipc_tcp_demo(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     work.start_listen("sess-tcp-demo")?;
     for msg in work.channel.take_outbound() {
         transport.send(msg)?;
-        println!("→ StartListen");
+        println!("â†’ StartListen");
     }
 
     loop {
@@ -178,14 +178,14 @@ fn run_ipc_tcp_demo(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         match &msg {
             IpcMessage::Transcript(t) => {
                 println!(
-                    "← Transcript final={} text={:?}",
+                    "â† Transcript final={} text={:?}",
                     t.is_final, t.text
                 );
             }
             IpcMessage::Status(s) => {
-                println!("← Status {:?} {:?}", s.state, s.detail);
+                println!("â† Status {:?} {:?}", s.state, s.detail);
             }
-            other => println!("← {other:?}"),
+            other => println!("â† {other:?}"),
         }
         work.handle_from_voice(msg)?;
         if work.transcripts.iter().any(|t| t.is_final) {
@@ -219,7 +219,7 @@ fn default_update_fixture_path() -> String {
     "pq-update-manifest.json".into()
 }
 
-/// FileManifestFetch fixture check — prints `OfferUpdate` JSON or up-to-date (no network).
+/// FileManifestFetch fixture check â€” prints `OfferUpdate` JSON or up-to-date (no network).
 fn run_check_update(path: &str) -> Result<(), String> {
     let fetcher = FileManifestFetch::new(path);
     let manifest = fetch_manifest(&fetcher, path).map_err(|e| e.to_string())?;
@@ -248,9 +248,11 @@ fn print_help() {
          OPTIONS:\n\
              -h, --help              Show help\n\
              -V, --version           Show version\n\
+             --check-update [FILE]   OfferUpdate from local manifest fixture (no network)\n\
              --ipc-demo              In-process LocalTcpTransport e2e (shared IPC types)\n\
              --ipc-tcp [ADDR]        Listen for voice on localhost TCP JSON-lines\n\
-                                     (default {DEFAULT_TCP_ADDR})\n\n\
+                                     (default {DEFAULT_TCP_ADDR})\n\
+             --pty-spike             ConPTY echo spike (needs --features pty-spike)\n\n\
          Phase 2: IPC stubs + TCP/named-pipe Transport + optional pty-spike. See docs/MIGRATION-RUST.md."
     );
 }

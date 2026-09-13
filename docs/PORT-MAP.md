@@ -63,8 +63,8 @@ JSON line codec: `encode_line` / `decode_line`.
 
 | Crate | Owns |
 |-------|------|
-| **pq-core** | env, store, engines, version, updater, ipc, **auth/remote/board/resume/usage/sync sketches**, stt pipeline |
+| **pq-core** | env, store, engines, version, updater, ipc, **auth/remote/board/resume/usage/sync/resolve_launch/trust/providers sketches**, stt pipeline |
 | **pq-work** | SessionRegistry/pty, bridge, providers, launch, trust, resume, sync, usage, UI host |
 | **pq-voice** | mic, VAD, Whisper Large v3, intent hints; speaks IPC only |
 
-Updated: 2026-09-13 slice8 — voice pipeline skeleton, --ipc-demo, resume/usage/sync types.
+Updated: 2026-09-13 slice9 — resolve_launch/trust/providers, rust-smoke, night report.

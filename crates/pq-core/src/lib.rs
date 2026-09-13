@@ -1,4 +1,4 @@
-//! Shared library for pq Rust migration (Phase 1–2).
+//! Shared library for pq Rust migration (Phase 1-2).
 //!
 //! STT **intent** (desktop Rust / pq-voice): OpenAI Whisper Large v3 for Polish.
 //! Model id: `openai/whisper-large-v3` (HF); local GGML: `ggml-large-v3.bin`.
@@ -12,10 +12,13 @@ pub mod board;
 pub mod engines;
 pub mod env;
 pub mod ipc;
+pub mod providers;
+pub mod resolve_launch;
 pub mod remote;
 pub mod resume;
 pub mod store;
 pub mod stt;
+pub mod trust;
 pub mod sync;
 pub mod updater;
 pub mod usage;
@@ -37,6 +40,14 @@ pub use env::{
     appdata_roaming, prod_user_data_dir, product_name, running_dev, user_data_dir,
     user_data_dir_for,
 };
+pub use providers::{
+    apply_email_match, auth_candidate_paths, emails_in, empty_probes, merge_provider_probes,
+    text_looks_authed, ProviderProbe,
+};
+pub use resolve_launch::{
+    known_launch, known_launch_candidates, npm_dir, quote_arg, resolve_launch, sanitize_env_keys,
+    yolo_env, FsExists, LaunchPlan, PathExists,
+};
 pub use ipc::{
     decode_line, encode_line, local_tcp_ipc_demo, stub_loopback_demo, tcp_loopback_demo,
     voice_exe_candidates, Cancel, DuplexEndpoint, IpcError, IpcMessage, IpcSink, LocalTcpTransport,
@@ -53,6 +64,12 @@ pub use store::{
     empty_snapshot, exists_state, exists_state_at, load_state, load_state_from, save_state,
     save_state_to, state_path, state_path_in, touch_workspace, AppSnapshot, AuthProvider,
     GoogleOAuthConfig, ModelChoice, PaneState, ProviderInfo, StoreError, UserSession, Workspace,
+};
+pub use trust::{
+    claude_already_trusted, claude_project_key, claude_trust_patch, codex_already_trusted,
+    codex_trust_block, gemini_already_trusted, gemini_trust_key, grok_already_trusted,
+    grok_trust_block, path_key, plan_trust_actions, trust_config_paths, trust_folder_set,
+    unique_folders, TrustAction,
 };
 pub use sync::{order_sync_jobs, skip_sync_engine, sync_line, EngineSyncStub, SyncEvent};
 pub use updater::{

@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>pq workbench — Rust migration</title>
+  <title>pq workbench — status board</title>
   <style>
-    :root { --bg:#0f1419; --card:#1a2332; --fg:#e7ecf3; --muted:#8b9bb4; --ok:#3dd68c; --warn:#f5a524; --accent:#6cb6ff; }
+    :root { --bg:#0f1419; --card:#1a2332; --fg:#e7ecf3; --muted:#8b9bb4; --ok:#3dd68c; --warn:#f5a524; --bad:#f76e6e; --accent:#6cb6ff; }
     * { box-sizing: border-box; }
     body { margin:0; font:14px/1.45 system-ui,Segoe UI,sans-serif; background:var(--bg); color:var(--fg); }
     header { padding:1.25rem 1.5rem; border-bottom:1px solid #243044; }
@@ -15,78 +15,118 @@
     section { background:var(--card); border-radius:10px; padding:1rem 1.1rem; border:1px solid #243044; }
     h2 { margin:0 0 .75rem; font-size:0.95rem; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; }
     .bar { height:10px; background:#243044; border-radius:999px; overflow:hidden; }
-    .bar > i { display:block; height:100%; width:80%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
+    .bar > i { display:block; height:100%; width:84%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
     .pct { font-size:1.6rem; font-weight:700; margin:.35rem 0; }
     ul { margin:.25rem 0 0; padding-left:1.1rem; }
     li { margin:.2rem 0; }
     .tag { display:inline-block; padding:.1rem .45rem; border-radius:999px; font-size:.75rem; background:#243044; color:var(--ok); }
     .tag.warn { color:var(--warn); }
+    .tag.bad { color:var(--bad); }
     code { font-family:ui-monospace,Consolas,monospace; font-size:.85em; }
     table { width:100%; border-collapse:collapse; font-size:.85rem; }
-    td, th { text-align:left; padding:.35rem .25rem; border-bottom:1px solid #243044; }
+    td, th { text-align:left; padding:.35rem .25rem; border-bottom:1px solid #243044; vertical-align:top; }
     footer { padding:0 1.5rem 1.5rem; color:var(--muted); font-size:.85rem; }
+    .grid2 { display:grid; gap:.5rem 1rem; grid-template-columns:1fr 1fr; }
+    @media (max-width:700px) { .grid2 { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
   <header>
-    <h1>pq workbench</h1>
-    <div class="meta">Electron → Rust migration · branch <code>feat/rust-phase1</code> · last update <strong>2026-09-13 ~02:15 PT</strong> (Europe/Warsaw) · toward <strong>07:00</strong> report</div>
+    <h1>pq workbench — status board</h1>
+    <div class="meta">Electron → Rust · branch <code>feat/rust-phase1</code> · update <strong>2026-09-13 ~02:30 PT</strong> · target report <strong>07:00</strong> · local commits only · no push</div>
   </header>
   <main>
     <section>
       <h2>Stage</h2>
-      <div>Phase 2 overnight — slice8 voice pipeline + IPC demo + resume/usage/sync types</div>
-      <div class="pct">~80%</div>
+      <div>Phase 2 overnight — slice9 launch/trust/providers + smoke + night report</div>
+      <div class="pct">~84%</div>
       <div class="bar" title="Phase 2 scaffolding"><i></i></div>
-      <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag">A/B WARUNKOWO OK</span> · slice8 · night → 07:00</p>
+      <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag warn">A/B WARUNKOWO OK</span> · product = <strong>Electron</strong></p>
     </section>
     <section>
       <h2>This slice</h2>
       <ul>
-        <li><code>pq-voice --listen</code> — GGML probe, no download</li>
-        <li><code>--ipc-demo</code> LocalTcpTransport e2e types</li>
-        <li>Electron spawn plan: <code>VOICE-HOST-BRIDGE.md</code></li>
-        <li>resume / usage / sync types + tests in <code>pq-core</code></li>
-        <li>No dist rebuild (disk ≥2 GB)</li>
+        <li><code>pq-core::resolve_launch</code> — paths / yolo / sanitize</li>
+        <li><code>pq-core::trust</code> — patch builders (no live write)</li>
+        <li><code>pq-core::providers</code> — probe merge sketch</li>
+        <li><code>scripts/rust-smoke.cmd</code> — help / check-update / ipc-demo</li>
+        <li><code>docs/NIGHT-REPORT-DRAFT.md</code> (PL, dla Szefa)</li>
+        <li>No model download · keep ≥2 GB free</li>
       </ul>
     </section>
     <section>
       <h2>Decisions</h2>
       <ul>
         <li>Tauri = spike only, no lock-in</li>
-        <li>Electron store remains production writer</li>
-        <li>Phone STT = SpeechRecognizer only (no Whisper)</li>
+        <li>Electron store / providers / trust = production writers</li>
+        <li>Phone STT = SpeechRecognizer only</li>
         <li>Local commits only — never push</li>
         <li>Never auto-fetch ggml-large-v3 (~3.1 GB)</li>
       </ul>
     </section>
     <section>
-      <h2>Risks</h2>
+      <h2>Risks / blockers</h2>
       <ul>
-        <li><span class="tag warn">disk</span> keep ≥2 GB free; skip release/ refill</li>
-        <li>ConPTY DSR / init noise across Windows builds</li>
-        <li>XSS on allowed Android origin can still call PqStt</li>
-        <li>Do not point Rust <code>save_state</code> at live AppData yet</li>
+        <li><span class="tag warn">disk</span> keep ≥2 GB; skip release refill</li>
+        <li>ConPTY DSR / init noise</li>
+        <li>Android origin XSS → PqStt still possible</li>
+        <li>Do not point Rust <code>save_state</code> at live AppData</li>
+        <li><span class="tag warn">gauntlet</span> same-session critic = conditional</li>
       </ul>
     </section>
     <section style="grid-column:1/-1">
       <h2>Parity snapshot</h2>
       <table>
-        <tr><th>Area</th><th>Status</th></tr>
-        <tr><td>env / store / engines merge</td><td>done (lean)</td></tr>
-        <tr><td>IPC duplex + LocalWs / TCP + --ipc-demo</td><td>spike e2e</td></tr>
-        <tr><td>Named pipe</td><td>stub (path contract)</td></tr>
-        <tr><td>pq-voice listen/transcribe</td><td>skeleton (probe only)</td></tr>
-        <tr><td>Electron pq-voice spawn</td><td>doc only</td></tr>
-        <tr><td>SessionRegistry / PTY</td><td>registry + spawn_prefer_live (feature)</td></tr>
-        <tr><td>auth / remote / board</td><td>deepened sketches (still stub I/O)</td></tr>
-        <tr><td>resume / usage / sync</td><td>pq-core types + tests (no I/O)</td></tr>
-        <tr><td>updater fixtures</td><td>FileManifestFetch + OfferUpdate CLI</td></tr>
-        <tr><td>Android STT bridge</td><td>gauntlet B revise</td></tr>
-        <tr><td>Tauri shell</td><td>doc spike</td></tr>
+        <tr><th>Area</th><th>Status</th><th>Notes</th></tr>
+        <tr><td>env / store / engines merge</td><td><span class="tag">done</span></td><td>lean serde</td></tr>
+        <tr><td>resolve-launch</td><td><span class="tag">sketch</span></td><td>no spawn; PathExists injectable</td></tr>
+        <tr><td>trust</td><td><span class="tag">sketch</span></td><td>builders only; no git/write</td></tr>
+        <tr><td>providers detection</td><td><span class="tag">sketch</span></td><td>merge probes; no PATH walk</td></tr>
+        <tr><td>IPC duplex + LocalTcp + --ipc-demo</td><td><span class="tag">spike e2e</span></td><td>not production IPC</td></tr>
+        <tr><td>Named pipe</td><td><span class="tag warn">stub</span></td><td>path contract</td></tr>
+        <tr><td>pq-voice listen/transcribe</td><td><span class="tag warn">skeleton</span></td><td>GGML probe; no whisper.cpp</td></tr>
+        <tr><td>Electron pq-voice spawn</td><td><span class="tag warn">doc only</span></td><td>VOICE-HOST-BRIDGE</td></tr>
+        <tr><td>SessionRegistry / PTY</td><td><span class="tag">registry + prefer-live</span></td><td>output pump TODO</td></tr>
+        <tr><td>auth / remote / board</td><td><span class="tag warn">deep stubs</span></td><td>no live I/O</td></tr>
+        <tr><td>resume / usage / sync</td><td><span class="tag">types+tests</span></td><td>no disk/HTTP</td></tr>
+        <tr><td>updater fixtures</td><td><span class="tag">CLI</span></td><td><code>--check-update</code></td></tr>
+        <tr><td>Android STT bridge</td><td><span class="tag warn">gauntlet B</span></td><td>JS wiring TODO</td></tr>
+        <tr><td>Tauri shell</td><td><span class="tag warn">doc spike</span></td><td>no lock-in</td></tr>
+        <tr><td>rust-smoke.cmd</td><td><span class="tag">added</span></td><td>no model download</td></tr>
+      </table>
+    </section>
+    <section style="grid-column:1/-1">
+      <h2>Gauntlet 8–12</h2>
+      <div class="grid2">
+        <table>
+          <tr><th>#</th><th>Item</th><th>Status</th></tr>
+          <tr><td>8</td><td>Android SpeechRecognizer</td><td><span class="tag warn">doc+sketch</span></td></tr>
+          <tr><td>9</td><td>MSI / NSIS</td><td><span class="tag warn">unsigned dist</span></td></tr>
+          <tr><td>10</td><td>Logos / marks</td><td><span class="tag">inventory+brand</span></td></tr>
+          <tr><td>11</td><td>Terminal DnD</td><td><span class="tag warn">quoting done; matrix TODO</span></td></tr>
+          <tr><td>12</td><td>Gauntlet process</td><td><span class="tag warn">adopted; A/B conditional</span></td></tr>
+        </table>
+        <div>
+          <h2 style="margin-top:0">Toward 07:00</h2>
+          <ul>
+            <li>Honest report: <code>docs/NIGHT-REPORT-DRAFT.md</code></li>
+            <li>Tests green + <code>scripts\rust-smoke.cmd</code></li>
+            <li>Still no cutover, no Large v3 runtime</li>
+            <li>Next day: phone JS → PqStt; SessionRegistry pump</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section style="grid-column:1/-1">
+      <h2>Commands</h2>
+      <table>
+        <tr><th>Check</th><th>Command</th></tr>
+        <tr><td>Unit tests</td><td><code>cd crates &amp;&amp; cargo test -p pq-core -p pq-work -p pq-voice</code></td></tr>
+        <tr><td>Smoke</td><td><code>scripts\rust-smoke.cmd</code></td></tr>
+        <tr><td>Voice probe</td><td><code>cargo run -p pq-voice -- --listen</code> (no download)</td></tr>
       </table>
     </section>
   </main>
-  <footer>Silent overnight · report HEAD to parent only · no push · 07:00 report target</footer>
+  <footer>Silent overnight · report HEAD to parent only · no push · 07:00 report target · keep ≥2 GB free</footer>
 </body>
 </html>
