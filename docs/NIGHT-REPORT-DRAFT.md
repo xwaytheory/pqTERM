@@ -3,7 +3,7 @@
 **Data:** 2026-09-13 (noc 12/13 → poranek)  
 **Strefa:** Europe/Warsaw (PT)  
 **Branch:** `feat/rust-phase1`  
-**HEAD (ten raport / polish):** `PENDING_STAMP` — unit denylist + DAY-PLAN + claim soften  
+**HEAD (ten raport / polish):** `391287f` — unit denylist + DAY-PLAN + claim soften  
 **HEAD produktu (ostatni feature):** `3a06472` — voice-host StartListen + Status reader  
 **Zasada nocy:** commity **lokalne, bez push**. Bez pobierania `ggml-large-v3` (~3.1 GB). Dysk ciasny — pełny `npm run dist` nie jest bramką poranną.
 
@@ -51,7 +51,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): crate’y `pq-core` / `p
 | 03:40 | `581cb18` | Listen **przed** spawn + Cancel JSON-line (uczciwy boolean) |
 | 03:45 | `1004423` | **Reclaim MSI/NSIS** (~0.74 → ~1.8 GB free); źródła nietknięte |
 | 03:50 | `3a06472` | StartListen + Status/Transcript reader na trzymanym duplexie |
-| 04:07 | *(ten commit)* | Unit: spawn_cmd denylist (%/^/|), dropPaths %/^, originsMatch contract; DAY-PLAN; LOCKED→frozen |
+| 04:07 | `391287f` | Unit: spawn_cmd denylist (%/^/|), dropPaths %/^, originsMatch contract; DAY-PLAN; LOCKED→frozen |
 
 ---
 
