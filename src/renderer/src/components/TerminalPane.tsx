@@ -139,6 +139,30 @@ export default function TerminalPane({
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.loadAddon(new WebLinksAddon())
+    // Clipboard: Electron has no context menu and the browser paste never
+    // reaches the pty reliably — handle it explicitly via main-process
+    // clipboard (no permission prompts) + xterm paste (bracketed-paste aware).
+    term.attachCustomKeyEventHandler((e) => {
+      const mod = e.ctrlKey || e.metaKey
+      if (mod && !e.altKey && e.code === 'KeyV') {
+        // Ctrl+V / Ctrl+Shift+V — paste from system clipboard.
+        e.preventDefault()
+        void pasteFromClipboard()
+        return false
+      }
+      if (mod && e.shiftKey && !e.altKey && e.code === 'KeyC') {
+        // Ctrl+Shift+C — copy selection (plain Ctrl+C stays ETX for the pty).
+        e.preventDefault()
+        void copySelectionToClipboard()
+        return false
+      }
+      if (!mod && e.shiftKey && !e.altKey && e.code === 'Insert') {
+        e.preventDefault()
+        void pasteFromClipboard()
+        return false
+      }
+      return true
+    })
     term.open(host.current)
     termRef.current = term
     fitRef.current = fit
@@ -299,6 +323,34 @@ export default function TerminalPane({
     })
   }
 
+  async function pasteFromClipboard(): Promise<void> {
+    const term = termRef.current
+    if (!term) return
+    try {
+      const text = await window.pq.terminals.clipboardRead()
+      if (!text) return
+      // Enter sends \r — normalize pasted newlines the same way so multi-line
+      // paste behaves like typed input in every engine.
+      term.paste(text.replace(/\r\n|\r|\n/g, '\r'))
+    } catch {
+      /* clipboard unavailable — ignore */
+    }
+  }
+
+  async function copySelectionToClipboard(): Promise<boolean> {
+    const term = termRef.current
+    if (!term || !term.hasSelection()) return false
+    const sel = term.getSelection()
+    if (!sel) return false
+    try {
+      await window.pq.terminals.clipboardWrite(sel)
+    } catch {
+      return false
+    }
+    term.clearSelection()
+    return true
+  }
+
   const enabled = providers.filter((p) => p.enabled && p.id !== 'shell')
   const shell = providers.find((p) => p.id === 'shell')
 
@@ -327,7 +379,11 @@ export default function TerminalPane({
   }
 
   function onDragLeave(e: DragEvent): void {
-    if (e.currentTarget === e.target) setDragOver(false)
+    // dragleave fires when moving between children too — only clear when the
+    // pointer truly left the pane (or left the window: relatedTarget === null).
+    const next = e.relatedTarget as unknown as Node | null
+    if (next && e.currentTarget.contains(next)) return
+    setDragOver(false)
   }
 
   function onDropFiles(e: DragEvent): void {
@@ -470,7 +526,19 @@ export default function TerminalPane({
       </div>
       {pane.engine ? (
         <>
-          <div className="xterm-host" ref={host} />
+          <div
+            className="xterm-host"
+            ref={host}
+            onContextMenu={(e) => {
+              // Windows-Terminal behavior: selection present → copy it,
+              // otherwise paste from system clipboard.
+              e.preventDefault()
+              e.stopPropagation()
+              void copySelectionToClipboard().then((copied) => {
+                if (!copied) void pasteFromClipboard()
+              })
+            }}
+          />
           {dropStatus ? <div className="drop-overlay drop-status">{dropStatus}</div> : null}
           {dragOver ? <div className="drop-overlay">upuść ścieżki</div> : null}
         </>

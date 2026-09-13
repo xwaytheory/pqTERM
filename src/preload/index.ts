@@ -157,6 +157,8 @@ const pq = {
     resize: (paneId: string, cols: number, rows: number) =>
       ipcRenderer.send('term:resize', paneId, cols, rows),
     kill: (paneId: string) => invoke('term:kill', paneId) as Promise<void>,
+    clipboardRead: () => invoke('term:clipboardRead') as Promise<string>,
+    clipboardWrite: (text: string) => invoke('term:clipboardWrite', text) as Promise<void>,
     clearPane: (workspaceId: string, paneId: string) =>
       invoke('term:clearPane', workspaceId, paneId) as Promise<void>,
     onData: (cb: (paneId: string, data: string, seq: number) => void) => {

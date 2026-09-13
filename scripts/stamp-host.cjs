@@ -1,4 +1,4 @@
-const { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require('fs')
+const { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } = require('fs')
 const { join } = require('path')
 const { spawnSync } = require('child_process')
 
@@ -81,6 +81,37 @@ try {
   stamp(srcExe)
 } catch {
   console.log('[pq] live electron.exe locked — pq.exe stamped')
+}
+
+// Bare `host\pq.exe` (double-click, no argv) must boot pq — not Electron's
+// demo. Link host/resources/app -> project root (its package.json points at
+// out/), same layout START-prod.cmd uses via argv.
+try {
+  const resDir = join(host, 'resources')
+  const link = join(resDir, 'app')
+  mkdirSync(resDir, { recursive: true })
+  let st = null
+  try {
+    st = lstatSync(link)
+  } catch {
+    st = null
+  }
+  if (st && st.isSymbolicLink()) {
+    try {
+      unlinkSync(link)
+    } catch {
+      st = { keep: true }
+    }
+    if (!st.keep) st = null
+  }
+  if (!st) {
+    symlinkSync(root, link, 'junction')
+    console.log('[pq] host app link →', link)
+  } else {
+    console.log('[pq] host app link present — skipped')
+  }
+} catch (err) {
+  console.log('[pq] app link skipped —', err instanceof Error ? err.message : err)
 }
 
 console.log('[pq] host stamped →', hostExe)

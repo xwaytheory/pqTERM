@@ -483,34 +483,6 @@ button {
   margin: 3px 4px;
   background: var(--line);
 }
-.ws-switch {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.ws-switch .stepper {
-  min-width: 22px;
-  padding: 3px 4px;
-}
-.ws-switch .ws-name {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  border-radius: 5px;
-  padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.ws-switch .ws-name.on,
-.ws-switch .ws-name:hover {
-  color: var(--green);
-  border-color: var(--green-dim);
-  background: #0c1a16;
-}
 .stage-bar .grow {
   flex: 1;
 }

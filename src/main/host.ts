@@ -1,6 +1,7 @@
 export {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   net,

@@ -74,10 +74,11 @@ export const ENGINE_SPECS: EngineSpec[] = [
     color: '#f5c542',
     binaries: ['hermes', 'hermes.cmd'],
     args: ['--tui', '--yolo'],
-    hint: 'Hermes agent CLI (TUI)',
-    modelFlag: (id) => ['-m', id],
+    hint: 'Hermes agent CLI (TUI). Default: LongCat 2.0 (darmowe kredyty na longcat.chat) — jednorazowo: hermes config set model.provider custom + base_url https://api.longcat.chat/openai/v1 + api_key z longcat.chat',
+    modelFlag: (id) => (id === 'LongCat-2.0' ? ['-m', id, '--provider', 'custom'] : ['-m', id]),
     extraPathDirs: ['%LOCALAPPDATA%\\hermes\\bin'],
     models: [
+      { id: 'LongCat-2.0', name: 'LongCat 2.0 (free)' },
       { id: 'hermes-default', name: 'Hermes default' },
       { id: 'hermes-large', name: 'Hermes large' }
     ]

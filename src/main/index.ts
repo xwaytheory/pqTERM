@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell } from './host'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, session, shell } from './host'
 import { join } from 'path'
 import { homedir } from 'os'
 import {
@@ -29,8 +29,7 @@ import {
   applyAreasToPanes,
   defaultAreas,
   resolveAreas,
-  snapAreas,
-  swapAreasById
+  snapAreas
 } from '../shared/grid'
 import { loadState, saveState, touchWorkspace } from './store'
 import { applyEmailMatch, scanProviders } from './providers'
@@ -106,6 +105,17 @@ function sessionLogPath(workspaceId: string, paneId: string): string {
   return join(sessionsDir(), workspaceId, `${paneId}.log`)
 }
 
+/**
+ * Engine default model when the pane has none set. Hermes → LongCat 2.0
+ * (first *enabled* model wins, so unchecking it in Providers falls back
+ * to the next one). Other engines → undefined (their own CLI default).
+ */
+function defaultModelFor(engine: EngineId): string | undefined {
+  if (engine !== 'hermes') return undefined
+  const prov = state.providers.find((p) => p.id === 'hermes')
+  return prov?.models.find((m) => m.enabled)?.id ?? 'LongCat-2.0'
+}
+
 function restoreSession(ws: Workspace, pane: PaneState): void {
   if (!pane.engine) return
   let seed = ''
@@ -117,9 +127,10 @@ function restoreSession(ws: Workspace, pane: PaneState): void {
   }
   const provider = state.providers.find((p) => p.id === pane.engine)
   const spec = specById(pane.engine)
+  const model = pane.model ?? defaultModelFor(pane.engine)
   let extraArgs = [
     ...(spec.args ?? []),
-    ...(pane.model && spec.modelFlag ? spec.modelFlag(pane.model) : [])
+    ...(model && spec.modelFlag ? spec.modelFlag(model) : [])
   ]
   const session = pickResume(ws.id, pane.engine, pane.sessionHandle)
   if (session) {
@@ -734,11 +745,23 @@ function registerIpc(): void {
   ipcMain.handle(
     'workspaces:swapPanes',
     (_e, workspaceId: string, aId: string, bId: string) => {
-      if (!aId || !bId) return
+      if (!aId || !bId || aId === bId) return
       state.workspaces = state.workspaces.map((w) => {
         if (w.id !== workspaceId) return w
-        const areas = swapAreasById(resolveAreas(w.panes), aId, bId)
-        return touchWorkspace({ ...w, panes: applyAreasToPanes(w.panes, areas) })
+        const order = [...w.panes]
+        const ai = order.findIndex((p) => p.id === aId)
+        const bi = order.findIndex((p) => p.id === bId)
+        if (ai < 0 || bi < 0 || ai === bi) return w
+        // True slot swap: panes trade array positions AND areas, so each slot
+        // keeps its rectangle. In uniform grids (equal rects) this is what
+        // visibly moves terminals — sessions stay alive (PTYs keyed by paneId,
+        // components keep React keys, no respawn).
+        const areas = new Map(resolveAreas(w.panes).map((e) => [e.id, e.area]))
+        const pa = { ...order[ai], area: areas.get(bId) }
+        const pb = { ...order[bi], area: areas.get(aId) }
+        order[ai] = pb
+        order[bi] = pa
+        return touchWorkspace({ ...w, panes: order })
       })
       persist()
     }
@@ -782,7 +805,8 @@ function registerIpc(): void {
       if (!ws) throw new Error('brak workspace')
       const spec = specById(input.engine)
       const provider = state.providers.find((p) => p.id === input.engine)
-      const model = input.model
+      const paneInWs = ws.panes.find((p) => p.id === input.paneId)
+      const model = input.model ?? paneInWs?.model ?? defaultModelFor(input.engine)
 
       const existing = ptys.describe(input.paneId)
       if (
@@ -801,9 +825,8 @@ function registerIpc(): void {
 
       const extraArgs = [
         ...(spec.args ?? []),
-        ...(input.model && spec.modelFlag ? spec.modelFlag(input.model) : [])
+        ...(model && spec.modelFlag ? spec.modelFlag(model) : [])
       ]
-      const paneInWs = ws.panes.find((p) => p.id === input.paneId)
       let resumeHandle = paneInWs?.sessionHandle
       const session = pickResume(input.workspaceId, input.engine, paneInWs?.sessionHandle)
       if (session) {
@@ -858,6 +881,22 @@ function registerIpc(): void {
   })
   ipcMain.handle('term:kill', (_e, paneId: string) => {
     ptys.kill(paneId)
+  })
+  // Main-process clipboard: no renderer permission prompts, works for
+  // Ctrl+V / right-click paste and Ctrl+Shift+C copy in terminal panes.
+  ipcMain.handle('term:clipboardRead', () => {
+    try {
+      return clipboard.readText()
+    } catch {
+      return ''
+    }
+  })
+  ipcMain.handle('term:clipboardWrite', (_e, text: string) => {
+    try {
+      clipboard.writeText(typeof text === 'string' ? text : '')
+    } catch {
+      /* ignore */
+    }
   })
   ipcMain.handle('term:clearPane', (_e, workspaceId: string, paneId: string) => {
     ptys.kill(paneId)

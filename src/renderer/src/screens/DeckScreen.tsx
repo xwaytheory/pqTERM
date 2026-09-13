@@ -46,6 +46,9 @@ function rectStyle(r: PaneArea, rect: DOMRect) {
   }
 }
 
+/** Pointer within this many px of the grid's outer frame snaps instead of swapping. */
+const FRAME_SNAP_PX = 28
+
 const NO_HOVER: Hover = { zone: null, zoneStyle: null, paneId: null, haloStyle: null, preview: null }
 
 export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
@@ -168,14 +171,25 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
       }
       const nx = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width))
       const ny = Math.min(1, Math.max(0, (ev.clientY - rect.top) / rect.height))
-      const zone = zoneNear(nx, ny)
+      // Frame-vs-body rule: dropping at the grid's outer frame snaps (halves /
+      // corners); dropping on a pane body swaps slots. This keeps every pane
+      // reachable — in a 9-grid the corner cells' centers would otherwise
+      // always fall into corner snap zones and slot-swap would be impossible.
+      const dFrame = Math.min(
+        ev.clientX - rect.left,
+        rect.right - ev.clientX,
+        ev.clientY - rect.top,
+        rect.bottom - ev.clientY
+      )
+      const rawZone = zoneNear(nx, ny)
+      const frameZone = rawZone === 'full' ? null : rawZone
       let h: Hover = NO_HOVER
       const paneIds = panes.map((p) => p.id)
       const selfIdx = paneIds.indexOf(d.paneId)
-      if (zone) {
-        const z = zoneRect(zone)
+      if (dFrame <= FRAME_SNAP_PX && frameZone) {
+        const z = zoneRect(frameZone)
         h = {
-          zone,
+          zone: frameZone,
           paneId: null,
           zoneStyle: {
             left: rect.left + z.x * rect.width,
@@ -184,18 +198,15 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
             height: z.h * rect.height
           },
           haloStyle: null,
-          preview:
-            zone === 'full'
-              ? [{ id: d.paneId, self: true, style: rectStyle(FULL, rect) }]
-              : (() => {
-                  const next = selfIdx >= 0 ? snapAreas(panes.length, selfIdx, zone) : null
-                  if (!next) return null
-                  return panes.map((p, i) => ({
-                    id: p.id,
-                    self: p.id === d.paneId,
-                    style: rectStyle(next[i], rect)
-                  }))
-                })()
+          preview: (() => {
+            const next = selfIdx >= 0 ? snapAreas(panes.length, selfIdx, frameZone) : null
+            if (!next) return null
+            return panes.map((p, i) => ({
+              id: p.id,
+              self: p.id === d.paneId,
+              style: rectStyle(next[i], rect)
+            }))
+          })()
         }
       } else {
         const el = document.elementFromPoint(ev.clientX, ev.clientY)
@@ -299,14 +310,6 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
     void window.pq.workspaces.setLayout(ws.id, n as LayoutId)
   }
 
-  function cycleWorkspace(delta: number): void {
-    const list = snap.workspaces
-    if (!list.length) return
-    const idx = list.findIndex((w) => w.id === snap.activeWorkspaceId)
-    const next = list[(idx + delta + list.length) % list.length]
-    void window.pq.workspaces.select(next.id)
-  }
-
   return (
     <>
       <Titlebar center={center} />
@@ -386,20 +389,6 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                       {n}
                     </button>
                   ))}
-                </div>
-                <div className="ws-switch" title="zmień workspace — trzymaj ⌂: panel na lewo">
-                  <button className="stepper" onClick={() => cycleWorkspace(-1)}>
-                    ‹
-                  </button>
-                  <button
-                    className={`ws-name${snap.sidebarOpen ? ' on' : ''}`}
-                    onClick={() => window.pq.app.toggleSidebar()}
-                  >
-                    {ws.title}
-                  </button>
-                  <button className="stepper" onClick={() => cycleWorkspace(1)}>
-                    ›
-                  </button>
                 </div>
                 {zoomedId ? (
                   <div className="pane-strip" title="przełącz powiększony slot">
@@ -545,7 +534,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
               : `${ws.layout}-grid`
             : 'idle'}
         </span>
-        <span className="hint-keys">drag = przenieś/swap · krawędzie = snap · ctrl+shift+[b panel / f zoom] · fill rest</span>
+        <span className="hint-keys">upuść na okno = zamień · upuść na ramkę = przytnij · ctrl+shift+[b panel / f zoom]</span>
       </footer>
       {modal === 'new' ? (
         <NewWorkspaceModal providers={snap.providers} onClose={() => setModal(null)} />
