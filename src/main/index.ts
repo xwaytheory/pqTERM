@@ -1,5 +1,6 @@
+import { execFile } from 'child_process'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, session, shell } from './host'
-import { join } from 'path'
+import { join, relative } from 'path'
 import { homedir } from 'os'
 import {
   existsSync,
@@ -7,7 +8,8 @@ import {
   readdirSync,
   readFileSync,
   unlinkSync,
-  writeFileSync
+  writeFileSync,
+  chmodSync
 } from 'fs'
 import { productName, runningDev } from './env'
 import type {
@@ -632,6 +634,60 @@ function registerIpc(): void {
     persist()
   })
 
+  ipcMain.handle('engines:install', async (_e, id: EngineId) => {
+    const spec = specById(id)
+    if (!spec.npmPackage && !spec.pipPackage) {
+      return { ok: false, message: `brak pakietu instalacyjnego dla ${spec.name}` }
+    }
+    const npmCmd = () => join(homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
+    try {
+      if (spec.pipPackage) {
+        const r = await new Promise<{ ok: boolean; text: string }>((resolve) => {
+          execFile(
+            'python',
+            ['-m', 'pip', 'install', '-U', spec.pipPackage],
+            {
+              windowsHide: true,
+              timeout: 240000,
+              maxBuffer: 4_000_000,
+              cwd: homedir(),
+              env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: '1' }
+            },
+            (err, stdout, stderr) => {
+              const text = `${stdout || ''}\n${stderr || ''}`.trim()
+              resolve({ ok: !err, text })
+            }
+          )
+        })
+        if (!r.ok) return { ok: false, message: r.text || 'pip install failed' }
+      } else {
+        const r = await new Promise<{ ok: boolean; text: string }>((resolve) => {
+          execFile(
+            npmCmd(),
+            ['install', '-g', spec.npmPackage],
+            {
+              windowsHide: true,
+              timeout: 240000,
+              maxBuffer: 4_000_000,
+              cwd: homedir(),
+              env: { ...process.env, npm_config_update_notifier: 'false', npm_config_fund: 'false' }
+            },
+            (err, stdout, stderr) => {
+              const text = `${stdout || ''}\n${stderr || ''}`.trim()
+              resolve({ ok: !err, text })
+            }
+          )
+        })
+        if (!r.ok) return { ok: false, message: r.text || 'npm install failed' }
+      }
+      state.providers = scanProviders(state.user?.email, state.providers)
+      persist()
+      return { ok: true, message: `${spec.name} zainstalowany` }
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
   ipcMain.handle('workspaces:pickFolder', async () => {
     const res = await dialog.showOpenDialog(mainWindow!, {
       title: 'katalog workspace',
@@ -882,15 +938,100 @@ function registerIpc(): void {
   ipcMain.handle('term:kill', (_e, paneId: string) => {
     ptys.kill(paneId)
   })
-  // Main-process clipboard: no renderer permission prompts, works for
-  // Ctrl+V / right-click paste and Ctrl+Shift+C copy in terminal panes.
-  ipcMain.handle('term:clipboardRead', () => {
-    try {
-      return clipboard.readText()
-    } catch {
-      return ''
-    }
-  })
+   // Main-process clipboard: no renderer permission prompts, works for
+   // Ctrl+V / right-click paste and Ctrl+Shift+C copy in terminal panes.
+   // Uses raw buffer approach for image detection (more reliable with Windows Snipping Tool).
+   ipcMain.handle('term:clipboardRead', async () => {
+     try {
+       const text = clipboard.readText()
+       if (text) return text
+
+       // Try reading raw clipboard buffer to detect PNG images
+       const buf = clipboard.readBuffer('clipboard')
+       if (buf && buf.length > 4) {
+         // Check PNG header: \x89PNG\r\n\x1a\n
+         const header = buf.slice(0, 8).toString('hex')
+         const pngHeader = '89504e470d0a1a0a'
+         if (header === pngHeader || header.startsWith('89504e47')) {
+           const ws = activeWs()
+           if (!ws) return ''
+
+           const dropsDir = join(ws.cwd, '.pq', 'drops')
+           if (!existsSync(dropsDir)) {
+             mkdirSync(dropsDir, { recursive: true })
+           }
+
+           const timestamp = Date.now()
+           const filename = `clipboard-${timestamp}.png`
+           const filepath = join(dropsDir, filename)
+           writeFileSync(filepath, buf)
+
+           return relative(ws.cwd, filepath)
+         }
+       }
+
+       // Fallback to Electron's native image read
+       const image = clipboard.readImage()
+       if (!image.isEmpty()) {
+         const ws = activeWs()
+         if (!ws) return ''
+
+         const dropsDir = join(ws.cwd, '.pq', 'drops')
+         if (!existsSync(dropsDir)) {
+           mkdirSync(dropsDir, { recursive: true })
+         }
+
+         const timestamp = Date.now()
+         const filename = `clipboard-${timestamp}.png`
+         const filepath = join(dropsDir, filename)
+         image.save(filepath)
+
+         return relative(ws.cwd, filepath)
+       }
+       return ''
+     } catch {
+       return ''
+     }
+   })
+
+    ipcMain.handle('term:clipboardReadImage', async () => {
+     try {
+       // Try raw buffer first (more reliable for Windows clipboard images
+       // from Snipping Tool, browsers — same mechanism as clipboardRead).
+       const buf = clipboard.readBuffer('clipboard')
+       if (buf && buf.length > 4) {
+         const header = buf.slice(0, 8).toString('hex')
+         const pngHeader = '89504e470d0a1a0a'
+         if (header === pngHeader || header.startsWith('89504e47')) {
+           const ws = activeWs()
+           if (!ws) return ''
+           const dropsDir = join(ws.cwd, '.pq', 'drops')
+           if (!existsSync(dropsDir)) mkdirSync(dropsDir, { recursive: true })
+           const timestamp = Date.now()
+           const filename = `clipboard-${timestamp}.png`
+           const filepath = join(dropsDir, filename)
+           writeFileSync(filepath, buf)
+           return relative(ws.cwd, filepath)
+         }
+       }
+
+       const image = clipboard.readImage()
+       if (!image.isEmpty()) {
+         const ws = activeWs()
+         if (!ws) return ''
+         const dropsDir = join(ws.cwd, '.pq', 'drops')
+         if (!existsSync(dropsDir)) mkdirSync(dropsDir, { recursive: true })
+         const timestamp = Date.now()
+         const filename = `clipboard-${timestamp}.png`
+         const filepath = join(dropsDir, filename)
+         image.save(filepath)
+         return relative(ws.cwd, filepath)
+       }
+       return ''
+     } catch {
+       return ''
+     }
+   })
   ipcMain.handle('term:clipboardWrite', (_e, text: string) => {
     try {
       clipboard.writeText(typeof text === 'string' ? text : '')

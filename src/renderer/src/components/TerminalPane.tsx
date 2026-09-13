@@ -89,6 +89,8 @@ export default function TerminalPane({
   const lineBuf = useRef('')
   const [dragOver, setDragOver] = useState(false)
   const [dropStatus, setDropStatus] = useState<string | null>(null)
+  const [installing, setInstalling] = useState<Set<string>>(new Set())
+  const [installError, setInstallError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(pane.title)
@@ -327,6 +329,15 @@ export default function TerminalPane({
     const term = termRef.current
     if (!term) return
     try {
+      // Try image clipboard first (more reliable for images than the
+      // combined text-first clipboardRead which may miss images).
+      const imagePath = await window.pq.terminals.clipboardReadImage()
+      if (imagePath) {
+        // Image saved by main process; paste its file path so CLI
+        // engines (opencode, hermes, shell) can reference the file.
+        term.paste(imagePath.replace(/\r\n|\r|\n/g, '\r'))
+        return
+      }
       const text = await window.pq.terminals.clipboardRead()
       if (!text) return
       // Enter sends \r — normalize pasted newlines the same way so multi-line
@@ -359,7 +370,38 @@ export default function TerminalPane({
       await window.pq.panes.fill({ engine })
       return
     }
+    setInstallError(null)
     const p = providers.find((x) => x.id === engine)
+    if (p && !p.installed) {
+      setInstalling((prev) => new Set(prev).add(engine))
+      try {
+        const res = await window.pq.engines.install(engine)
+        if (res.ok) {
+          setInstalling((prev) => {
+            const next = new Set(prev)
+            next.delete(engine)
+            return next
+          })
+          window.setTimeout(() => setInstallError(null), 1000)
+        } else {
+          setInstallError(res.message)
+          setInstalling((prev) => {
+            const next = new Set(prev)
+            next.delete(engine)
+            return next
+          })
+          return
+        }
+      } catch (err) {
+        setInstallError(err instanceof Error ? err.message : String(err))
+        setInstalling((prev) => {
+          const next = new Set(prev)
+          next.delete(engine)
+          return next
+        })
+        return
+      }
+    }
     await window.pq.workspaces.setPane(workspaceId, pane.id, {
       engine,
       title: p?.name ?? engine,
@@ -545,35 +587,50 @@ export default function TerminalPane({
       ) : (
         <div className="picker">
           <h3>SPAWN ENGINE</h3>
+          {installError && (
+            <div className="hint" style={{ marginTop: -8, color: '#ff387b' }}>
+              {installError}
+            </div>
+          )}
           <div className="hint" style={{ marginTop: -8 }}>
             shift+klik = wszystkie puste okna
           </div>
           <div className="engines">
-            {enabled.map((p) => (
-              <button
-                key={p.id}
-                className="eng"
-                disabled={!p.installed}
-                onClick={(e) => launch(p.id, e.shiftKey)}
-              >
-                <EngineMark
-                  id={p.id}
-                  name={p.name}
-                  color={p.color}
-                  logo={p.logo}
-                  icon={p.icon}
-                  mark={p.mark}
-                  size={34}
-                />
-                <span className="n" style={{ color: p.color }}>
-                  {p.name}
-                </span>
-                <span className="v">{p.vendor}</span>
-                <span className="st">
-                  {p.installed ? (p.detectedAuth ? 'detected' : 'installed') : 'not on PATH'}
-                </span>
-              </button>
-            ))}
+            {enabled.map((p) => {
+              const isInstalling = installing.has(p.id)
+              return (
+                <button
+                  key={p.id}
+                  className={`eng${!p.installed ? ' disabled-visual' : ''}`}
+                  style={!p.installed ? { opacity: 0.35, filter: 'grayscale(1)' } : undefined}
+                  disabled={isInstalling}
+                  onClick={(e) => launch(p.id, e.shiftKey)}
+                >
+                  <EngineMark
+                    id={p.id}
+                    name={p.name}
+                    color={p.color}
+                    logo={p.logo}
+                    icon={p.icon}
+                    mark={p.mark}
+                    size={34}
+                  />
+                  <span className="n" style={{ color: p.color }}>
+                    {p.name}
+                  </span>
+                  <span className="v">{p.vendor}</span>
+                  <span className="st">
+                    {isInstalling
+                      ? 'installing…'
+                      : p.installed
+                        ? p.detectedAuth
+                          ? 'detected'
+                          : 'installed'
+                        : 'click to install'}
+                  </span>
+                </button>
+              )
+            })}
             {shell ? (
               <button className="eng" onClick={() => launch('shell')}>
                 <EngineMark id={shell.id} name={shell.name} color={shell.color} logo={shell.logo} icon={shell.icon} mark={shell.mark} size={34} />
