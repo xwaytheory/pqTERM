@@ -1,10 +1,10 @@
 @echo off
-title pq-dev
+title pqTERM-dev
 cd /d "%~dp0"
 if not exist node_modules (
-  echo [pq-dev] npm install...
+  echo [pqTERM] npm install...
   call npm install
   call npm run rebuild
 )
-echo [pq-dev] starting...
+echo [pqTERM] starting...
 call npm run dev
