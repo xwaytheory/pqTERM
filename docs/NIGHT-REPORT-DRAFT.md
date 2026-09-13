@@ -30,6 +30,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 | 01:53 | `7636011` | ConPTY prefer-live, auth/remote/board deepen, `--check-update` |
 | 02:01 | `f63fec6` | Slice8: voice pipeline skeleton, `--ipc-demo`, resume/usage/sync |
 | ~02:30 | 8f19da7 | resolve-launch / trust / providers szkice, `rust-smoke.cmd`, NIGHT-REPORT, workbench |
+| ~02:45 | slice10 | SessionRegistry output pump + phone PqStt→WS glue, workbench 87% |
 
 ---
 
@@ -37,7 +38,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 
 | # | Temat | Status (uczciwie) |
 |---|--------|-------------------|
-| 8 | Android = SpeechRecognizer | **Dokument + sketch Kotlin** + origin lock; MainActivity / phone JS = jeszcze nie |
+| 8 | Android = SpeechRecognizer | Bridge + origin lock + **phone JS glue** (`pqSttGlue` / mic) — WARUNKOWO OK |
 | 9 | MSI + Setup.exe | `npm run dist` (NSIS+MSI); target `dir` zostaje dla stamp-host; **unsigned** → SmartScreen |
 | 10 | Logo / marks | Brand files + inventory; letter-marks; favicon częściowo |
 | 11 | DnD plików do TTY | Quoting Windows + overlay; manual matrix engine’ów TODO |
@@ -57,7 +58,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 - Brak whisper.cpp / Large v3 runtime
 - Brak spawnu `pq-voice` z Electron (tylko dokument)
 - Brak żywego skanu dysku providers/trust w Rust (Electron zostaje production)
-- Brak output pump SessionRegistry dla żywych paneli
+- ~~Brak output pump~~ → landed under `pty-spike` (nie Electron parity)
 - Brak code signing
 - Pełny dist smoke nie jest bramką nocną (dysk)
 
@@ -82,8 +83,8 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 
 ## 7. Plan na dzień (po 07:00)
 
-1. Phone JS mic → `PqStt.startListen` / finalny tekst po WS  
-2. SessionRegistry: reader thread / output pump dla live panes  
+1. ~~Phone JS mic → PqStt / WS~~ (landed `pqSttGlue.ts`)  
+2. ~~SessionRegistry output pump~~ (landed `pty-spike`)  
 3. Opcjonalnie: fixture’owe I/O dla resume/providers (bez zapisu do live configs)  
 4. Code signing gdy będzie cert  
 5. Dopiero potem: real whisper.cpp w pq-voice (osobna decyzja dyskowa)

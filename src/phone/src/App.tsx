@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css'
 import type { AppSnapshot, EngineId, LayoutId, PaneState, Workspace } from '@shared/types'
 import { LAYOUTS } from '@shared/types'
 import { RemoteClient } from './client'
+import { attachPqSttGlue, isNativePqStt, startPqSttListen, stopPqSttListen } from './pqSttGlue'
 
 const client = new RemoteClient()
 
@@ -233,6 +234,34 @@ function PaneView({
 }) {
   const host = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
+  const [sttHint, setSttHint] = useState('')
+  const [sttListening, setSttListening] = useState(false)
+  const nativeStt = isNativePqStt()
+
+  // Mic → PqStt → same WS write path as typed compose (Android WebView only).
+  useEffect(() => {
+    if (!pane.engine) return
+    const dispose = attachPqSttGlue({
+      sendCommand: (text) => {
+        client.write(pane.id, text.trim() + '\r')
+        setLine('')
+        setSttListening(false)
+        setSttHint('')
+      },
+      onPartial: (t) => setSttHint(t),
+      onError: (m) => {
+        setSttListening(false)
+        setSttHint(m)
+      },
+      onStatus: (s) => {
+        const live = s === 'listening' || s === 'ready' || s === 'speech' || s === 'processing'
+        setSttListening(live)
+        if (s === 'idle' || s === 'cancelled') setSttHint('')
+      }
+    })
+    return dispose
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pane.id, pane.engine])
 
   useEffect(() => {
     if (!host.current || !pane.engine) return
@@ -295,7 +324,7 @@ function PaneView({
           ))}
         </div>
       )}
-      <form
+            <form
         className="compose"
         onSubmit={(e) => {
           e.preventDefault()
@@ -307,9 +336,27 @@ function PaneView({
         <input
           value={line}
           onChange={(e) => setLine(e.target.value)}
-          placeholder={pane.engine ? 'prompt → ten pane' : 'najpierw spawn'}
+          placeholder={pane.engine ? (sttHint || 'prompt / mic') : 'najpierw spawn'}
           disabled={!pane.engine}
         />
+        {nativeStt && pane.engine ? (
+          <button
+            type="button"
+            className={sttListening ? 'mic on' : 'mic'}
+            title="mowa (SpeechRecognizer)"
+            onClick={() => {
+              if (sttListening) {
+                stopPqSttListen()
+                setSttListening(false)
+              } else {
+                setSttHint('')
+                if (!startPqSttListen()) setSttHint('brak mostu PqStt')
+              }
+            }}
+          >
+            {sttListening ? '…' : 'mic'}
+          </button>
+        ) : null}
         <button type="submit" disabled={!pane.engine}>
           send
         </button>

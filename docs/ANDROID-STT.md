@@ -35,21 +35,30 @@ Mic button on phone UI → native STT (`pl-PL`) → text into the same remote WS
 - Events: `window.pqStt.onPartial` / `onFinal` / `onError` / `onStatus`
 - Manifest: `RECORD_AUDIO` already present; bridge requests runtime permission (`REQ_MIC_STT = 402`)
 
-## Phone JS glue (optional — onFinal → WS)
+## Phone JS glue (landed 2026-09-13)
+
+Module: `src/phone/src/pqSttGlue.ts` — wired from `App.tsx` PaneView mic button.
+
+- `attachPqSttGlue({ sendCommand })` sets `window.pqStt.onFinal` → same path as typed compose: `RemoteClient.write(paneId, text + "\r")`
+- Partials → UI hint only (never WS)
+- `isNativePqStt()` probes `PqStt.ping() === "ok"`; **no** Web Speech fallback when bridge missing
+- Mic button shown only when native bridge present and pane has an engine
+
+### Gauntlet (UX/Android)
+
+**Propose:** thin glue + mic in existing PaneView compose bar.  
+**Critics:** must not invent UI; finals = typed path; desktop without bridge stays silent.  
+**Revise:** gate on `ping()`; stop/cancel on dispose; placeholder shows partial.  
+**Verdict:** WARUNKOWO OK — not a full voice UX redesign.
 
 ```js
-window.pqStt = {
-  onPartial(t) { /* hypothesis */ },
-  onFinal(t)   { /* TODO: send over remote WS like typed command */ },
-  onError(e)   { /* toast e.message */ },
-  onStatus(s)  { /* UI phase */ },
-};
-PqStt.startListen();
-PqStt.stopListen(); // or PqStt.cancel();
+import { attachPqSttGlue, startPqSttListen } from './pqSttGlue'
+attachPqSttGlue({ sendCommand: (t) => client.write(paneId, t + '\r') })
+PqStt.startListen()
 ```
 
 ## Out of scope
 
 - Changing remote WS protocol
 - Any on-device Whisper / transformers.js path on Android
-- Full phone UI mic button (JS still to call the bridge)
+- Full voice UX redesign / continuous dictation mode

@@ -1,36 +1,39 @@
 # pq workbench (gauntlet live board)
 
-Last update: 2026-09-13 ~02:30 PT (Europe/Warsaw) — night progress toward **07:00** report
+Last update: 2026-09-13 ~02:45 PT (Europe/Warsaw) — night progress toward **07:00** report
 
 ## Stage / progress
-- **Stage:** Phase 2 overnight — slice9 resolve-launch / trust / providers + smoke + night report
-- **Rough %:** ~84% Phase 2 scaffolding
-- **Branch:** eat/rust-phase1 (local commits only)
-- **Base:** 63fec6 + this wave
-- **Gauntlet A/B:** CLOSED WARUNKOWO OK (keep honesty)
-- **HTML board:** docs/workbench.html (complete status board)
+- **Stage:** Phase 2 overnight — slice10 output pump + phone PqStt→WS glue
+- **Rough %:** ~87% Phase 2 scaffolding
+- **Branch:** feat/rust-phase1 (local commits only)
+- **Base:** 8f19da7 + this wave
+- **Gauntlet A/B:** CLOSED WARUNKOWO OK (output pump Architecture; phone UX/Android)
+- **HTML board:** docs/workbench.html
 - **Night report draft:** docs/NIGHT-REPORT-DRAFT.md (PL, for Szef)
 
 ## This wave
 | Item | Outcome |
 |------|---------|
-| resolve-launch | pq-core::resolve_launch — quote/yolo/sanitize/known paths; no spawn |
-| trust | pq-core::trust — grok/claude/gemini/codex patch builders; no live write |
-| providers | pq-core::providers — probe merge + emails; no PATH walk |
-| smoke | scripts/rust-smoke.cmd — build + --help/--check-update/--ipc-demo |
-| night report | Polish draft for morning; honest, no hype |
-| Dist | no full rebuild (disk ≥2 GB) |
-| cargo test | keep green |
+| SessionRegistry output pump | Reader thread under `pty-spike`; DSR reply; `sync_output_pumps` / `output_pump_active`; registry stays honest |
+| Phone JS PqStt glue | `src/phone/src/pqSttGlue.ts` + mic in PaneView → same `client.write` as typed |
+| Docs | PTY-MANAGER, ANDROID-STT, workbench, night report |
+| Dist / GGML | skipped (disk ~2.5 GB) |
+| cargo test | pq-core/work/voice green; pq-work --features pty-spike green |
+
+## Gauntlet blockers addressed
+- No fake pump without live ConPTY
+- ConPTY DSR stall → auto `[1;1R` in pump
+- Phone: no Web Speech fallback; finals = typed WS path only
 
 ## Tests
 - cargo test -p pq-core -p pq-work -p pq-voice
-- scripts\rust-smoke.cmd
+- cargo test -p pq-work --features pty-spike
 
 ## Toward 07:00
-- Honest: still no whisper.cpp, no Electron spawn, no engine disk scan in Rust.
-- Next: SessionRegistry output pump; phone JS → PqStt; optional fixture I/O.
+- Honest: still no whisper.cpp, no Electron spawn cutover, no production PTY parity.
+- Next: optional fixture I/O; code signing when cert; real whisper.cpp = separate disk decision.
 
 ## Next
-1. Phone JS mic → PqStt.startListen / WS final text
-2. SessionRegistry reader thread / output pump for live panes
-3. Code signing when cert available
+1. Optional fixture I/O for resume/providers (no live AppData write)
+2. Code signing when cert available
+3. Deeper remote/auth only if needed — Electron remains host

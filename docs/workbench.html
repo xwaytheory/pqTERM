@@ -15,7 +15,7 @@
     section { background:var(--card); border-radius:10px; padding:1rem 1.1rem; border:1px solid #243044; }
     h2 { margin:0 0 .75rem; font-size:0.95rem; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; }
     .bar { height:10px; background:#243044; border-radius:999px; overflow:hidden; }
-    .bar > i { display:block; height:100%; width:84%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
+    .bar > i { display:block; height:100%; width:87%; background:linear-gradient(90deg,#3d8bfd,var(--ok)); }
     .pct { font-size:1.6rem; font-weight:700; margin:.35rem 0; }
     ul { margin:.25rem 0 0; padding-left:1.1rem; }
     li { margin:.2rem 0; }
@@ -33,24 +33,23 @@
 <body>
   <header>
     <h1>pq workbench — status board</h1>
-    <div class="meta">Electron → Rust · branch <code>feat/rust-phase1</code> · update <strong>2026-09-13 ~02:30 PT</strong> · target report <strong>07:00</strong> · local commits only · no push</div>
+    <div class="meta">Electron → Rust · branch <code>feat/rust-phase1</code> · update <strong>2026-09-13 ~02:45 PT</strong> · target report <strong>07:00</strong> · local commits only · no push</div>
   </header>
   <main>
     <section>
       <h2>Stage</h2>
-      <div>Phase 2 overnight — slice9 launch/trust/providers + smoke + night report</div>
-      <div class="pct">~84%</div>
+      <div>Phase 2 overnight — slice10 output pump + phone PqStt→WS glue</div>
+      <div class="pct">~87%</div>
       <div class="bar" title="Phase 2 scaffolding"><i></i></div>
       <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag warn">A/B WARUNKOWO OK</span> · product = <strong>Electron</strong></p>
     </section>
     <section>
       <h2>This slice</h2>
       <ul>
-        <li><code>pq-core::resolve_launch</code> — paths / yolo / sanitize</li>
-        <li><code>pq-core::trust</code> — patch builders (no live write)</li>
-        <li><code>pq-core::providers</code> — probe merge sketch</li>
-        <li><code>scripts/rust-smoke.cmd</code> — help / check-update / ipc-demo</li>
-        <li><code>docs/NIGHT-REPORT-DRAFT.md</code> (PL, dla Szefa)</li>
+        <li><code>SessionRegistry</code> ConPTY <strong>output pump</strong> (<code>pty-spike</code>)</li>
+        <li><code>sync_output_pumps</code> / <code>output_pump_active</code> — registry honest</li>
+        <li>Phone <code>pqSttGlue.ts</code> — mic → <code>PqStt</code> → WS write</li>
+        <li>Docs: PTY-MANAGER / ANDROID-STT / night report</li>
         <li>No model download · keep ≥2 GB free</li>
       </ul>
     </section>
@@ -86,11 +85,11 @@
         <tr><td>Named pipe</td><td><span class="tag warn">stub</span></td><td>path contract</td></tr>
         <tr><td>pq-voice listen/transcribe</td><td><span class="tag warn">skeleton</span></td><td>GGML probe; no whisper.cpp</td></tr>
         <tr><td>Electron pq-voice spawn</td><td><span class="tag warn">doc only</span></td><td>VOICE-HOST-BRIDGE</td></tr>
-        <tr><td>SessionRegistry / PTY</td><td><span class="tag">registry + prefer-live</span></td><td>output pump TODO</td></tr>
+        <tr><td>SessionRegistry / PTY</td><td><span class="tag">registry + pump</span></td><td>pty-spike reader pump</td></tr>
         <tr><td>auth / remote / board</td><td><span class="tag warn">deep stubs</span></td><td>no live I/O</td></tr>
         <tr><td>resume / usage / sync</td><td><span class="tag">types+tests</span></td><td>no disk/HTTP</td></tr>
         <tr><td>updater fixtures</td><td><span class="tag">CLI</span></td><td><code>--check-update</code></td></tr>
-        <tr><td>Android STT bridge</td><td><span class="tag warn">gauntlet B</span></td><td>JS wiring TODO</td></tr>
+        <tr><td>Android STT bridge</td><td><span class="tag">glue wired</span></td><td>pqSttGlue + mic wired</td></tr>
         <tr><td>Tauri shell</td><td><span class="tag warn">doc spike</span></td><td>no lock-in</td></tr>
         <tr><td>rust-smoke.cmd</td><td><span class="tag">added</span></td><td>no model download</td></tr>
       </table>
@@ -100,7 +99,7 @@
       <div class="grid2">
         <table>
           <tr><th>#</th><th>Item</th><th>Status</th></tr>
-          <tr><td>8</td><td>Android SpeechRecognizer</td><td><span class="tag warn">doc+sketch</span></td></tr>
+          <tr><td>8</td><td>Android SpeechRecognizer</td><td><span class="tag">bridge+JS glue</span></td></tr>
           <tr><td>9</td><td>MSI / NSIS</td><td><span class="tag warn">unsigned dist</span></td></tr>
           <tr><td>10</td><td>Logos / marks</td><td><span class="tag">inventory+brand</span></td></tr>
           <tr><td>11</td><td>Terminal DnD</td><td><span class="tag warn">quoting done; matrix TODO</span></td></tr>
@@ -112,7 +111,7 @@
             <li>Honest report: <code>docs/NIGHT-REPORT-DRAFT.md</code></li>
             <li>Tests green + <code>scripts\rust-smoke.cmd</code></li>
             <li>Still no cutover, no Large v3 runtime</li>
-            <li>Next day: phone JS → PqStt; SessionRegistry pump</li>
+            <li>Next: fixture I/O; signing; no cutover claim</li>
           </ul>
         </div>
       </div>
