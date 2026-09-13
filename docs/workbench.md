@@ -1,4 +1,4 @@
-﻿# pq workbench (gauntlet live board)
+# pq workbench (gauntlet live board)
 
 Last update: 2026-09-13 ~04:20 PT (Europe/Warsaw) — tip stamp + green sanity toward **07:00** Szef report
 Product HEAD: **3a06472** (voice-host StartListen + Status reader)
@@ -7,7 +7,7 @@ Product HEAD: **3a06472** (voice-host StartListen + Status reader)
 - **Stage:** Phase 2 overnight **frozen for 07:00 review** (docs + `--help` honesty) — not a cutover lock-in
 - **Rough %:** ~95% Phase 2 scaffolding (product unchanged vs 3a06472)
 - **Branch:** feat/rust-phase1 (local commits only, no push)
-- **Base:** product `3a06472` + polish `92c8459` + tip `8377b37` (denylist/originsMatch + DAY-PLAN + verify-night + frozen-for-review)
+- **Base:** product `3a06472` + polish `92c8459` + tip `cabba7f` (denylist/originsMatch + DAY-PLAN + verify-night + frozen-for-review)
 - **Gauntlet A/B:** CLOSED WARUNKOWO OK (Architecture + IPC; honest StartListen/Cancel; language default pl; no auto-enable; no before-quit read block)
 - **HTML board:** docs/workbench.html
 - **Night report:** docs/NIGHT-REPORT-DRAFT.md (PL, 07:00 Szef)

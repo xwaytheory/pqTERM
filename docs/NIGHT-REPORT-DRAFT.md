@@ -3,7 +3,7 @@
 **Data:** 2026-09-13 (noc 12/13 → poranek)  
 **Strefa:** Europe/Warsaw (PT)  
 **Branch:** `feat/rust-phase1`  
-**HEAD (ten raport):** tip po commitcie sanity ~04:20 (cargo 98 / npm unit 24 OK; baza `8377b37`)  
+**HEAD (ten raport / tip):** `cabba7f` — pre-dawn sanity ~04:20 (cargo 98 / npm unit 24 OK)  
 **HEAD polish content:** `92c8459` — verify-night.cmd + trustWorkspace catch-ignore docs  
 **HEAD produktu (ostatni feature):** `3a06472` — voice-host StartListen + Status reader  
 **Zasada nocy:** commity **lokalne, bez push**. Bez pobierania `ggml-large-v3` (~3.1 GB). Dysk ciasny — pełny `npm run dist` nie jest bramką poranną.
@@ -55,7 +55,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): crate’y `pq-core` / `p
 | 04:07 | `391287f` | Unit: spawn_cmd denylist (%/^/|), dropPaths %/^, originsMatch contract; DAY-PLAN; LOCKED→frozen |
 | 04:09 | `00bb7e2` | Stamp polish HEAD 391287f into 07:00 report / workbench |
 | 04:15 | `92c8459` | verify-night.cmd + trustWorkspace catch-ignore docs; DAY-PLAN/workbench stamp |
-| 04:20 | *(commit)* | Pre-dawn sanity: git clean; cargo 98; npm unit 24; `release\` tylko yml/log (MSI nadal reclaim); tip stamp |
+| 04:20 | `cabba7f` | Pre-dawn sanity: git clean; cargo 98; npm unit 24; `release\` tylko yml/log (MSI nadal reclaim); tip stamp |
 
 ---
 
