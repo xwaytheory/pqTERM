@@ -31,6 +31,7 @@ import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
 import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag } from './resume'
+import { shutdownVoiceHost } from './voice-host'
 
 app.setName('pq')
 process.title = 'pq'
@@ -914,16 +915,22 @@ app.on('before-quit', () => {
   remote.stop()
   persistSessions()
   ptys.killAll()
+  // No-op when voice-host was never spawned (production default unchanged).
+  // Does not auto-spawn. Cancel-over-IPC is best-effort TODO — see voice-host.ts.
+  shutdownVoiceHost()
 })
 
 // ---------------------------------------------------------------------------
-// Overnight opt-in sketch — NOT called from app.whenReady / UI / before-quit.
+// Overnight opt-in sketch — NOT called from app.whenReady / UI.
 // Default OFF. Enable only via PQ_VOICE_HOST=1 or spawnVoiceHost({ enabled:true }).
+// before-quit calls shutdownVoiceHost() — no-op when never spawned.
 // See src/main/voice-host.ts + docs/VOICE-HOST-BRIDGE.md
 // ---------------------------------------------------------------------------
 export {
   spawnVoiceHost,
   stopVoiceHost,
+  shutdownVoiceHost,
+  getActiveVoiceHost,
   resolveVoiceExe,
   isVoiceHostEnvEnabled,
   isVoiceHostEnabled

@@ -1,9 +1,9 @@
 # Electron host → pq-voice.exe (thin bridge, future)
 
-**Status:** documentation + **opt-in Electron spawn sketch** (`src/main/voice-host.ts`).
+**Status:** documentation + **opt-in Electron spawn sketch** + **quit shutdown when active** (`src/main/voice-host.ts`).
 Production path does **not** auto-spawn. Gate: `PQ_VOICE_HOST=1` **or** explicit
-`spawnVoiceHost({ enabled: true, sessionId })`. Dead re-export from `src/main/index.ts`
-(not called from `app.whenReady` / UI / `before-quit`).
+`spawnVoiceHost({ enabled: true, sessionId })`. Re-export from `src/main/index.ts`. `before-quit` calls `shutdownVoiceHost()` (no-op when never spawned).
+Not called from `app.whenReady` / UI. No auto-spawn.
 
 Production STT stays in-renderer `Xenova/whisper-tiny` (`voiceCommander.ts`).
 
@@ -36,7 +36,7 @@ or `--ipc-demo` ephemeral). Production later: named pipe `\\.\pipe\pq-voice-{ses
    **Else:** `--ipc-tcp 127.0.0.1:4791` (or override).
 3. `child_process.spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })`
 4. Host should listen (`pq-work --ipc-pipe` / `--ipc-tcp` / future Electron `net.Server`) **before** spawn when using TCP.
-5. On quit (future wiring): send `Cancel`, then `child.kill()` / `stopVoiceHost(child)`.
+5. On quit: `shutdownVoiceHost()` from `before-quit` — no-op if never spawned; orderly `child.kill()` (+ win32 `SIGKILL` after ~800ms). IPC `Cancel` is **best-effort TODO** (stdin is `ignore`; no duplex held — do not pretend Cancel was sent).
 6. Do **not** pass `--allow-download`. Missing `ggml-large-v3.bin` is a printed error, not a 3 GB fetch.
 7. Missing exe → structured `{ ok: false, code: 'missing-exe', candidates }` — **never** treated as success.
 
@@ -72,11 +72,21 @@ if (!r.ok) {
 }
 ```
 
+
+### Quit lifecycle (this wave)
+
+- Successful `spawnVoiceHost` registers a module-level **active handle** (child + sessionId + transport + exe).
+- `getActiveVoiceHost()` / `shutdownVoiceHost()` — safe no-op when nothing active.
+- `app.on('before-quit')` calls `shutdownVoiceHost()` — production unchanged when never spawned.
+- **Cancel honesty:** spawn uses `stdio: ['ignore', ...]` so Cancel **cannot** go via stdin. Opening named pipe / TCP briefly to send a Cancel JSON line is deferred (TODO). `trySendCancelToActiveVoiceHost()` always returns `false` this wave.
+- Smoke: `node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts`
 Gauntlet blockers that must not ship:
 
 - Auto-spawn on every launch
 - Swallowing missing-binary as success
 - Pointing at / triggering whisper model download
+- Killing unrelated processes / auto-spawn on quit
+- Pretending IPC Cancel was sent when it was not
 
 ## Demo flags (already in the Rust bins)
 
@@ -93,4 +103,4 @@ pq-voice --listen       # AppData GGML probe + skeleton pipeline (no download)
 - Packaging pq-voice into NSIS/MSI extraResources
 - Mic capture / whisper.cpp
 - Replacing `voiceCommander.ts`
-- Wiring spawn into UI click paths or `app.whenReady`
+- Wiring spawn into UI click paths or `app.whenReady` (quit cleanup is wired; spawn still opt-in only)

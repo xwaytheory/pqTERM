@@ -9,6 +9,11 @@
  * Do NOT import this into app.whenReady / UI click paths without the gate.
  * Never passes --allow-download (missing GGML = error, not a 3 GB fetch).
  *
+ * Quit lifecycle: successful spawn registers a module-level active handle;
+ * `shutdownVoiceHost()` (wired from `app.on('before-quit')`) is a no-op when
+ * nothing was ever spawned. Cancel-over-IPC is best-effort TODO (stdin is
+ * ignore — Cancel cannot go via stdin).
+ *
  * See docs/VOICE-HOST-BRIDGE.md
  */
 import { spawn, type ChildProcess } from 'child_process'
@@ -30,6 +35,9 @@ export const VOICE_SEARCH_REL = [
 
 /** Env gate — only '1' enables. */
 export const PQ_VOICE_HOST_ENV = 'PQ_VOICE_HOST'
+
+/** Grace period before SIGKILL on win32 after orderly kill (ms). */
+export const VOICE_HOST_KILL_GRACE_MS = 800
 
 export type VoiceTransport = 'ipc-pipe' | 'ipc-tcp'
 
@@ -62,6 +70,16 @@ export type SpawnVoiceHostOpts = {
   /** Prefer named pipe on win32 (default true on win32). */
   preferPipe?: boolean
 }
+
+/** Tracked active child — set on successful spawn, cleared on stop/shutdown/exit. */
+export type ActiveVoiceHost = {
+  child: ChildProcess
+  sessionId: string
+  transport: VoiceTransport
+  exe: string
+}
+
+let activeVoiceHost: ActiveVoiceHost | null = null
 
 export function isVoiceHostEnvEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env[PQ_VOICE_HOST_ENV] === '1'
@@ -141,10 +159,114 @@ export function buildVoiceHostArgs(opts: {
   return { ok: true, args: ['--ipc-tcp', addr], transport: 'ipc-tcp' }
 }
 
+function clearActiveIfMatch(child: ChildProcess): void {
+  if (activeVoiceHost?.child === child) activeVoiceHost = null
+}
+
+function registerActive(handle: ActiveVoiceHost): void {
+  // Replace prior active without pretending Cancel was sent — caller owns lifecycle.
+  if (activeVoiceHost && activeVoiceHost.child !== handle.child) {
+    try {
+      if (!activeVoiceHost.child.killed) activeVoiceHost.child.kill()
+    } catch {
+      /* ignore */
+    }
+  }
+  activeVoiceHost = handle
+  handle.child.once('exit', () => clearActiveIfMatch(handle.child))
+  handle.child.once('error', () => clearActiveIfMatch(handle.child))
+}
+
+/** Snapshot of the tracked voice-host child, or null if none / already cleared. */
+export function getActiveVoiceHost(): ActiveVoiceHost | null {
+  return activeVoiceHost
+}
+
+/**
+ * Test/smoke hook only — inject a fake active handle (or clear).
+ * Do not call from production UI / whenReady paths.
+ */
+export function setActiveVoiceHostForTest(handle: ActiveVoiceHost | null): void {
+  activeVoiceHost = handle
+}
+
+/**
+ * Encode a Cancel JSON line matching Rust `IpcMessage::Cancel` / `encode_line`
+ * (`{"type":"cancel","session_id":"...","reason":...}`).
+ * Exported for docs / future IPC client — not sent on quit this wave.
+ */
+export function encodeCancelLine(sessionId: string, reason?: string): string {
+  const body: { type: 'cancel'; session_id: string; reason?: string } = {
+    type: 'cancel',
+    session_id: sessionId
+  }
+  if (reason !== undefined) body.reason = reason
+  return JSON.stringify(body)
+}
+
+/**
+ * Best-effort IPC Cancel — **not implemented overnight**.
+ *
+ * Honesty:
+ * - Spawn uses `stdio: ['ignore', 'pipe', 'pipe']` so Cancel **cannot** go via stdin.
+ * - Real Cancel needs a duplex to the child's pipe/TCP using the same framing as Rust
+ *   (`encode_line`). Host typically listens first (`pq-work --ipc-pipe`); this sketch
+ *   does not yet hold an open client/server socket to write a Cancel line.
+ * - Opening `\\.\pipe\pq-voice-{session}` / TCP as a brief client on quit is deferred
+ *   (fragile without an established session duplex). Callers must not pretend Cancel
+ *   was delivered when this returns false.
+ *
+ * @returns always `false` this wave (Cancel not sent).
+ */
+export function trySendCancelToActiveVoiceHost(_reason?: string): boolean {
+  // TODO(overnight): if we later keep a net.Socket / NamedPipe duplex on the active
+  // handle, write encodeCancelLine + '\n' here. Until then: do not claim success.
+  return false
+}
+
+/**
+ * Stop the tracked voice-host child if any. Safe no-op when never spawned.
+ *
+ * Order: attempt Cancel (currently always skipped — see trySendCancelToActiveVoiceHost),
+ * then orderly `child.kill()`, then on win32 `kill('SIGKILL')` after
+ * {@link VOICE_HOST_KILL_GRACE_MS} if still alive. Never kills unrelated PIDs.
+ */
+export function shutdownVoiceHost(): void {
+  const active = activeVoiceHost
+  if (!active) return
+
+  // Clear first so re-entrant before-quit / exit handlers are no-ops.
+  activeVoiceHost = null
+
+  // Cancel over IPC: best-effort TODO — not sent (stdin ignore; no duplex held).
+  void trySendCancelToActiveVoiceHost('app-quit')
+
+  const { child } = active
+  try {
+    if (child.killed || child.exitCode !== null) return
+    child.kill()
+  } catch {
+    /* ignore */
+  }
+
+  if (process.platform === 'win32') {
+    const t = setTimeout(() => {
+      try {
+        if (!child.killed && child.exitCode === null) child.kill('SIGKILL')
+      } catch {
+        /* ignore */
+      }
+    }, VOICE_HOST_KILL_GRACE_MS)
+    // Do not keep the Electron process alive solely for this timer.
+    t.unref?.()
+  }
+}
+
 /**
  * Spawn pq-voice.exe. Never throws for missing binary / disabled.
  * stdio: stdin ignore, stdout/stderr piped (caller may attach listeners).
  * Does NOT auto-start on app boot — caller must opt in.
+ * On success, registers the module-level active handle for quit cleanup.
  */
 export function spawnVoiceHost(opts: SpawnVoiceHostOpts): VoiceHostSpawnResult {
   if (!isVoiceHostEnabled(opts)) {
@@ -180,6 +302,12 @@ export function spawnVoiceHost(opts: SpawnVoiceHostOpts): VoiceHostSpawnResult {
       stdio: ['ignore', 'pipe', 'pipe']
       // Intentionally omit --allow-download
     })
+    registerActive({
+      child,
+      sessionId: opts.sessionId,
+      transport: argsBuilt.transport,
+      exe
+    })
     return {
       ok: true,
       child,
@@ -199,8 +327,12 @@ export function spawnVoiceHost(opts: SpawnVoiceHostOpts): VoiceHostSpawnResult {
   }
 }
 
-/** Best-effort stop helper for callers that hold a ChildProcess. */
+/**
+ * Best-effort stop helper for callers that hold a ChildProcess.
+ * Clears the module active handle when it matches this child.
+ */
 export function stopVoiceHost(child: ChildProcess): void {
+  clearActiveIfMatch(child)
   try {
     if (!child.killed) child.kill()
   } catch {

@@ -156,3 +156,28 @@ Noc dowiozła **rusztowanie Phase 2** i dokumentację pod poranny przegląd. Pro
 - Brak cargo / GGML / `npm run dist`
 - Brak wiring do UI click paths
 - Brak packaging pq-voice jako extraResource
+
+
+---
+
+## Wave — voice-host quit lifecycle (~03:25 PT)
+
+**Cel:** gdy `pq-voice` jest aktywny, `before-quit` ma go uporządkowanie zamknąć; gdy nigdy nie spawnnięty — no-op (production bez zmian).
+
+**Dostarczone:**
+- `src/main/voice-host.ts`: module-level active handle (child + sessionId + transport + exe); `getActiveVoiceHost()` / `shutdownVoiceHost()`
+- `shutdownVoiceHost`: no-op gdy brak active; `child.kill()` + na win32 `SIGKILL` po ~800ms; **nie** ubija obcych PID-ów
+- Cancel IPC: **TODO uczciwy** — stdin = `ignore` (Cancel nie idzie stdin); brak trzymanego duplexu pipe/TCP; `trySendCancelToActiveVoiceHost()` → zawsze `false` (nie udajemy wysyłki)
+- `src/main/index.ts`: `app.on('before-quit')` → `shutdownVoiceHost()`; brak auto-spawn na quit/ready/UI
+- Smoke: `src/main/voice-host.shutdown.smoke.ts` (no-active + fake kill path)
+- Docs: VOICE-HOST-BRIDGE / workbench.md/html / ten wave
+- Gauntlet Architecture + Electron-process → **WARUNKOWO OK**
+  - blocker auto-spawn = uniknięty
+  - blocker unrelated kill = uniknięty
+  - blocker fake Cancel = uniknięty (dokumentowany TODO)
+
+**Świadomie nie:**
+- Brak cargo / GGML / `npm run dist`
+- Brak real Cancel-over-pipe/TCP client na quit
+- Brak UI spawn
+
