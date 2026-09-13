@@ -47,8 +47,9 @@ pub use providers::{
     ProviderProbe,
 };
 pub use resolve_launch::{
-    known_launch, known_launch_candidates, npm_dir, quote_arg, resolve_launch, sanitize_env_keys,
-    yolo_env, FsExists, LaunchPlan, PathExists,
+    build_pty_env, is_sanitize_drop_key, known_launch, known_launch_candidates, merge_path_prepend,
+    npm_dir, pty_path_extras, quote_arg, resolve_launch, sanitize_env_keys, yolo_env, FsExists,
+    LaunchPlan, PathExists, PtyEnvOpts,
 };
 pub use ipc::{
     ack_for_hello, decode_line, encode_line, expect_ack, expect_hello, handshake_as_connector,

@@ -7,8 +7,9 @@
 //!
 //! Optional `pty-spike` feature: `spawn_argv` / hardened `spawn_cmd` open ConPTY
 //! via `portable-pty` for short-lived smokes, with a **reader-thread output pump**
-//! into session buf/seq. Registry-only path never starts a pump. Full engine launch
-//! stays Electron.
+//! into session buf/seq and **sanitize-like spawn env** (TERM / PQ_* / PATH extras /
+//! `yolo_env` from `pq-core::resolve_launch`). Registry-only path never starts a pump.
+//! Full engine launch stays Electron.
 //!
 //! Type alias: [`SessionRegistry`]. See `docs/PTY-MANAGER.md`.
 
@@ -80,6 +81,12 @@ pub struct SpawnOpts {
     pub cols: u16,
     pub rows: u16,
     pub seed_buf: Option<String>,
+    /// Resolved engine binary — parent dir prepended to PATH (Electron `extraPath`).
+    pub extra_path: Option<String>,
+    /// Bridge `PQ_BIN` directory (optional PATH prepend).
+    pub pq_bin: Option<String>,
+    /// Extra env overlays after sanitize + yolo (e.g. `PQ_BRIDGE` / `PQ_TOKEN`).
+    pub extra_env: Vec<(String, String)>,
 }
 
 impl SpawnOpts {
@@ -99,8 +106,37 @@ impl SpawnOpts {
             cols,
             rows,
             seed_buf: None,
+            extra_path: None,
+            pq_bin: None,
+            extra_env: Vec::new(),
         }
     }
+}
+
+/// Build sanitized ConPTY/agent env pairs for `opts` (Electron `envFor` twin).
+///
+/// Available without `pty-spike` so unit tests stay honest offline. Live spawn
+/// under `pty-spike` applies the same map onto `CommandBuilder`.
+pub fn spawn_env_pairs(opts: &SpawnOpts) -> Vec<(String, String)> {
+    use pq_core::{build_pty_env, user_data_dir, PtyEnvOpts};
+    use std::path::PathBuf;
+
+    let home = std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let product_bin = user_data_dir().join("bin");
+    let pty_opts = PtyEnvOpts {
+        cwd: &opts.cwd,
+        engine: &opts.engine,
+        home: &home,
+        product_bin: &product_bin,
+        extra_path: opts.extra_path.as_deref(),
+        pq_bin: opts.pq_bin.as_deref(),
+        extra_env: &opts.extra_env,
+    };
+    let base: Vec<(String, String)> = std::env::vars().collect();
+    build_pty_env(base, &pty_opts)
 }
 
 /// In-memory session registry (OS handles only with `pty-spike`).
@@ -579,6 +615,21 @@ impl PtyManager {
         let _ = self.live.remove(pane_id);
     }
 
+    /// Apply Electron `envFor`-style env onto a live ConPTY command.
+    #[cfg(feature = "pty-spike")]
+    fn apply_conpty_env(cmd: &mut CommandBuilder, opts: &SpawnOpts) {
+        use pq_core::is_sanitize_drop_key;
+        // Drop Chromium/Electron noise still present in portable-pty base env.
+        for (k, _) in std::env::vars() {
+            if is_sanitize_drop_key(&k) {
+                cmd.env_remove(&k);
+            }
+        }
+        for (k, v) in spawn_env_pairs(opts) {
+            cmd.env(k, v);
+        }
+    }
+
     /// Reject shell metacharacters so `cmd /C` cannot be used for injection.
     /// Always available so denylist unit tests run without `pty-spike`.
     fn assert_safe_cmdline(cmdline: &str) -> Result<(), String> {
@@ -628,6 +679,7 @@ impl PtyManager {
         if !opts.cwd.is_empty() {
             cmd.cwd(&opts.cwd);
         }
+        Self::apply_conpty_env(&mut cmd, &opts);
 
         // Attach reader/writer + pump BEFORE spawn so short-lived cmds (echo) are not missed.
         let reader = pair
@@ -774,6 +826,9 @@ mod tests {
             cols: 80,
             rows: 24,
             seed_buf: Some("seed".into()),
+            extra_path: None,
+            pq_bin: None,
+            extra_env: Vec::new(),
         });
         let d = m.describe("p1").unwrap();
         assert!(d.alive);
@@ -917,6 +972,47 @@ mod tests {
         if saw_echo {
             assert!(m.buffer("pump1").data.contains("pq-pump-ok"));
         }
+    }
+
+    #[test]
+    fn spawn_env_pairs_sets_term_and_yolo_without_live_pty() {
+        let opts = SpawnOpts {
+            pane_id: "e1".into(),
+            workspace_id: "ws".into(),
+            engine: "grok".into(),
+            cwd: r"C:\proj".into(),
+            cols: 80,
+            rows: 24,
+            seed_buf: None,
+            extra_path: Some(r"C:\Users\test\.grok\bin\grok.exe".into()),
+            pq_bin: Some(r"C:\pq\bridge-bin".into()),
+            extra_env: vec![("PQ_SLOT".into(), "2".into())],
+        };
+        let env = spawn_env_pairs(&opts);
+        let get = |k: &str| {
+            env.iter()
+                .find(|(a, _)| a == k)
+                .map(|(_, v)| v.as_str())
+                .unwrap_or("")
+        };
+        assert_eq!(get("TERM"), "xterm-256color");
+        assert_eq!(get("TERM_PROGRAM"), "pq");
+        assert_eq!(get("PQ"), "1");
+        assert_eq!(get("PWD"), r"C:\proj");
+        assert_eq!(get("GROK_FOLDER_TRUST"), "0");
+        assert_eq!(get("PQ_SLOT"), "2");
+        assert!(!env.iter().any(|(k, _)| k.starts_with("ELECTRON_")));
+        let path = get("PATH");
+        assert!(path.contains(r"C:\pq\bridge-bin") || path.to_ascii_lowercase().contains("bridge-bin"), "{path}");
+        assert!(
+            path.contains(r".grok\bin") || path.to_ascii_lowercase().contains(".grok"),
+            "{path}"
+        );
+        // Registry-only honesty: env helper does not imply live I/O.
+        let mut m = SessionRegistry::new();
+        m.spawn(opts.clone());
+        assert!(!m.has_live_io("e1"));
+        assert!(!m.write("e1", "x"));
     }
 
     #[cfg(feature = "pty-spike")]

@@ -22,8 +22,9 @@ Spawns `cmd /D /Q /C echo pq-pty-ok` via `portable-pty` native ConPTY, answers C
 | Backend | Windows ConPTY through `native_pty_system()` |
 | Init noise | ConPTY emits DSR (`ESC [ 6 n`), mode sets, title OSC before payload |
 | Capture | Marker `pq-pty-ok` appears after answering DSR; without reply child can stall |
-| Manager | `SessionRegistry` + optional `spawn_argv` / hardened `spawn_cmd` (see PTY-MANAGER.md) |
-| Scope | Spike only — full engine PATH/yoloEnv/trust still Electron |
+| Manager | `SessionRegistry` + `spawn_argv` (env via `build_pty_env`) / hardened `spawn_cmd` (see PTY-MANAGER.md) |
+| Spawn env | TERM / PQ_* / PATH extras / `yolo_env` applied on live ConPTY only |
+| Scope | Spike only — full engine trust + Electron `pty-manager.ts` still production |
 
 ## Production path (later Phase 3)
 

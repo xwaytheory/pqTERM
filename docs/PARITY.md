@@ -11,11 +11,11 @@ Living board — update with PORT-MAP. Electron remains production.
 | `env.ts` | live | `pq-core::env` | **done** (unit tests) |
 | `store.ts` | live | `pq-core::store` | **done** lean load/save; provider ENGINE_SPECS merge **gap** |
 | `host.ts` | live | Tauri/host facade | **n/a** replace later |
-| `pty-manager.ts` | live | `pq-work` SessionRegistry | **stub registry** — not twin; ConPTY = `pty-spike` |
+| `pty-manager.ts` | live | `pq-work` SessionRegistry | **stub registry** + `pty-spike` ConPTY; spawn env (TERM/PQ_*/PATH/yolo) via `pq-core` — **not** Electron cutover |
 | `bridge.ts` | live | `pq-work::bridge` | **planned** |
 | `engines.ts` | live | `pq-core::engines` | **done** |
 | `providers.ts` | live | `pq-core::providers` | **stub** fixture I/O (no live home scan) |
-| `resolve-launch.ts` | live | `pq-work::launch` | **planned** |
+| `resolve-launch.ts` | live | `pq-core::resolve_launch` | **partial** — paths + `yolo_env` + `build_pty_env` / sanitize; no OS spawn |
 | `index.ts` | live | `pq-work` / Tauri | **planned** |
 | `auth.ts` | live | `pq-core::auth` | **stub** sketch |
 | `trust.ts` | live | `pq-work::trust` | **planned** (TS swallows errors) |
@@ -43,4 +43,4 @@ Living board — update with PORT-MAP. Electron remains production.
 | Tauri shell | **spike doc only** (`docs/TAURI-SPIKE.md`) |
 | Terminal DnD path quoting | **electron** — see [`docs/DND-ENGINE-MATRIX.md`](./DND-ENGINE-MATRIX.md) |
 
-Updated: 2026-09-13 named-pipe ACL + Hello/Ack harden; voice-host handshake gate; still demo/opt-in (no STT cutover).
+Updated: 2026-09-13 SessionRegistry spawn env (TERM/PQ_*/PATH/yolo) under pty-spike; still no Electron PTY cutover.
