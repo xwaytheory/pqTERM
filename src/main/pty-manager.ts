@@ -113,10 +113,11 @@ export class PtyManager {
       return
     }
     this.kill(opts.paneId)
+    // trustWorkspace is best-effort (swallows provider I/O errors); outer catch keeps spawn unblocked
     try {
       trustWorkspace(opts.cwd || homedir())
     } catch {
-      /* ignore */
+      /* ignore — never block ConPTY/pane start on trust-file write failure */
     }
     const np = loadPty()
     const spec = specById(opts.engine)

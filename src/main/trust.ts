@@ -113,7 +113,11 @@ function trustCodex(dir: string): void {
   writeFileSync(file, (cur.trimEnd() ? cur.trimEnd() + '\n' : '') + block, 'utf8')
 }
 
-/** Persist "trust this folder" for the workspace so CLIs skip the first-run dialog. */
+/**
+ * Persist "trust this folder" for the workspace so CLIs skip the first-run dialog.
+ * Best-effort only: each provider write is catch-ignored so a locked/readonly home
+ * config never throws into the PTY spawn path. Callers may also catch (belt + suspenders).
+ */
 export function trustWorkspace(cwd: string): void {
   if (!cwd) return
   const root = gitRoot(cwd)
@@ -122,22 +126,22 @@ export function trustWorkspace(cwd: string): void {
     try {
       trustGrok(dir)
     } catch {
-      /* ignore */
+      /* ignore — trust must not block pane spawn */
     }
     try {
       trustClaude(dir)
     } catch {
-      /* ignore */
+      /* ignore — trust must not block pane spawn */
     }
     try {
       trustGemini(dir)
     } catch {
-      /* ignore */
+      /* ignore — trust must not block pane spawn */
     }
     try {
       trustCodex(dir)
     } catch {
-      /* ignore */
+      /* ignore — trust must not block pane spawn */
     }
   }
 }

@@ -1,6 +1,7 @@
 # Day plan — after 07:00 (Europe/Warsaw)
 
-**Branch:** `feat/rust-phase1` (local commits only overnight; **push is a morning decision**)  
+**Branch:** `feat/rust-phase1` (local commits only overnight; **push is a morning decision**)
+**HEAD overnight tip:** `00bb7e2` (polish) / product tip `3a06472` (voice-host StartListen + Status).  
 **Disk:** ~1.6 GB free — treat as hard constraint until reclaim/expand.  
 **Product path:** still Electron. No cutover claim.
 
@@ -79,6 +80,7 @@ Target `dir` / stamp-host path stays the daily path until Rust cutover (not toda
 ```
 cd crates && cargo test --workspace
 npm run test:unit
+scripts\verify-night.cmd
 cargo run -p pq-voice -- --help
 scripts\rust-smoke.cmd
 node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts

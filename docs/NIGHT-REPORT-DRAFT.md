@@ -3,7 +3,7 @@
 **Data:** 2026-09-13 (noc 12/13 → poranek)  
 **Strefa:** Europe/Warsaw (PT)  
 **Branch:** `feat/rust-phase1`  
-**HEAD (ten raport / polish):** `391287f` — unit denylist + DAY-PLAN + claim soften  
+**HEAD (ten raport / polish):** `00bb7e2` — stamp 391287f into 07:00 report / workbench  
 **HEAD produktu (ostatni feature):** `3a06472` — voice-host StartListen + Status reader  
 **Zasada nocy:** commity **lokalne, bez push**. Bez pobierania `ggml-large-v3` (~3.1 GB). Dysk ciasny — pełny `npm run dist` nie jest bramką poranną.
 
@@ -52,6 +52,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): crate’y `pq-core` / `p
 | 03:45 | `1004423` | **Reclaim MSI/NSIS** (~0.74 → ~1.8 GB free); źródła nietknięte |
 | 03:50 | `3a06472` | StartListen + Status/Transcript reader na trzymanym duplexie |
 | 04:07 | `391287f` | Unit: spawn_cmd denylist (%/^/|), dropPaths %/^, originsMatch contract; DAY-PLAN; LOCKED→frozen |
+| 04:09 | `00bb7e2` | Stamp polish HEAD 391287f into 07:00 report / workbench |
 
 ---
 
@@ -79,6 +80,7 @@ Późniejsze fale voice-host / IPC / fixture I/O: Architecture + IPC **WARUNKOWO
 - Phone: `pqSttGlue` podpięty do tego samego WS co typed compose
 - Docs: PORT-MAP, PARITY, VOICE-HOST-BRIDGE, ANDROID-STT, workbench, ten raport
 - `scripts/rust-smoke.cmd` — build + CLI **bez** modelu
+- `scripts/verify-night.cmd` — `cargo test --workspace` + `npm run test:unit` (OK/FAIL)
 
 **Świadomie nie:**
 - whisper.cpp / Large v3 runtime / auto-download (~3.1 GB)
@@ -150,6 +152,8 @@ Zrobione w nocy (skreślone z backlogu dnia): phone JS mic glue; SessionRegistry
 
 ```
 cd crates && cargo test --workspace
+npm run test:unit
+scripts\verify-night.cmd
 scripts\rust-smoke.cmd
 cargo run -p pq-voice -- --help
 node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts
@@ -250,3 +254,14 @@ Usunięte tylko regenerowalne artefakty `release\`. Dysk ~0.74 → ~1.80 GB. Źr
 - `cargo test --workspace` **98** green; `npm run test:unit` **24** green
 
 **Świadomie nie:** brak dist, brak GGML, brak push, brak whisper.cpp link.
+
+### Wave — verify-night + trustWorkspace docs (~04:15 PT)
+
+**Cel:** bramka pre-dawn bez dist/GGML; udokumentować catch-ignore trust (bez zmiany zachowania).
+
+**Dostarczone:**
+- `scripts/verify-night.cmd` — `cargo test --workspace` + `npm run test:unit` (jeśli jest w package.json); echo OK/FAIL/SKIP
+- `trustWorkspace`: JSDoc + komentarze że catch-ignore jest celowy (best-effort; nie blokuje PTY spawn); outer catch w `pty-manager` zostaje (belt+suspenders)
+- HEAD stamp w raporcie: polish `00bb7e2` / product tip `3a06472`
+
+**Świadomie nie:** brak dist, brak GGML, brak push, brak zmiany logiki trust (tylko docs/komentarze).
