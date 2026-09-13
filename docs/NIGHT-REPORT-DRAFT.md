@@ -29,7 +29,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): szkielety `pq-core` / `p
 | 01:36 | `300dab3` | Krytyk A/B revise, SessionRegistry, auth/remote/board stubs |
 | 01:53 | `7636011` | ConPTY prefer-live, auth/remote/board deepen, `--check-update` |
 | 02:01 | `f63fec6` | Slice8: voice pipeline skeleton, `--ipc-demo`, resume/usage/sync |
-| (ten slice) | *(po commit)* | resolve-launch / trust / providers szkice, `rust-smoke.cmd`, NIGHT-REPORT, workbench |
+| ~02:30 | 8f19da7 | resolve-launch / trust / providers szkice, `rust-smoke.cmd`, NIGHT-REPORT, workbench |
 
 ---
 
