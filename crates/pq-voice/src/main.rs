@@ -69,7 +69,7 @@ fn main() {
     println!("IPC protocol v{PROTOCOL_VERSION}: StubVoiceServer ready");
     println!("Tip: pq-voice --ipc-demo  (in-process LocalTcpTransport e2e)");
     println!("Tip: pq-voice --ipc-tcp  (after pq-work --ipc-tcp) for localhost TCP spike");
-    println!("Tip: pq-voice --ipc-pipe  (after pq-work --ipc-pipe) for Windows named-pipe spike");
+    println!("Tip: pq-voice --ipc-pipe  (after pq-work --ipc-pipe) for Windows named-pipe demo (ACL+Hello/Ack)");
 
     let mut server = StubVoiceServer::default();
     let start = IpcMessage::StartListen(pq_core::ipc::StartListen {
@@ -199,16 +199,19 @@ fn run_ipc_pipe_demo(session: &str) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(windows)]
     {
         println!("pq-voice {WORKSPACE_VERSION} ipc-pipe connect session={session}");
+        // Honest reconnect: limited retries; fail clearly when no peer.
         let mut transport = None;
-        for attempt in 1..=80 {
-            match NamedPipeTransport::connect(session) {
-                Ok(t) => {
+        for attempt in 1..=40 {
+            match NamedPipeTransport::try_connect(session, 1)? {
+                Some(t) => {
                     transport = Some(t);
                     break;
                 }
-                Err(e) => {
-                    if attempt == 80 {
-                        return Err(e.into());
+                None => {
+                    if attempt == 40 {
+                        return Err(
+                            format!("no peer for named pipe after retries (session={session})").into()
+                        );
                     }
                     thread::sleep(Duration::from_millis(50));
                 }
@@ -216,6 +219,9 @@ fn run_ipc_pipe_demo(session: &str) -> Result<(), Box<dyn std::error::Error>> {
         }
         let mut transport = transport.expect("connected");
         println!("connected ({})", transport.kind());
+        let ack = transport.handshake_as_connector("pq-voice")?;
+        println!("-> Hello role=pq-voice");
+        println!("<- Ack ok={} protocol={}", ack.ok, ack.protocol);
 
         let mut server = StubVoiceServer::default();
         let start = transport.recv_line_blocking()?;
@@ -255,8 +261,8 @@ fn help_text() -> String {
              --ipc-demo              In-process LocalTcpTransport e2e — demo, not production\n\
              --ipc-tcp [ADDR]        Connect to a listening host (JSON-lines spike)\n\
                                      default {addr}; host must listen first\n\
-             --ipc-pipe [SESSION]    Connect to \\\\.\\pipe\\pq-voice-{{session}} (Windows only)\n\
-                                     Demo ACL (creator DACL). Host must listen first.\n\n\
+             --ipc-pipe [SESSION]    Connect to named pipe (Windows); Hello/Ack then StartListen\n\
+                                     Creator-owner ACL spike (demo, not production). Host listens first.\n\n\
          STT INTENT (not runtime): {model} language={lang}.\n\
          File: %LOCALAPPDATA%\\pq\\models\\whisper\\{ggml} (~3.1 GB f16).\n\
          Overnight/CI never fetches it. Place the file manually if you need a present-probe.\n\
@@ -286,7 +292,8 @@ mod tests {
         assert!(h.contains("Exit 2"), "{h}");
         assert!(h.contains("Xenova/whisper-tiny"), "{h}");
         assert!(h.contains("--pipeline"), "{h}");
-        assert!(h.contains("Windows only"), "{h}");
+        assert!(h.contains("Windows"), "{h}");
+        assert!(h.contains("Hello/Ack") || h.contains("Creator-owner"), "{h}");
         assert!(h.contains("PQ_VOICE_HOST"), "{h}");
         assert!(h.contains(stt::GGML_FILENAME), "{h}");
         assert!(h.contains(stt::MODEL_ID), "{h}");

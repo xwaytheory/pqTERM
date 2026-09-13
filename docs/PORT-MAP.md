@@ -40,7 +40,7 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 | `src/shared/types.ts` | `pq-core::store` (+ board/remote/auth) | 2–3 | **partial** |
 | Updater (new) | `pq-core::updater` + fixtures | 1 / 10 e2e | **stub** FileManifestFetch + `OfferUpdate` + `pq-work --check-update` |
 | Version constants | `pq-core::version` | 1 | stub |
-| Voice IPC protocol | `pq-core::ipc` | 2 | **stub** + `--ipc-demo` LocalTcp e2e |
+| Voice IPC protocol | `pq-core::ipc` | 2 | **spike** LocalTcp + Windows NamedPipe (ACL+Hello/Ack); demo only |
 | `voiceCommander.ts` / VoicePanel | `pq-voice` + IPC | 9 | **skeleton** listen/transcribe + host-bridge doc |
 | Android mic | Kotlin `SpeechRecognizer` + origin lock | docs + bridge | **wired** (gauntlet B revise) |
 
@@ -48,7 +48,9 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 
 | Message | Direction | Purpose |
 |---------|-----------|---------|
-| `StartListen` | work → voice | Begin capture/STT for `session_id` |
+| `Hello` | connector → listener | Protocol negotiation (`PROTOCOL_VERSION`) before StartListen |
+| `Ack` | listener → connector | Accept/reject Hello (`ok` + protocol) |
+| `StartListen` | work → voice | Begin capture/STT for `session_id` (after Hello/Ack) |
 | `Transcript` | voice → work | Partial/final text (+ lang) |
 | `Cancel` | work → voice | Abort listen / STT |
 | `Status` | voice → work | Idle / Listening / Processing / Ready / Error / Cancelled |
@@ -56,8 +58,8 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 Stub client: `pq_core::ipc::StubWorkClient` (used from `pq-work`).  
 Stub server: `pq_core::ipc::StubVoiceServer` (used from `pq-voice`).  
 `MemoryChannelStub` = **in-process demo/test only** (not production IPC).  
-`Transport` trait + **`LocalTcpTransport`** spike (`127.0.0.1:4791` JSON-lines; `pq-work`/`pq-voice --ipc-tcp`). **`--ipc-demo`** runs the same codec in-process (`local_tcp_ipc_demo`). **`VoiceIpcFlow`** names the e2e kinds. **`NamedPipeTransport`** real on Windows (`\\.\pipe\pq-voice-{session}`, `--ipc-pipe`); stub off-Windows. Host spawn plan: `docs/VOICE-HOST-BRIDGE.md`. Demo/cross-process only — **not** production IPC (WS/named-pipe still future).  
-JSON line codec: `encode_line` / `decode_line`.
+`Transport` trait + **`LocalTcpTransport`** spike (`127.0.0.1:4791` JSON-lines; `pq-work`/`pq-voice --ipc-tcp`). **`--ipc-demo`** runs the same codec in-process (`local_tcp_ipc_demo`). **`VoiceIpcFlow`** names the e2e kinds (Hello/Ack then StartListen...). **`NamedPipeTransport`** real on Windows (`\\.\pipe\pq-voice-{session}`, `--ipc-pipe`): creator-owner (+ SYSTEM) DACL + Hello/Ack `PROTOCOL_VERSION` handshake + honest reconnect/busy retries; stub off-Windows. Host spawn plan: `docs/VOICE-HOST-BRIDGE.md`. **Demo/spike hardened — not production IPC / not STT cutover.** WebSocket transport still **planned**.  
+JSON line codec: `encode_line` / `decode_line`. Messages: `Hello`, `Ack`, `StartListen`, `Transcript`, `Cancel`, `Status`.
 
 ## Suggested ownership
 
@@ -67,4 +69,4 @@ JSON line codec: `encode_line` / `decode_line`.
 | **pq-work** | SessionRegistry/pty, bridge, providers, launch, trust, resume, sync, usage, UI host |
 | **pq-voice** | mic, VAD, Whisper Large v3, intent hints; speaks IPC only |
 
-Updated: 2026-09-13 slice9 — resolve_launch/trust/providers, rust-smoke, night report.
+Updated: 2026-09-13 — named-pipe ACL + Hello/Ack harden (demo spike; no STT cutover).

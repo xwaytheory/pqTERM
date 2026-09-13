@@ -51,12 +51,14 @@ pub use resolve_launch::{
     yolo_env, FsExists, LaunchPlan, PathExists,
 };
 pub use ipc::{
-    decode_line, encode_line, local_tcp_ipc_demo, named_pipe_loopback_demo, stub_loopback_demo,
-    tcp_loopback_demo, voice_exe_candidates, Cancel, DuplexEndpoint, IpcError, IpcMessage, IpcSink,
-    LocalTcpTransport, LocalWsTransport, MemoryChannelStub, NamedPipeTransport, StartListen, Status,
-    StubVoiceServer, StubWorkClient, Transcript, Transport, VoiceHostSpawnPlan, VoiceIpcFlow,
-    VoiceState, named_pipe_path, named_pipe_path_checked, sanitize_pipe_session_id, DEFAULT_TCP_ADDR,
-    PIPE_NAME_PREFIX, PIPE_SESSION_ID_MAX, PROTOCOL_VERSION, VOICE_EXE_NAME,
+    ack_for_hello, decode_line, encode_line, expect_ack, expect_hello, handshake_as_connector,
+    handshake_as_listener, local_tcp_ipc_demo, make_ack, make_hello, named_pipe_loopback_demo,
+    stub_loopback_demo, tcp_loopback_demo, voice_exe_candidates, Ack, Cancel, DuplexEndpoint, Hello,
+    IpcError, IpcMessage, IpcSink, LocalTcpTransport, LocalWsTransport, MemoryChannelStub,
+    NamedPipeTransport, StartListen, Status, StubVoiceServer, StubWorkClient, Transcript, Transport,
+    VoiceHostSpawnPlan, VoiceIpcFlow, VoiceState, named_pipe_path, named_pipe_path_checked,
+    sanitize_pipe_session_id, DEFAULT_TCP_ADDR, PIPE_CONNECT_ATTEMPTS_DEFAULT, PIPE_CONNECT_RETRY_MS,
+    PIPE_NAME_PREFIX, PIPE_SECURITY_SDDL, PIPE_SESSION_ID_MAX, PROTOCOL_VERSION, VOICE_EXE_NAME,
 };
 pub use remote::{
     mime_for_ext, PairRateLimit, RemoteCommand, RemoteHubStub, RemoteInfo, RemotePersist,

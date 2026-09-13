@@ -90,7 +90,7 @@ fn main() {
         "IPC protocol v{PROTOCOL_VERSION}: StubWorkClient + MemoryChannelStub (not production Transport)"
     );
     println!("Tip: pq-work --ipc-tcp  (then pq-voice --ipc-tcp) for localhost TCP Transport spike (demo only)");
-    println!("Tip: pq-work --ipc-pipe  (then pq-voice --ipc-pipe) for Windows named-pipe spike");
+    println!("Tip: pq-work --ipc-pipe  (then pq-voice --ipc-pipe) for Windows named-pipe demo (ACL+Hello/Ack, not production)");
 
     let plan = CheckOnLaunchPlan::default();
     println!(
@@ -280,6 +280,9 @@ fn run_ipc_pipe_demo(session: &str) -> Result<(), Box<dyn std::error::Error>> {
         println!("waiting for pq-voice --ipc-pipe {session} ...");
         let mut transport = NamedPipeTransport::listen(session)?;
         println!("peer connected ({})", transport.kind());
+        let hello = transport.handshake_as_listener()?;
+        println!("<- Hello role={} protocol={}", hello.role, hello.protocol);
+        println!("-> Ack ok protocol={PROTOCOL_VERSION}");
 
         let mut work = StubWorkClient::default();
         work.start_listen(session)?;
@@ -324,8 +327,8 @@ fn print_help() {
              --ipc-demo              In-process LocalTcpTransport e2e (shared IPC types)\n\
              --ipc-tcp [ADDR]        Listen for voice on localhost TCP JSON-lines\n\
                                      (default {DEFAULT_TCP_ADDR})\n\
-             --ipc-pipe [SESSION]    Windows named-pipe listen \\\\.\\pipe\\pq-voice-{{session}}\n\
+             --ipc-pipe [SESSION]    Windows named-pipe listen (creator-owner ACL + Hello/Ack; demo)\n\
              --pty-spike             ConPTY echo spike (needs --features pty-spike)\n\n\
-         Phase 2: IPC stubs + TCP/named-pipe Transport + optional pty-spike. See docs/MIGRATION-RUST.md."
+         Phase 2: IPC stubs + TCP/named-pipe Transport (hardened demo ACL+handshake, not production STT). See docs/MIGRATION-RUST.md."
     );
 }

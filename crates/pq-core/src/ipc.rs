@@ -22,6 +22,10 @@ pub const PROTOCOL_VERSION: u32 = 1;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum IpcMessage {
+    /// Connector → listener: protocol negotiation (before StartListen).
+    Hello(Hello),
+    /// Listener → connector: acknowledge Hello / PROTOCOL_VERSION.
+    Ack(Ack),
     /// work → voice: begin mic capture + STT.
     StartListen(StartListen),
     /// voice → work: partial or final transcript.
@@ -30,6 +34,25 @@ pub enum IpcMessage {
     Cancel(Cancel),
     /// voice → work (or either): session / health status.
     Status(Status),
+}
+
+/// Connector greeting — must precede StartListen on real transports.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Hello {
+    /// Negotiated protocol; must match [`PROTOCOL_VERSION`] for Ack.ok=true.
+    pub protocol: u32,
+    /// Who is greeting (`pq-work`, `pq-voice`, `electron-host`, …).
+    pub role: String,
+}
+
+/// Listener reply to [`Hello`].
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Ack {
+    pub protocol: u32,
+    /// false when peer protocol mismatches (caller must not StartListen).
+    pub ok: bool,
+    #[serde(default)]
+    pub detail: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -97,6 +120,8 @@ pub enum IpcError {
     Deserialize(String),
     #[error("stub not connected")]
     NotConnected,
+    #[error("protocol mismatch: peer={peer}, local={local}")]
+    ProtocolMismatch { peer: u32, local: u32 },
     #[error("transport: {0}")]
     Transport(String),
     #[error("{0}")]
@@ -116,6 +141,106 @@ pub fn decode_line(line: &str) -> Result<IpcMessage, IpcError> {
     }
     serde_json::from_str(trimmed).map_err(|e| IpcError::Deserialize(e.to_string()))
 }
+
+/// Build a connector Hello for the current [`PROTOCOL_VERSION`].
+pub fn make_hello(role: impl Into<String>) -> IpcMessage {
+    IpcMessage::Hello(Hello {
+        protocol: PROTOCOL_VERSION,
+        role: role.into(),
+    })
+}
+
+/// Build an Ack for the current [`PROTOCOL_VERSION`].
+pub fn make_ack(ok: bool, detail: Option<String>) -> IpcMessage {
+    IpcMessage::Ack(Ack {
+        protocol: PROTOCOL_VERSION,
+        ok,
+        detail,
+    })
+}
+
+/// Parse a Hello message (transport-layer).
+pub fn expect_hello(msg: IpcMessage) -> Result<Hello, IpcError> {
+    match msg {
+        IpcMessage::Hello(h) => Ok(h),
+        other => Err(IpcError::Other(format!("expected hello, got {}", other.kind_name()))),
+    }
+}
+
+/// Parse an Ack message (transport-layer).
+pub fn expect_ack(msg: IpcMessage) -> Result<Ack, IpcError> {
+    match msg {
+        IpcMessage::Ack(a) => Ok(a),
+        other => Err(IpcError::Other(format!("expected ack, got {}", other.kind_name()))),
+    }
+}
+
+/// Listener side after accept: validate Hello and produce Ack (ok iff protocol matches).
+pub fn ack_for_hello(hello: &Hello) -> (bool, IpcMessage) {
+    if hello.protocol == PROTOCOL_VERSION {
+        (true, make_ack(true, Some(format!("role={}", hello.role))))
+    } else {
+        (
+            false,
+            make_ack(
+                false,
+                Some(format!(
+                    "protocol mismatch peer={} local={}",
+                    hello.protocol, PROTOCOL_VERSION
+                )),
+            ),
+        )
+    }
+}
+
+/// Connector: send Hello, read one line as Ack, enforce protocol.
+pub fn handshake_as_connector<F>(
+    send: &mut dyn FnMut(IpcMessage) -> Result<(), IpcError>,
+    mut recv_one: F,
+    role: &str,
+) -> Result<Ack, IpcError>
+where
+    F: FnMut() -> Result<IpcMessage, IpcError>,
+{
+    send(make_hello(role))?;
+    let ack = expect_ack(recv_one()?)?;
+    if !ack.ok || ack.protocol != PROTOCOL_VERSION {
+        return Err(IpcError::ProtocolMismatch {
+            peer: ack.protocol,
+            local: PROTOCOL_VERSION,
+        });
+    }
+    Ok(ack)
+}
+
+/// Listener: read Hello, reply Ack; Err on mismatch after still sending Ack(ok=false).
+pub fn handshake_as_listener<F>(
+    send: &mut dyn FnMut(IpcMessage) -> Result<(), IpcError>,
+    mut recv_one: F,
+) -> Result<Hello, IpcError>
+where
+    F: FnMut() -> Result<IpcMessage, IpcError>,
+{
+    let hello = expect_hello(recv_one()?)?;
+    let (ok, ack_msg) = ack_for_hello(&hello);
+    send(ack_msg)?;
+    if !ok {
+        return Err(IpcError::ProtocolMismatch {
+            peer: hello.protocol,
+            local: PROTOCOL_VERSION,
+        });
+    }
+    Ok(hello)
+}
+
+/// SDDL used for CreateNamedPipeW creator-owner (+ SYSTEM) DACL — Windows only.
+/// Protected DACL; Owner Rights + Local System. Not Everyone / not null default.
+pub const PIPE_SECURITY_SDDL: &str = "D:P(A;;GA;;;OW)(A;;GA;;;SY)";
+
+/// Default client connect attempts (honest miss → no peer after retries).
+pub const PIPE_CONNECT_ATTEMPTS_DEFAULT: u32 = 40;
+/// Sleep between connect retries (ms).
+pub const PIPE_CONNECT_RETRY_MS: u64 = 50;
 
 /// Outbound sink used by stubs (work client / voice server).
 pub trait IpcSink {
@@ -543,8 +668,8 @@ pub fn named_pipe_path_checked(session_id: &str) -> Result<String, IpcError> {
 /// at `\\.\pipe\pq-voice-{session}` and frame with [`encode_line`] / [`decode_line`].
 /// On non-Windows, the type remains a compile-safe stub (`kind` = `named-pipe-stub`).
 ///
-/// Default pipe ACL (creator default DACL) is OK for same-user local demos — not a
-/// hardened multi-user security boundary.
+/// Pipe ACL: explicit creator-owner (+ SYSTEM) SDDL via [`PIPE_SECURITY_SDDL`] on
+/// `CreateNamedPipeW` — still a same-user demo/spike, not a multi-user product boundary.
 pub struct NamedPipeTransport {
     /// Full pipe path, e.g. `\\.\pipe\pq-voice-sess1`.
     pub pipe_path: String,
@@ -580,6 +705,26 @@ mod win_pipe {
     const ERROR_NO_DATA: DWORD = 232;
     const ERROR_BROKEN_PIPE: DWORD = 109;
     const ERROR_PIPE_NOT_CONNECTED: DWORD = 233;
+    const ERROR_FILE_NOT_FOUND: DWORD = 2;
+    const SDDL_REVISION_1: DWORD = 1;
+
+    #[repr(C)]
+    struct SECURITY_ATTRIBUTES {
+        n_length: DWORD,
+        lp_security_descriptor: *mut std::ffi::c_void,
+        b_inherit_handle: BOOL,
+    }
+
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl: *const u16,
+            revision: DWORD,
+            sd: *mut *mut std::ffi::c_void,
+            sd_size: *mut DWORD,
+        ) -> BOOL;
+        fn LocalFree(mem: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
+    }
 
     #[link(name = "kernel32")]
     extern "system" {
@@ -661,8 +806,35 @@ mod win_pipe {
     }
 
     impl PipeInner {
+        /// Build creator-owner (+ SYSTEM) SECURITY_ATTRIBUTES; caller LocalFree's the SD.
+        fn creator_owner_sa() -> Result<(SECURITY_ATTRIBUTES, *mut std::ffi::c_void), IpcError> {
+            let wide = to_wide(super::PIPE_SECURITY_SDDL);
+            let mut psd: *mut std::ffi::c_void = ptr::null_mut();
+            let ok = unsafe {
+                ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    wide.as_ptr(),
+                    SDDL_REVISION_1,
+                    &mut psd,
+                    ptr::null_mut(),
+                )
+            };
+            if ok == 0 || psd.is_null() {
+                return Err(IpcError::Transport(format!(
+                    "ConvertStringSecurityDescriptorToSecurityDescriptorW: {}",
+                    last_err()
+                )));
+            }
+            let sa = SECURITY_ATTRIBUTES {
+                n_length: std::mem::size_of::<SECURITY_ATTRIBUTES>() as DWORD,
+                lp_security_descriptor: psd,
+                b_inherit_handle: 0,
+            };
+            Ok((sa, psd))
+        }
+
         pub fn create_server(pipe_path: &str) -> Result<Self, IpcError> {
             let wide = to_wide(pipe_path);
+            let (mut sa, psd) = Self::creator_owner_sa()?;
             let handle = unsafe {
                 CreateNamedPipeW(
                     wide.as_ptr(),
@@ -672,12 +844,15 @@ mod win_pipe {
                     4096,
                     4096,
                     5000,
-                    ptr::null_mut(),
+                    &mut sa as *mut SECURITY_ATTRIBUTES as *mut std::ffi::c_void,
                 )
             };
+            unsafe {
+                let _ = LocalFree(psd);
+            }
             if handle as isize == INVALID_HANDLE_VALUE {
                 return Err(IpcError::Transport(format!(
-                    "CreateNamedPipeW({pipe_path}): {}",
+                    "CreateNamedPipeW({pipe_path}) with creator-owner DACL: {}",
                     last_err()
                 )));
             }
@@ -710,41 +885,79 @@ mod win_pipe {
             Ok(s)
         }
 
-        pub fn connect(pipe_path: &str, attempts: u32) -> Result<Self, IpcError> {
+        /// One CreateFileW attempt. Ok(None) = no peer yet / busy (retryable).
+        pub fn try_connect_once(pipe_path: &str) -> Result<Option<Self>, IpcError> {
             let wide = to_wide(pipe_path);
-            let mut last = String::new();
-            for attempt in 1..=attempts {
-                unsafe {
-                    let _ = WaitNamedPipeW(wide.as_ptr(), 100);
-                }
-                let handle = unsafe {
-                    CreateFileW(
-                        wide.as_ptr(),
-                        GENERIC_READ | GENERIC_WRITE,
-                        0,
-                        ptr::null_mut(),
-                        OPEN_EXISTING,
-                        FILE_ATTRIBUTE_NORMAL,
-                        ptr::null_mut(),
-                    )
-                };
-                if handle as isize != INVALID_HANDLE_VALUE {
-                    let owned = unsafe { OwnedHandle::from_raw_handle(handle as RawHandle) };
-                    return Ok(Self {
-                        handle: owned,
-                        buf: Vec::new(),
-                        is_server: false,
-                    });
-                }
-                let err = unsafe { GetLastError() };
-                last = format!("CreateFileW attempt {attempt}: win32 error {err}");
-                if err == ERROR_PIPE_BUSY || err == 2 {
-                    std::thread::sleep(Duration::from_millis(25));
-                    continue;
-                }
-                std::thread::sleep(Duration::from_millis(25));
+            unsafe {
+                let _ = WaitNamedPipeW(wide.as_ptr(), 50);
             }
-            Err(IpcError::Transport(last))
+            let handle = unsafe {
+                CreateFileW(
+                    wide.as_ptr(),
+                    GENERIC_READ | GENERIC_WRITE,
+                    0,
+                    ptr::null_mut(),
+                    OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL,
+                    ptr::null_mut(),
+                )
+            };
+            if handle as isize != INVALID_HANDLE_VALUE {
+                let owned = unsafe { OwnedHandle::from_raw_handle(handle as RawHandle) };
+                return Ok(Some(Self {
+                    handle: owned,
+                    buf: Vec::new(),
+                    is_server: false,
+                }));
+            }
+            let err = unsafe { GetLastError() };
+            if err == ERROR_PIPE_BUSY || err == ERROR_FILE_NOT_FOUND {
+                return Ok(None);
+            }
+            Err(IpcError::Transport(format!(
+                "CreateFileW({pipe_path}): win32 error {err}"
+            )))
+        }
+
+        /// Retry with limit. Distinguishes busy vs no-peer when exhausted.
+        pub fn connect(pipe_path: &str, attempts: u32) -> Result<Self, IpcError> {
+            let mut saw_busy = false;
+            let mut saw_missing = false;
+            for attempt in 1..=attempts.max(1) {
+                match Self::try_connect_once(pipe_path)? {
+                    Some(s) => return Ok(s),
+                    None => {
+                        // Peek last error again via a no-op Wait / GetLastError is racy;
+                        // classify from a dedicated WaitNamedPipe miss vs busy probe.
+                        let wide = to_wide(pipe_path);
+                        let waited = unsafe { WaitNamedPipeW(wide.as_ptr(), 1) };
+                        if waited == 0 {
+                            let err = unsafe { GetLastError() };
+                            if err == ERROR_PIPE_BUSY {
+                                saw_busy = true;
+                            } else if err == ERROR_FILE_NOT_FOUND {
+                                saw_missing = true;
+                            } else {
+                                // ERROR_SEM_TIMEOUT (121) etc. while server is mid-accept
+                                saw_missing = true;
+                            }
+                        } else {
+                            saw_busy = true;
+                        }
+                        let _ = attempt;
+                        std::thread::sleep(Duration::from_millis(super::PIPE_CONNECT_RETRY_MS));
+                    }
+                }
+            }
+            if saw_busy && !saw_missing {
+                Err(IpcError::Transport(format!(
+                    "named pipe busy after {attempts} attempts: {pipe_path}"
+                )))
+            } else {
+                Err(IpcError::Transport(format!(
+                    "no peer for named pipe after {attempts} attempts: {pipe_path}"
+                )))
+            }
         }
 
         pub fn send(&mut self, msg: &IpcMessage) -> Result<(), IpcError> {
@@ -920,15 +1133,69 @@ impl NamedPipeTransport {
         })
     }
 
-    /// Client: open an existing pipe (retries briefly while the server comes up).
+    /// Client: open an existing pipe (retries with limit while the server comes up).
+    /// Honest error when no peer after [`PIPE_CONNECT_ATTEMPTS_DEFAULT`] attempts.
     #[cfg(windows)]
     pub fn connect(session_id: impl AsRef<str>) -> Result<Self, IpcError> {
+        Self::connect_with_attempts(session_id, PIPE_CONNECT_ATTEMPTS_DEFAULT)
+    }
+
+    /// Like [`Self::connect`] with an explicit retry budget.
+    #[cfg(windows)]
+    pub fn connect_with_attempts(
+        session_id: impl AsRef<str>,
+        attempts: u32,
+    ) -> Result<Self, IpcError> {
         let path = named_pipe_path_checked(session_id.as_ref())?;
-        let inner = win_pipe::PipeInner::connect(&path, 80)?;
+        let inner = win_pipe::PipeInner::connect(&path, attempts)?;
         Ok(Self {
             pipe_path: path,
             inner: Some(inner),
         })
+    }
+
+    /// Single-shot / limited try: `Ok(None)` means no peer yet (honest miss), not a hard error.
+    #[cfg(windows)]
+    pub fn try_connect(
+        session_id: impl AsRef<str>,
+        attempts: u32,
+    ) -> Result<Option<Self>, IpcError> {
+        match Self::connect_with_attempts(session_id, attempts) {
+            Ok(t) => Ok(Some(t)),
+            Err(IpcError::Transport(msg))
+                if msg.contains("no peer") || msg.contains("busy after") =>
+            {
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Blocking Hello → Ack as the **connector** (voice / client).
+    pub fn handshake_as_connector(&mut self, role: &str) -> Result<Ack, IpcError> {
+        self.send(make_hello(role))?;
+        let ack = expect_ack(self.recv_line_blocking()?)?;
+        if !ack.ok || ack.protocol != PROTOCOL_VERSION {
+            return Err(IpcError::ProtocolMismatch {
+                peer: ack.protocol,
+                local: PROTOCOL_VERSION,
+            });
+        }
+        Ok(ack)
+    }
+
+    /// Blocking Hello ← / Ack → as the **listener** (work / host).
+    pub fn handshake_as_listener(&mut self) -> Result<Hello, IpcError> {
+        let hello = expect_hello(self.recv_line_blocking()?)?;
+        let (ok, ack_msg) = ack_for_hello(&hello);
+        self.send(ack_msg)?;
+        if !ok {
+            return Err(IpcError::ProtocolMismatch {
+                peer: hello.protocol,
+                local: PROTOCOL_VERSION,
+            });
+        }
+        Ok(hello)
     }
 
     #[cfg(not(windows))]
@@ -943,6 +1210,24 @@ impl NamedPipeTransport {
         Err(IpcError::Transport(
             "NamedPipeTransport::connect requires Windows".into(),
         ))
+    }
+
+    #[cfg(not(windows))]
+    pub fn connect_with_attempts(
+        _session_id: impl AsRef<str>,
+        _attempts: u32,
+    ) -> Result<Self, IpcError> {
+        Err(IpcError::Transport(
+            "NamedPipeTransport::connect requires Windows".into(),
+        ))
+    }
+
+    #[cfg(not(windows))]
+    pub fn try_connect(
+        _session_id: impl AsRef<str>,
+        _attempts: u32,
+    ) -> Result<Option<Self>, IpcError> {
+        Ok(None)
     }
 
     /// Blocking read of exactly one JSON line (demos / tests).
@@ -1048,6 +1333,8 @@ pub fn named_pipe_loopback_demo(session_id: &str) -> Result<Vec<Transcript>, Ipc
         let server = thread::spawn(move || -> Result<Vec<Transcript>, IpcError> {
             // Rust listens as pq-voice; PowerShell connects as pq-work client.
             let mut transport = NamedPipeTransport::listen(&session_server)?;
+            // Listener Hello/Ack before StartListen (ACL already applied at CreateNamedPipeW).
+            let _hello = transport.handshake_as_listener()?;
             let mut server = StubVoiceServer::default();
             let start = transport.recv_line_blocking()?;
             server.handle_from_work(start)?;
@@ -1076,6 +1363,9 @@ $sw = New-Object System.IO.StreamWriter($c)
 $sw.NewLine = [string][char]10
 $sw.AutoFlush = $true
 $sr = New-Object System.IO.StreamReader($c)
+$sw.WriteLine('{{"type":"hello","protocol":1,"role":"pq-work"}}')
+$ack = $sr.ReadLine()
+if ($null -eq $ack -or $ack -notmatch '"type":"ack"' -or $ack -notmatch '"ok":true') {{ throw "bad ack: $ack" }}
 $sw.WriteLine('{{"type":"start_listen","session_id":"{session}","language":"pl","timeout_ms":0}}')
 $gotFinal = $false
 $text = ''
@@ -1246,6 +1536,8 @@ impl VoiceIpcFlow {
     /// Expected message kinds for one listen turn (work→voice then voice→work).
     pub fn expected_kinds(&self) -> &'static [&'static str] {
         &[
+            "hello",
+            "ack",
             "start_listen",
             "status", // listening
             "status", // processing
@@ -1258,6 +1550,8 @@ impl VoiceIpcFlow {
 impl IpcMessage {
     pub fn kind_name(&self) -> &'static str {
         match self {
+            IpcMessage::Hello(_) => "hello",
+            IpcMessage::Ack(_) => "ack",
             IpcMessage::StartListen(_) => "start_listen",
             IpcMessage::Transcript(_) => "transcript",
             IpcMessage::Cancel(_) => "cancel",
@@ -1316,6 +1610,15 @@ mod tests {
     #[test]
     fn json_roundtrip_all_variants() {
         let samples = vec![
+            IpcMessage::Hello(Hello {
+                protocol: PROTOCOL_VERSION,
+                role: "pq-voice".into(),
+            }),
+            IpcMessage::Ack(Ack {
+                protocol: PROTOCOL_VERSION,
+                ok: true,
+                detail: Some("role=pq-voice".into()),
+            }),
             IpcMessage::StartListen(StartListen {
                 session_id: "s1".into(),
                 language: "pl".into(),
@@ -1486,7 +1789,8 @@ mod tests {
         let flow = VoiceIpcFlow::tcp_demo("sess-e2e");
         assert_eq!(flow.protocol, PROTOCOL_VERSION);
         assert_eq!(flow.transport, "localhost-tcp");
-        assert_eq!(flow.expected_kinds()[0], "start_listen");
+        assert_eq!(flow.expected_kinds()[0], "hello");
+        assert_eq!(flow.expected_kinds()[2], "start_listen");
         assert_eq!(
             IpcMessage::StartListen(StartListen {
                 session_id: "s".into(),
@@ -1516,4 +1820,112 @@ mod tests {
         assert!(transcripts[0].is_final);
     }
 
+    #[test]
+    fn hello_ack_handshake_helpers() {
+        let hello = make_hello("pq-voice");
+        assert_eq!(hello.kind_name(), "hello");
+        let h = expect_hello(hello).unwrap();
+        assert_eq!(h.protocol, PROTOCOL_VERSION);
+        let (ok, ack_msg) = ack_for_hello(&h);
+        assert!(ok);
+        let ack = expect_ack(ack_msg).unwrap();
+        assert!(ack.ok);
+        assert_eq!(ack.protocol, PROTOCOL_VERSION);
+
+        let bad = Hello {
+            protocol: PROTOCOL_VERSION + 99,
+            role: "x".into(),
+        };
+        let (ok2, ack_bad) = ack_for_hello(&bad);
+        assert!(!ok2);
+        assert!(!expect_ack(ack_bad).unwrap().ok);
+    }
+
+    #[test]
+    fn handshake_over_duplex_memory_queues() {
+        // Free-function handshake over DuplexEndpoint (codec path, no OS pipe).
+        let (mut listener, mut connector) = DuplexEndpoint::pair("handshake-duplex");
+        let role = "pq-voice";
+        // Connector Hello
+        connector.send(make_hello(role)).unwrap();
+        let hello_msg = listener.try_recv().unwrap().expect("hello");
+        let hello = expect_hello(hello_msg).unwrap();
+        let (ok, ack) = ack_for_hello(&hello);
+        assert!(ok);
+        listener.send(ack).unwrap();
+        let ack_msg = connector.try_recv().unwrap().expect("ack");
+        let ack = expect_ack(ack_msg).unwrap();
+        assert!(ack.ok);
+    }
+
+    #[test]
+    fn pipe_security_sddl_is_creator_owner_not_everyone() {
+        assert!(PIPE_SECURITY_SDDL.contains("OW"), "owner rights ACE");
+        assert!(PIPE_SECURITY_SDDL.contains("SY"), "SYSTEM ACE");
+        assert!(
+            !PIPE_SECURITY_SDDL.contains("WD") && !PIPE_SECURITY_SDDL.contains(";;AU"),
+            "must not grant Everyone / Authenticated Users"
+        );
+        assert!(PIPE_SECURITY_SDDL.starts_with("D:P"), "protected DACL");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn named_pipe_acl_create_and_hello_ack_handshake() {
+        let session = format!(
+            "acl{}{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                % 100000
+        );
+        let session_l = session.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let listener = std::thread::spawn(move || -> Result<String, IpcError> {
+            let mut t = NamedPipeTransport::listen(&session_l)?;
+            assert_eq!(t.kind(), "named-pipe");
+            let hello = t.handshake_as_listener()?;
+            Ok(hello.role)
+        });
+        std::thread::sleep(std::time::Duration::from_millis(80));
+        let mut client = NamedPipeTransport::connect(&session).expect("connect under ACL");
+        let ack = client
+            .handshake_as_connector("pq-voice")
+            .expect("hello/ack");
+        assert!(ack.ok);
+        let role = listener.join().unwrap().unwrap();
+        assert_eq!(role, "pq-voice");
+        let _ = tx.send(());
+        let _ = rx;
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn named_pipe_try_connect_honest_none_when_no_peer() {
+        let session = format!("nopipe{}", std::process::id());
+        // Few attempts → should miss quickly (no listener).
+        let miss = NamedPipeTransport::try_connect(&session, 2).expect("try_connect Result");
+        assert!(miss.is_none(), "honest None when no peer");
+        let err = match NamedPipeTransport::connect_with_attempts(&session, 2) {
+            Ok(_) => panic!("expected connect miss"),
+            Err(e) => e,
+        };
+        match err {
+            IpcError::Transport(msg) => assert!(
+                msg.contains("no peer") || msg.contains("busy"),
+                "unexpected msg: {msg}"
+            ),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn named_pipe_try_connect_none_off_windows() {
+        assert!(NamedPipeTransport::try_connect("x", 1).unwrap().is_none());
+    }
+
 }
+

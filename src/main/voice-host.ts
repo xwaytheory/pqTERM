@@ -9,7 +9,7 @@
  * Host listens BEFORE spawn (pq-voice connects; Electron / pq-work listens):
  *   - Windows pipe: \\.\pipe\pq-voice-{sanitizedSession}
  *   - TCP: 127.0.0.1:4791 (or opts.tcpAddr)
- * Peer Socket kept on the active handle for Cancel / StartListen JSON-lines + best-effort Status/Transcript reader.
+ * Peer Socket kept on the active handle for Hello/Ack + Cancel / StartListen JSON-lines + best-effort Status/Transcript reader.
  *
  * Do NOT import this into app.whenReady / UI click paths without the gate.
  * Never passes --allow-download (missing GGML = error, not a 3 GB fetch).
@@ -35,6 +35,9 @@ export const DEFAULT_TCP_ADDR = '127.0.0.1:4791'
 
 /** Mirrors pq_core::ipc::PIPE_NAME_PREFIX */
 export const PIPE_NAME_PREFIX = '\\\\.\\pipe\\pq-voice-'
+
+/** Mirrors pq_core::ipc::PROTOCOL_VERSION -- Hello/Ack before StartListen. */
+export const PROTOCOL_VERSION = 1
 
 /** Mirrors VoiceHostSpawnPlan.search_rel (Windows-style + posix join) */
 export const VOICE_SEARCH_REL = [
@@ -122,6 +125,8 @@ export type ActiveVoiceHost = {
   lastTranscripts: VoiceIpcTranscript[]
   /** Incomplete trailing line from socket data buffer. */
   _lineBuf?: string
+  /** True after inbound Hello + outbound Ack (protocol match). */
+  handshakeOk?: boolean
 }
 
 let activeVoiceHost: ActiveVoiceHost | null = null
@@ -305,6 +310,26 @@ export function encodeStartListenLine(
   })
 }
 
+/** Encode Hello JSON line matching Rust IpcMessage::Hello. */
+export function encodeHelloLine(role: string, protocol: number = PROTOCOL_VERSION): string {
+  return JSON.stringify({ type: 'hello', protocol, role })
+}
+
+/** Encode Ack JSON line matching Rust IpcMessage::Ack. */
+export function encodeAckLine(
+  ok: boolean,
+  detail?: string,
+  protocol: number = PROTOCOL_VERSION
+): string {
+  const body: { type: 'ack'; protocol: number; ok: boolean; detail?: string } = {
+    type: 'ack',
+    protocol,
+    ok
+  }
+  if (detail !== undefined) body.detail = detail
+  return JSON.stringify(body)
+}
+
 function writeJsonLineOnHandle(handle: ActiveVoiceHost, lineWithoutNl: string): boolean {
   const sock = handle.socket
   if (!sock || sock.destroyed || !sock.writable) return false
@@ -321,6 +346,8 @@ function writeCancelOnHandle(handle: ActiveVoiceHost, reason?: string): boolean 
 }
 
 function writeStartListenOnHandle(handle: ActiveVoiceHost, opts?: EncodeStartListenOpts): boolean {
+  // Honest: StartListen only after Hello/Ack (handshakeOk === true).
+  if (handle.handshakeOk !== true) return false
   return writeJsonLineOnHandle(handle, encodeStartListenLine(handle.sessionId, opts))
 }
 
@@ -338,6 +365,16 @@ export function ingestVoiceHostIpcLine(handle: ActiveVoiceHost, rawLine: string)
   }
   if (!msg || typeof msg !== 'object') return
   const m = msg as Record<string, unknown>
+  // Listener Hello/Ack: peer Hello -> reply Ack; gate StartListen on handshakeOk.
+  if (m.type === 'hello' && typeof m.protocol === 'number' && typeof m.role === 'string') {
+    const ok = m.protocol === PROTOCOL_VERSION
+    handle.handshakeOk = ok
+    const detail = ok
+      ? `role=${m.role}`
+      : `protocol mismatch peer=${m.protocol} local=${PROTOCOL_VERSION}`
+    writeJsonLineOnHandle(handle, encodeAckLine(ok, detail))
+    return
+  }
   if (m.type === 'status' && typeof m.source === 'string' && typeof m.state === 'string') {
     handle.lastStatus = {
       type: 'status',
@@ -394,6 +431,7 @@ export function attachVoiceHostSocketReader(handle: ActiveVoiceHost, sock: Socke
 function ensureHandleIpcFields(handle: ActiveVoiceHost): void {
   if (handle.lastStatus === undefined) handle.lastStatus = null
   if (!Array.isArray(handle.lastTranscripts)) handle.lastTranscripts = []
+  if (handle.handshakeOk === undefined) handle.handshakeOk = false
 }
 
 /**
@@ -586,7 +624,8 @@ export async function spawnVoiceHost(opts: SpawnVoiceHostOpts): Promise<VoiceHos
     pipePath: bound.pipePath,
     listenAddr: bound.listenAddr,
     lastStatus: null,
-    lastTranscripts: []
+    lastTranscripts: [],
+    handshakeOk: false
   }
 
   // Keep first peer only; extra connects are dropped.

@@ -1,6 +1,6 @@
 # Electron host → pq-voice.exe (thin bridge, future)
 
-**Status:** documentation + **opt-in Electron spawn sketch** + **listen-before-spawn IPC** + **Cancel / StartListen JSON-lines** + **best-effort Status/Transcript reader** + **quit shutdown when active** (`src/main/voice-host.ts`).
+**Status:** documentation + **opt-in Electron spawn sketch** + **listen-before-spawn IPC** + **Hello/Ack (`PROTOCOL_VERSION`)** + **Cancel / StartListen JSON-lines** + **best-effort Status/Transcript reader** + **quit shutdown when active** (`src/main/voice-host.ts`). Named-pipe path is a **hardened demo/spike** (creator-owner ACL + handshake) — **not** production STT cutover.
 Production path does **not** auto-spawn. Gate: `PQ_VOICE_HOST=1` **or** explicit
 `spawnVoiceHost({ enabled: true, sessionId })`. Re-export from `src/main/index.ts`. `before-quit` calls `shutdownVoiceHost()` (no-op when never spawned).
 Not called from `app.whenReady` / UI. No auto-spawn.
@@ -16,13 +16,17 @@ owns the grid, store, and command routing. They talk JSON-lines IPC:
 
 | Message | Direction | Purpose |
 |---------|-----------|---------|
-| `StartListen` | host → voice | Begin capture/STT for `session_id` |
+| `Hello` | connector (voice) → listener (host) | Negotiate `PROTOCOL_VERSION` before StartListen |
+| `Ack` | host → voice | Accept/reject Hello |
+| `StartListen` | host → voice | Begin capture/STT for `session_id` (only after Hello/Ack) |
 | `Transcript` | voice → host | Partial/final text (+ lang) |
 | `Cancel` | host → voice | Abort listen / STT |
 | `Status` | voice → host | Idle / Listening / Processing / Ready / Error / Cancelled |
 
-Codec: `encode_line` / `decode_line`. Spike transport: `LocalTcpTransport` (`127.0.0.1:4791`
-or `--ipc-demo` ephemeral). Production later: named pipe `\\.\pipe\pq-voice-{session}` or `ws://127.0.0.1`.
+Codec: `encode_line` / `decode_line`. Transports: `LocalTcpTransport` (`127.0.0.1:4791`
+or `--ipc-demo` ephemeral); Windows **`NamedPipeTransport`** at `\\.\pipe\pq-voice-{session}`
+(creator-owner + SYSTEM DACL, Hello/Ack, honest reconnect/busy) via `--ipc-pipe`.
+Still **demo/spike** — production desktop STT remains Electron tiny Whisper. WS framing still later.
 
 ## Roles (listen vs connect)
 
@@ -46,7 +50,7 @@ Electron must bind the pipe/TCP server **before** spawning `pq-voice`, or the pe
 3. **Listen first:** Node `net.Server` on `\\.\pipe\pq-voice-{sanitizedSession}` (pipe) or `127.0.0.1:4791` / `opts.tcpAddr` (TCP).
 4. Then `child_process.spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })` — connect args unchanged.
 5. On peer connect, keep the `Socket` on the active handle and attach a non-blocking line reader (Status / Transcript → `lastStatus` / `lastTranscripts`).
-6. Host may send `StartListen` (`{"type":"start_listen","session_id","language":"pl","timeout_ms":0}\n`) via `sendStartListen` / `trySendStartListenToActiveVoiceHost` — honest `false` without writable socket; language default **pl**.
+6. After peer connect, voice sends `Hello`; host auto-`Ack`s (`handshakeOk`). Host may then send `StartListen` via `sendStartListen` / `trySendStartListenToActiveVoiceHost` — honest `false` without handshake or writable socket; language default **pl**.
 7. On quit: `shutdownVoiceHost()` from `before-quit` — no-op if never spawned; if socket writable, write one Cancel JSON line (`{"type":"cancel","session_id":"...","reason":"host-shutdown"}\n`) matching Rust `IpcMessage`; else skip Cancel honestly (`false`); then destroy socket/server + orderly `child.kill()` (+ win32 `SIGKILL` after ~800ms). **Never blocks** on read loops.
 8. Do **not** pass `--allow-download`. Missing `ggml-large-v3.bin` is a printed error, not a 3 GB fetch.
 9. Missing exe → structured `{ ok: false, code: 'missing-exe', candidates }` — **never** treated as success. Listen bind failure → `listen-failed` (no spawn).
@@ -89,7 +93,7 @@ if (!r.ok) {
 - `getActiveVoiceHost()` / `shutdownVoiceHost()` — safe no-op when nothing active.
 - `app.on('before-quit')` calls `shutdownVoiceHost()` — production unchanged when never spawned.
 - **Cancel honesty:** spawn uses `stdio: ['ignore', ...]` so Cancel **cannot** go via stdin. When a peer socket is held and writable, `trySendCancelToActiveVoiceHost()` writes one JSON line and returns `true`. If no socket yet (peer not connected), returns `false` — do not pretend Cancel was sent.
-- **StartListen honesty:** same contract — `sendStartListen()` / `trySendStartListenToActiveVoiceHost()`; defaults `language:"pl"`, `timeout_ms:0`; never fake success.
+- **StartListen honesty:** requires prior Hello/Ack (`handshakeOk`); `sendStartListen()` / `trySendStartListenToActiveVoiceHost()`; defaults `language:"pl"`, `timeout_ms:0`; never fake success.
 - **Status reader:** best-effort line buffer on socket `data`; parses `type:status` / `type:transcript` into `lastStatus` / `lastTranscripts` (capped); no throw on partial lines; does not block `before-quit`.
 - Smoke: `node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts`
 
@@ -108,8 +112,8 @@ Gauntlet blockers that must not ship:
 ```
 pq-work  --ipc-demo     # in-process LocalTcpTransport e2e
 pq-voice --ipc-demo     # same
-pq-work  --ipc-pipe [session]   # Windows named-pipe listen
-pq-voice --ipc-pipe [session]   # connect
+pq-work  --ipc-pipe [session]   # Windows named-pipe listen (ACL + Hello/Ack, demo)
+pq-voice --ipc-pipe [session]   # connect + Hello, then wait StartListen
 pq-voice --listen       # AppData GGML probe + skeleton pipeline (no download)
 ```
 
@@ -119,4 +123,4 @@ pq-voice --listen       # AppData GGML probe + skeleton pipeline (no download)
 - Mic capture / whisper.cpp
 - Replacing `voiceCommander.ts`
 - Wiring spawn into UI click paths or `app.whenReady` (quit cleanup is wired; spawn still opt-in only)
-- Full duplex protocol state machine / UI STT cutover
+- Full duplex protocol state machine / UI STT cutover / production named-pipe cutover

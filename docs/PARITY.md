@@ -31,15 +31,15 @@ Living board — update with PORT-MAP. Electron remains production.
 |------|--------|
 | Version constants | **stub** `pq-core::version` |
 | Updater | **stub** FileManifestFetch + GitHub fixture (no network) |
-| IPC protocol messages | **stub** + JSON codec |
+| IPC protocol messages | **spike** JSON codec + Hello/Ack (`PROTOCOL_VERSION`) |
 | `MemoryChannelStub` | **stub** (tests/demo) |
 | `LocalTcpTransport` | **stub** spike + `--ipc-demo` e2e |
-| `NamedPipeTransport` | **spike** real Windows JSON-line (`kind=named-pipe`); stub off-Windows; `--ipc-pipe` |
+| `NamedPipeTransport` | **spike** Windows JSON-line + creator-owner ACL + Hello/Ack; stub off-Windows; `--ipc-pipe` |
 | WebSocket transport | **planned** |
 | Shared TS types serde twins | **partial** (store + board/remote/auth sketches) |
 | STT desktop | Electron CURRENT tiny; Rust INTENT Large v3 **skeleton** (`--listen`, no download) |
-| Electron pq-voice spawn | **opt-in sketch + listen-before-spawn + Cancel/StartListen + Status reader** (`net.Server` before spawn; honest send; language default pl) |
+| Electron pq-voice spawn | **opt-in sketch + listen-before-spawn + Hello/Ack + Cancel/StartListen + Status reader** (`net.Server` before spawn; honest send; language default pl) |
 | Android STT | **wired** origin lock + gauntlet B (getUserMedia deny, mic retry) |
 | Tauri shell | **spike doc only** (`docs/TAURI-SPIKE.md`) |
 
-Updated: 2026-09-13 voice-host StartListen/Status over held duplex + listen-before-spawn + Cancel + prior quit lifecycle / spawn sketch / NamedPipe spike.
+Updated: 2026-09-13 named-pipe ACL + Hello/Ack harden; voice-host handshake gate; still demo/opt-in (no STT cutover).

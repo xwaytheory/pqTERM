@@ -11,6 +11,8 @@ import {
   setActiveVoiceHostForTest,
   encodeCancelLine,
   encodeStartListenLine,
+  encodeHelloLine,
+  encodeAckLine,
   trySendCancelToActiveVoiceHost,
   trySendStartListenToActiveVoiceHost,
   sendStartListen,
@@ -21,7 +23,8 @@ import {
   buildVoiceHostArgs,
   isVoiceHostEnabled,
   VOICE_HOST_KILL_GRACE_MS,
-  DEFAULT_TCP_ADDR
+  DEFAULT_TCP_ADDR,
+  PROTOCOL_VERSION
 } from './voice-host.ts'
 
 function assert(cond: unknown, msg: string): void {
@@ -220,7 +223,7 @@ assert(slEn.includes('"timeout_ms":1500'), 'override timeout')
   setActiveVoiceHostForTest(null)
 }
 
-// 11) StartListen with writable socket → true + JSON line
+// 11) StartListen requires Hello/Ack; then succeeds with writable socket
 {
   const c = fakeChild()
   const sock = fakeWritableSocket()
@@ -232,14 +235,22 @@ assert(slEn.includes('"timeout_ms":1500'), 'override timeout')
     server: null,
     socket: sock,
     lastStatus: null,
-    lastTranscripts: []
+    lastTranscripts: [],
+    handshakeOk: false
   })
-  assert(trySendStartListenToActiveVoiceHost() === true, 'StartListen should succeed with writable socket')
-  assert(sock._chunks.length === 1, 'expected one StartListen write')
-  assert(sock._chunks[0]!.endsWith('\n'), 'StartListen write must be a JSON line')
-  assert(sock._chunks[0]!.includes('"type":"start_listen"'), 'written type start_listen')
-  assert(sock._chunks[0]!.includes('"language":"pl"'), 'written default pl')
-  assert(sock._chunks[0]!.includes('"session_id":"sl-sock"'), 'written session')
+  assert(trySendStartListenToActiveVoiceHost() === false, 'StartListen false before Hello/Ack')
+  const h = getActiveVoiceHost()!
+  ingestVoiceHostIpcLine(h, encodeHelloLine('pq-voice'))
+  assert(h.handshakeOk === true, 'handshakeOk after Hello')
+  assert(sock._chunks.some((x) => x.includes('"type":"ack"') && x.includes('"ok":true')), 'Ack written')
+  assert(trySendStartListenToActiveVoiceHost() === true, 'StartListen after Hello/Ack')
+  const sl = sock._chunks.find((x) => x.includes('"type":"start_listen"'))
+  assert(!!sl && sl.endsWith('\n'), 'StartListen write must be a JSON line')
+  assert(sl!.includes('"language":"pl"'), 'written default pl')
+  assert(sl!.includes('"session_id":"sl-sock"'), 'written session')
+  // encode helpers contract
+  assert(encodeHelloLine('pq-voice').includes('"protocol":' + PROTOCOL_VERSION), 'hello protocol')
+  assert(encodeAckLine(true, 'ok').includes('"type":"ack"'), 'ack type')
   setActiveVoiceHostForTest(null)
 }
 
@@ -307,9 +318,15 @@ assert(slEn.includes('"timeout_ms":1500'), 'override timeout')
     socket: peerSock,
     listenAddr: tcpAddr,
     lastStatus: null,
-    lastTranscripts: []
+    lastTranscripts: [],
+    handshakeOk: false
   })
-  assert(sendStartListen({ language: 'pl', timeoutMs: 0 }) === true, 'real socket StartListen')
+  assert(sendStartListen({ language: 'pl', timeoutMs: 0 }) === false, 'StartListen false before Hello')
+  // Peer (voice) sends Hello; host auto-Acks via ingest on socket data
+  client.write(encodeHelloLine('pq-voice') + '\n')
+  await new Promise((r) => setTimeout(r, 50))
+  assert(getActiveVoiceHost()?.handshakeOk === true, 'handshake after peer Hello')
+  assert(sendStartListen({ language: 'pl', timeoutMs: 0 }) === true, 'real socket StartListen after Hello')
   await new Promise((r) => setTimeout(r, 50))
   const joined = got.join('')
   assert(joined.includes('"type":"start_listen"'), `start_listen on wire: ${joined}`)
@@ -337,6 +354,8 @@ console.log(
     listenBeforeSpawn: true,
     startListenDefaultPl: true,
     startListenHonesty: true,
+    helloAck: true,
+    protocolVersion: PROTOCOL_VERSION,
     statusReader: true
   })
 )
