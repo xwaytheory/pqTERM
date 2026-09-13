@@ -50,7 +50,7 @@ function ProviderCard({ p, email }: { p: ProviderInfo; email?: string }) {
         >
           <i />
         </button>
-        <EngineMark id={p.id} name={p.name} color={p.color} logo={p.logo} icon={p.icon} mark={p.mark} size={20} />
+        <EngineMark id={p.id} name={p.name} color={p.color} logo={p.logo} icon={p.icon} mark={p.mark} size={34} />
         <div className="nm">
           <b style={{ color: p.color }}>{p.name}</b>
           <div className="hint" style={{ marginTop: 2 }}>

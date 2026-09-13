@@ -9,6 +9,7 @@ import type {
   BoardSnapshot,
   PanePatch,
   RemoteInfo,
+  SnapZone,
   UsageMap,
   UserSession,
   Workspace
@@ -103,7 +104,11 @@ const pq = {
     setLayout: (id: string, layout: LayoutId) =>
       invoke('workspaces:setLayout', id, layout) as Promise<void>,
     setPane: (workspaceId: string, paneId: string, patch: PanePatch) =>
-      invoke('workspaces:setPane', workspaceId, paneId, patch) as Promise<void>
+      invoke('workspaces:setPane', workspaceId, paneId, patch) as Promise<void>,
+    swapPanes: (workspaceId: string, aId: string, bId: string) =>
+      invoke('workspaces:swapPanes', workspaceId, aId, bId) as Promise<void>,
+    snapPane: (workspaceId: string, paneId: string, zone: SnapZone) =>
+      invoke('workspaces:snapPane', workspaceId, paneId, zone) as Promise<void>
   },
   files: {
     /**

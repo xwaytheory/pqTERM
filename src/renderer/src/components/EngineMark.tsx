@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { letterFromName, markForEngine } from '../lib/engineMarkLetter'
+import { engineLogoFile } from './engineLogoFiles'
 
 export { letterFromName, markForEngine }
 
@@ -19,9 +20,9 @@ export type EngineMarkProps = {
 }
 
 /**
- * Letter-mark chip: uses logo/icon URL when set, else tinted monogram from name + color.
- * Colliding engines get two-letter marks (Cl/Cx/Cr/Co, Gr/Ge, Om/Oc).
- * Intentionally avoids shipping vendor wordmarks (trademark).
+ * Engine mark chip: external logo/icon URL first, then the bundled brand asset
+ * from `assets/engines/` (official vendor marks), else a tinted letter monogram.
+ * Colliding engines get two-letter marks (Cl/Cx/Cr/Co, Gr/Ge, Om/Oc) as fallback.
  */
 export default function EngineMark({
   name,
@@ -47,15 +48,20 @@ export default function EngineMark({
     background: hexToRgba(color, 0.18)
   }
 
-  if (src) {
+    const imgSrc = src || (id ? engineLogoFile(id) : undefined)
+  if (imgSrc) {
+    // PNG avatars are square app-icon art — soften corners; vector marks must
+    // not be clipped (art often touches the viewBox edges).
+    const round = /^data:image\/png|\.png([?#]|$)/i.test(imgSrc)
     return (
-      <span
-        className={`engine-mark has-img${className ? ` ${className}` : ''}`}
-        style={{ ...style, background: 'transparent', borderColor: color }}
+      <img
+        src={imgSrc}
+        alt=""
+        draggable={false}
         title={title ?? name}
-      >
-        <img src={src} alt="" draggable={false} />
-      </span>
+        className={`engine-logo${round ? ' round' : ''}${className ? ` ${className}` : ''}`}
+        style={{ width: size, height: size }}
+      />
     )
   }
 

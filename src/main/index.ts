@@ -19,7 +19,19 @@ import type {
   PaneState,
   Workspace
 } from '../shared/types'
-import { ENGINE_ORDER, looksLikePathTitle, paneCount } from '../shared/types'
+import {
+  ENGINE_ORDER,
+  looksLikePathTitle,
+  paneCount,
+  type SnapZone
+} from '../shared/types'
+import {
+  applyAreasToPanes,
+  defaultAreas,
+  resolveAreas,
+  snapAreas,
+  swapAreasById
+} from '../shared/grid'
 import { loadState, saveState, touchWorkspace } from './store'
 import { applyEmailMatch, scanProviders } from './providers'
 import { signInWithGoogle, openGoogleConsole } from './auth'
@@ -444,12 +456,14 @@ function newId(): string {
 
 function emptyPanes(layout: LayoutId, engines: EngineId[] = []): Workspace['panes'] {
   const n = paneCount(layout)
+  const areas = defaultAreas(n)
   return Array.from({ length: n }, (_, i) => {
     const engine = engines.length ? engines[i % engines.length] : null
     return {
       id: newId(),
       engine,
-      title: engine ? specById(engine).name : `pane ${i + 1}`
+      title: engine ? specById(engine).name : `pane ${i + 1}`,
+      area: areas[i]
     }
   })
 }
@@ -708,12 +722,48 @@ function registerIpc(): void {
         panes.push({ id: newId(), engine: null, title: `pane ${panes.length + 1}` })
       }
     }
+    const areas = defaultAreas(n)
+    panes = panes.map((p, i) => ({ ...p, area: areas[i] }))
     const zoomedPaneId = panes.some((p) => p.id === ws.zoomedPaneId) ? ws.zoomedPaneId : null
     state.workspaces = state.workspaces.map((w) =>
       w.id === id ? touchWorkspace({ ...w, layout, panes, zoomedPaneId }) : w
     )
     persist()
   })
+
+  ipcMain.handle(
+    'workspaces:swapPanes',
+    (_e, workspaceId: string, aId: string, bId: string) => {
+      if (!aId || !bId) return
+      state.workspaces = state.workspaces.map((w) => {
+        if (w.id !== workspaceId) return w
+        const areas = swapAreasById(resolveAreas(w.panes), aId, bId)
+        return touchWorkspace({ ...w, panes: applyAreasToPanes(w.panes, areas) })
+      })
+      persist()
+    }
+  )
+
+  ipcMain.handle(
+    'workspaces:snapPane',
+    (_e, workspaceId: string, paneId: string, zone: SnapZone) => {
+      if (!paneId || !zone) return
+      state.workspaces = state.workspaces.map((w) => {
+        if (w.id !== workspaceId) return w
+        const idx = w.panes.findIndex((p) => p.id === paneId)
+        if (idx < 0) return w
+        // center drop -> the pane fills the grid (existing zoom behavior)
+        if (zone === 'full') {
+          return touchWorkspace({ ...w, zoomedPaneId: paneId })
+        }
+        const next = snapAreas(w.panes.length, idx, zone)
+        if (!next) return w
+        const areas = w.panes.map((p, i) => ({ id: p.id, area: next[i] }))
+        return touchWorkspace({ ...w, panes: applyAreasToPanes(w.panes, areas) })
+      })
+      persist()
+    }
+  )
 
   ipcMain.handle(
     'term:spawn',

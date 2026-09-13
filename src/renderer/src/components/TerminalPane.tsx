@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -8,9 +8,11 @@ import {
   parseGridIntent,
   type EngineId,
   type EngineUsage,
+  type PaneArea,
   type PaneState,
   type ProviderInfo
 } from '../../../shared/types'
+import { areaStyle } from '../../../shared/grid'
 import { formatDroppedPaths, pathShellForPane } from '../lib/dropPaths'
 import EngineMark from './EngineMark'
 
@@ -61,8 +63,10 @@ export default function TerminalPane({
   renameNonce,
   usage,
   index,
+  area,
   onFocus,
-  onZoom
+  onZoom,
+  onDragStart
 }: {
   pane: PaneState
   workspaceId: string
@@ -73,8 +77,10 @@ export default function TerminalPane({
   renameNonce: number
   usage?: EngineUsage
   index: number
+  area?: PaneArea
   onFocus: () => void
   onZoom: () => void
+  onDragStart?: (paneId: string, e: PointerEvent<HTMLElement>) => void
 }) {
   const host = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -355,9 +361,18 @@ export default function TerminalPane({
     window.pq.terminals.write(pane.id, payload)
   }
 
+  function onHeadPointerDown(e: PointerEvent<HTMLElement>): void {
+    if (e.button !== 0) return
+    if ((e.target as HTMLElement).closest('button, input')) return
+    if (!onDragStart) return
+    onDragStart(pane.id, e)
+  }
+
   return (
     <section
       className={`pane${focused ? ' focused' : ''}${zoomed ? ' zoomed-pane' : ''}${dragOver ? ' drop-target' : ''}`}
+      data-pane-id={pane.id}
+      style={areaStyle(area)}
       onMouseDown={onFocus}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -365,6 +380,7 @@ export default function TerminalPane({
     >
       <div
         className="pane-head"
+        onPointerDown={onHeadPointerDown}
         onDoubleClick={(e) => {
           if ((e.target as HTMLElement).closest('button, input, .t')) return
           onZoom()
@@ -377,7 +393,7 @@ export default function TerminalPane({
           logo={provider?.logo}
           icon={provider?.icon}
           mark={provider?.mark}
-          size={16}
+          size={20}
         />
         <span className="slot" title={`pq send ${index} …`}>
           {index}
@@ -479,7 +495,7 @@ export default function TerminalPane({
                   logo={p.logo}
                   icon={p.icon}
                   mark={p.mark}
-                  size={18}
+                  size={34}
                 />
                 <span className="n" style={{ color: p.color }}>
                   {p.name}
@@ -492,7 +508,7 @@ export default function TerminalPane({
             ))}
             {shell ? (
               <button className="eng" onClick={() => launch('shell')}>
-                <EngineMark id={shell.id} name={shell.name} color={shell.color} logo={shell.logo} icon={shell.icon} mark={shell.mark} size={18} />
+                <EngineMark id={shell.id} name={shell.name} color={shell.color} logo={shell.logo} icon={shell.icon} mark={shell.mark} size={34} />
                 <span className="n" style={{ color: shell.color }}>
                   PowerShell
                 </span>

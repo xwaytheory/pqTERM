@@ -108,7 +108,7 @@ export default function Sidebar({
                             logo={prov?.logo}
                             icon={prov?.icon}
                             mark={prov?.mark}
-                            size={14}
+                            size={16}
                           />
                         )
                       })()}

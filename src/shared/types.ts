@@ -13,7 +13,8 @@ export type EngineId =
   | 'copilot'
   | 'shell'
 
-export type LayoutId = 1 | 2 | 3 | 4 | 6 | 9
+/** Any number of panes is allowed (the UI shows presets, +/- stepper, and drag-to-snap). */
+export type LayoutId = number
 
 /** User asked the grid (not the CLI) to run something in sibling panes. */
 export function parseGridIntent(
@@ -103,7 +104,20 @@ export interface PaneState {
   model?: string
   /** engine-native id of the agent conversation this pane should resume */
   sessionHandle?: string
+  /** normalized rectangle [0..1] this pane occupies in the workspace grid. */
+  area?: PaneArea
 }
+
+/** Normalized rectangle (unit space 0..1) of a pane in the workspace grid. */
+export interface PaneArea {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Aero-Snap-like zones a dragged pane can fill. */
+export type SnapZone = 'full' | 'left' | 'right' | 'top' | 'bottom' | 'tl' | 'tr' | 'bl' | 'br'
 
 export interface Workspace {
   id: string
@@ -229,27 +243,18 @@ export interface BoardSnapshot {
   notes: BoardNote[]
 }
 
-export const LAYOUTS: LayoutId[] = [1, 2, 3, 4, 6, 9]
+/** Preset buttons shown in layout pickers. Any LayoutId is allowed via +/- stepper. */
+export const LAYOUTS: LayoutId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 export function paneCount(layout: LayoutId): number {
   return layout
 }
 
+/** Best-fit uniform grid (legacy uniform layouts; pane areas are the real source of truth). */
 export function gridTemplate(layout: LayoutId): { cols: number; rows: number } {
-  switch (layout) {
-    case 1:
-      return { cols: 1, rows: 1 }
-    case 2:
-      return { cols: 2, rows: 1 }
-    case 3:
-      return { cols: 3, rows: 1 }
-    case 4:
-      return { cols: 2, rows: 2 }
-    case 6:
-      return { cols: 3, rows: 2 }
-    case 9:
-      return { cols: 3, rows: 3 }
-  }
+  const n = Math.max(1, layout)
+  const cols = Math.ceil(Math.sqrt(n))
+  return { cols, rows: Math.ceil(n / cols) }
 }
 
 export interface RemoteInfo {

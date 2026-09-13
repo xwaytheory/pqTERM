@@ -16,8 +16,36 @@ fields were added to `EngineSpec` for future letter-mark chips; no per-engine SV
 | PNG 512 | `resources/brand/pq-512.png` | present (**not** `pq.png`) |
 | Android launcher | `android/app/src/main/res/drawable/ic_launcher.xml` | vector mark |
 | Favicon / renderer | `src/renderer/favicon.png` / `.ico` (from brand) | present; `index.html` + BrowserWindow |
+| Engine brand marks | `src/renderer/src/assets/engines/` | present — official vendor marks (see source table below), wired via `engineLogoFiles.ts` |
 
 ## Built-in harness “logos” (letter-mark + color)
+
+Letter monograms are the fallback only. Primary marks are the official vendor
+assets in `src/renderer/src/components/engineLogos.tsx`
+(Grok X, Omp π, Hermes H, OpenCode brackets, Codex prompt, Claude starburst,
+Qwen hexagon, DeepSeek whale, Gemini spark, Crush C, Aider A, Copilot loop,
+PowerShell prompt). External `EngineSpec.logo` / `icon` URLs still win when set.
+
+## Official asset sources (per-engine)
+
+User explicitly requested original vendor marks (overrides the old
+monogram-only trademark caution — these ship inside the user's own local app):
+
+| id | asset | source |
+|----|-------|--------|
+| `grok` | `grok.svg` (xAI mark, fill lightened for dark UI) | Wikimedia Commons `File:XAI-Logo.svg` (sourced from x.ai) |
+| `omp` | `omp.svg` (official favicon: gradient glyph on dark rounded square) | https://omp.sh/favicon.svg |
+| `hermes` | `hermes.png` (NousResearch org avatar) | https://github.com/NousResearch.png |
+| `opencode` | `opencode.svg` (blocky “O” glyph, dark variant) | https://opencode.ai/brand (inline wordmark SVG) |
+| `codex` | `codex.png` (OpenAI blossom avatar) | https://github.com/openai.png |
+| `claude` | `claude.png` (Anthropic org avatar) | https://github.com/anthropics.png |
+| `qwen` | `qwen.png` (Qwen org avatar, transparent) | https://github.com/QwenLM.png |
+| `dsh` | `dsh.svg` (DeepSeek whale path, brand blue) | simple-icons `deepseek` (CC0) |
+| `gemini` | `gemini.svg` (Gemini spark path + brand gradient) | simple-icons `googlegemini` (CC0) |
+| `crush` | `crush.png` (Charm org avatar — Crush ships no square icon; same brand family) | https://github.com/charmbracelet.png |
+| `aider` | `aider.png` (official square touch icon) | Aider-AI/aider repo `aider/website/assets/icons/apple-touch-icon.png` |
+| `copilot` | `copilot.svg` (Copilot mark path) | simple-icons `githubcopilot` (CC0) |
+| `shell` | `shell.svg` (generic `>_` glyph, not a vendor mark) | drawn for pq |
 
 | id | name | vendor | color | asset |
 |----|------|--------|-------|-------|

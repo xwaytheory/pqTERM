@@ -86,7 +86,7 @@ export default function NewWorkspaceModal({
               disabled={!p.installed}
               onClick={() => toggle(p.id)}
             >
-              <EngineMark id={p.id} name={p.name} color={p.color} logo={p.logo} icon={p.icon} mark={p.mark} size={14} />
+              <EngineMark id={p.id} name={p.name} color={p.color} logo={p.logo} icon={p.icon} mark={p.mark} size={26} />
               {p.name}
             </button>
           ))}
