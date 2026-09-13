@@ -235,23 +235,62 @@ fn run_ipc_pipe_demo(session: &str) -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn print_help() {
-    println!(
-        "pq-voice {WORKSPACE_VERSION}\n\n\
+fn help_text() -> String {
+    format!(
+        "pq-voice {WORKSPACE_VERSION} — Phase 2 stub (not production STT)\n\n\
          USAGE:\n\
              pq-voice [OPTIONS]\n\n\
+         WHAT THIS IS:\n\
+             Sketch host for a future whisper.cpp process. No mic capture.\n\
+             No whisper.cpp linked. Inference is unwired even if GGML is present.\n\
+             Production desktop STT remains Electron Xenova/whisper-tiny\n\
+             (src/renderer/src/lib/voiceCommander.ts).\n\n\
          OPTIONS:\n\
-             -h, --help              Show help\n\
+             -h, --help              Show this help\n\
              -V, --version           Show version\n\
-             --listen                Probe AppData GGML + listen/transcribe skeleton\n\
-                                     (no multi-GB download)\n\
-             --ipc-demo              In-process LocalTcpTransport e2e (shared IPC types)\n\
-             --ipc-tcp [ADDR]        Connect to pq-work TCP JSON-lines spike\n\
-                                     (default {DEFAULT_TCP_ADDR})\n\
-             --ipc-pipe [SESSION]    Connect to pq-work Windows named-pipe spike\n\n\
-         STT INTENT: Whisper Large v3 (Polish). CURRENT Electron: Xenova/whisper-tiny.\n\
-         Missing {ggml} is printed clearly; overnight never fetches it.\n\
-         IPC: MemoryChannelStub + LocalTcp + NamedPipe (Windows) — docs/PORT-MAP.md / VOICE-HOST-BRIDGE.md.",
-        ggml = stt::GGML_FILENAME
-    );
+             --listen                Probe AppData for {ggml} + listen/transcribe SKELETON\n\
+                                     No mic. No download (~3.1 GB). Exit 2 if model missing.\n\
+                                     Present file still yields a stub transcript (unwired).\n\
+             --pipeline              Alias of --listen (same skeleton / same exit codes)\n\
+             --ipc-demo              In-process LocalTcpTransport e2e — demo, not production\n\
+             --ipc-tcp [ADDR]        Connect to a listening host (JSON-lines spike)\n\
+                                     default {addr}; host must listen first\n\
+             --ipc-pipe [SESSION]    Connect to \\\\.\\pipe\\pq-voice-{{session}} (Windows only)\n\
+                                     Demo ACL (creator DACL). Host must listen first.\n\n\
+         STT INTENT (not runtime): {model} language={lang}.\n\
+         File: %LOCALAPPDATA%\\pq\\models\\whisper\\{ggml} (~3.1 GB f16).\n\
+         Overnight/CI never fetches it. Place the file manually if you need a present-probe.\n\
+         Electron spawn of this binary is opt-in (PQ_VOICE_HOST=1) — see docs/VOICE-HOST-BRIDGE.md.",
+        ggml = stt::GGML_FILENAME,
+        model = stt::MODEL_ID,
+        lang = stt::LANGUAGE,
+        addr = DEFAULT_TCP_ADDR,
+    )
+}
+
+fn print_help() {
+    println!("{}", help_text());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn help_is_honest_about_skeleton_and_no_download() {
+        let h = help_text();
+        assert!(h.contains("not production STT"), "{h}");
+        assert!(h.contains("No mic"), "{h}");
+        assert!(h.contains("whisper.cpp"), "{h}");
+        assert!(h.contains("No download") && h.contains("never fetches"), "{h}");
+        assert!(h.contains("Exit 2"), "{h}");
+        assert!(h.contains("Xenova/whisper-tiny"), "{h}");
+        assert!(h.contains("--pipeline"), "{h}");
+        assert!(h.contains("Windows only"), "{h}");
+        assert!(h.contains("PQ_VOICE_HOST"), "{h}");
+        assert!(h.contains(stt::GGML_FILENAME), "{h}");
+        assert!(h.contains(stt::MODEL_ID), "{h}");
+        assert!(h.contains(stt::LANGUAGE), "{h}");
+        assert!(h.contains("demo, not production"), "{h}");
+    }
 }

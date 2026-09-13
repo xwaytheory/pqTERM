@@ -1,40 +1,54 @@
 # pq workbench (gauntlet live board)
 
-Last update: 2026-09-13 ~03:45 PT (Europe/Warsaw) — night progress toward **07:00** report
+Last update: 2026-09-13 ~04:05 PT (Europe/Warsaw) — polish toward **07:00** Szef report
+Product HEAD: **3a06472** (voice-host StartListen + Status reader)
 
 ## Stage / progress
-- **Stage:** Phase 2 overnight — voice-host StartListen / Status on held duplex (TS)
-- **Rough %:** ~95% Phase 2 scaffolding
-- **Branch:** feat/rust-phase1 (local commits only)
-- **Base:** 1004423 + this wave
+- **Stage:** Phase 2 overnight locked for morning review (docs + `--help` honesty)
+- **Rough %:** ~95% Phase 2 scaffolding (product unchanged vs 3a06472)
+- **Branch:** feat/rust-phase1 (local commits only, no push)
+- **Base:** 3a06472 + this polish (NIGHT-REPORT + workbench stamp + pq-voice `--help`)
 - **Gauntlet A/B:** CLOSED WARUNKOWO OK (Architecture + IPC; honest StartListen/Cancel; language default pl; no auto-enable; no before-quit read block)
 - **HTML board:** docs/workbench.html
-- **Night report draft:** docs/NIGHT-REPORT-DRAFT.md (PL, for Szef)
+- **Night report:** docs/NIGHT-REPORT-DRAFT.md (PL, 07:00 Szef)
 
-## This wave
+## Product reality @ 3a06472
 | Item | Outcome |
 |------|---------|
 | StartListen encode | `{"type":"start_listen","session_id","language":"pl","timeout_ms":0}` matches Rust IpcMessage |
-| sendStartListen | Honest boolean — true only when writable peer socket + write ok |
+| sendStartListen / Cancel | Honest boolean — true only when writable peer socket + write ok |
 | Status reader | Non-blocking line buffer → `lastStatus` / `lastTranscripts` (capped); no throw on partial |
-| Gate | Still `PQ_VOICE_HOST=1` or `enabled:true`; before-quit no-op when inactive; no read-loop block |
-| Smoke | `node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts` |
-| Dist / GGML / cargo | skipped (disk reclaim wave; TS+docs only) |
+| Gate | `PQ_VOICE_HOST=1` or `enabled:true`; `before-quit` no-op when inactive |
+| MSI / NSIS | Built unsigned overnight, then **reclaimed** from `release\` (disk). Rebuild later. |
+| resolve-launch / trust | Present in `pq-core` (pure helpers; no spawn / no live write) |
+| Dist / GGML | skipped on purpose (disk ~1.6 GB free) |
 
-## Gauntlet blockers addressed
-- Fake StartListen/Cancel success = ODRZUĆ → false without socket; true only after write
-- Wrong default language = ODRZUĆ → `pl`
-- Blocking before-quit on reads = ODRZUĆ → event `data` buffer only
-- Auto-enable without flag = ODRZUĆ → gate unchanged
+## This polish slice
+| Item | Outcome |
+|------|---------|
+| NIGHT-REPORT-DRAFT.md | Full PL arc 23:06→03:50; gauntlet; MSI built-then-reclaimed; blockers; day plan |
+| workbench.md/html | Stamped to 3a06472 (not stale 1004423 / named-pipe-only table) |
+| pq-voice --help | Honest: not production STT, no mic, no whisper.cpp, no download, exit 2, `--pipeline` alias, Windows-only pipe, opt-in `PQ_VOICE_HOST` |
+
+## Gauntlet 8–12
+| # | Item | Status |
+|---|------|--------|
+| 8 | Android SpeechRecognizer | WARUNKOWO OK — bridge + origin lock + JS glue |
+| 9 | MSI / NSIS | unsigned; built then reclaimed for disk |
+| 10 | Logos / marks | inventory + brand + letter-marks |
+| 11 | Terminal DnD | quoting done; engine matrix TODO |
+| 12 | Gauntlet process | adopted; A/B conditional (same-session critic) |
 
 ## Tests
-- Smoke: Cancel + StartListen honesty; encode defaults; Status/Transcript ingest + chunked lines; TCP duplex StartListen + peer Status; win32 SIGKILL path
+- `cargo test --workspace`: **96 passed, 0 failed** (pq-core 89 + pq-voice 1 + pq-work 6)
+- Smoke: `scripts\rust-smoke.cmd` (no model download)
+- TS: `node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts`
 
 ## Toward 07:00
-- Honest: still no whisper.cpp, no production Electron↔voice cutover, no PTY parity.
-- Next: code signing when cert; packaging pq-voice optional later.
+- Honest: still no whisper.cpp, no production Electron↔voice cutover, no PTY parity, no signing.
+- Next day: cert → sign → optional dist refill; whisper.cpp = separate disk decision.
 
 ## Next
 1. Code signing when cert available
 2. Optional packaging pq-voice as extraResource
-3. Real whisper.cpp = separate disk decision
+3. Real whisper.cpp = separate disk decision (not at ~1.6 GB free)

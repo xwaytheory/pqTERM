@@ -33,24 +33,32 @@
 <body>
   <header>
     <h1>pq workbench — status board</h1>
-    <div class="meta">Electron → Rust · branch <code>feat/rust-phase1</code> · update <strong>2026-09-13 ~03:45 PT</strong> · target report <strong>07:00</strong> · local commits only · no push</div>
+    <div class="meta">Electron → Rust · branch <code>feat/rust-phase1</code> · product HEAD <code>3a06472</code> · update <strong>2026-09-13 ~04:05 PT</strong> · target report <strong>07:00</strong> · local commits only · no push</div>
   </header>
   <main>
     <section>
       <h2>Stage</h2>
-      <div>Phase 2 overnight — voice-host StartListen / Status on held duplex</div>
+      <div>Phase 2 overnight — locked for 07:00 review (docs + help honesty)</div>
       <div class="pct">~95%</div>
-      <div class="bar" title="Phase 2 scaffolding"><i></i></div>
+      <div class="bar" title="Phase 2 scaffolding @ 3a06472"><i></i></div>
       <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag warn">A/B WARUNKOWO OK</span> · product = <strong>Electron</strong></p>
     </section>
     <section>
-      <h2>This slice</h2>
+      <h2>Product @ 3a06472</h2>
       <ul>
         <li>StartListen JSON-line (<code>language</code> default <code>pl</code>) when peer socket writable; else honest <code>false</code></li>
-        <li>Status/Transcript line reader → <code>lastStatus</code> / <code>lastTranscripts</code> (non-blocking)</li>
-        <li>Cancel + listen-before-spawn still in place; gate unchanged</li>
-        <li><code>shutdownVoiceHost()</code> on <code>before-quit</code> — no read-loop block</li>
-        <li>Smoke: <code>voice-host.shutdown.smoke.ts</code></li>
+        <li>Status/Transcript line reader → <code>lastStatus</code> / <code>lastTranscripts</code></li>
+        <li>Listen-before-spawn + Cancel; gate <code>PQ_VOICE_HOST=1</code></li>
+        <li><code>shutdownVoiceHost()</code> on <code>before-quit</code></li>
+        <li>MSI/NSIS: built unsigned, then reclaimed (disk)</li>
+      </ul>
+    </section>
+    <section>
+      <h2>This polish</h2>
+      <ul>
+        <li><code>NIGHT-REPORT-DRAFT.md</code> — pełny łuk PL na 07:00</li>
+        <li>Workbench stamp do rzeczywistości <code>3a06472</code></li>
+        <li><code>pq-voice --help</code> — no mic / no whisper.cpp / no download / exit 2</li>
       </ul>
     </section>
     <section>
@@ -66,7 +74,9 @@
     <section>
       <h2>Risks / blockers</h2>
       <ul>
-        <li><span class="tag warn">disk</span> keep ≥2 GB; skip release refill</li>
+        <li><span class="tag warn">disk</span> ~1.6 GB free — skip release refill / GGML</li>
+        <li><span class="tag warn">signing</span> no cert → SmartScreen on unsigned dist</li>
+        <li><span class="tag warn">whisper.cpp</span> not linked; INTENT only</li>
         <li>ConPTY DSR / init noise</li>
         <li>Android origin XSS → PqStt still possible</li>
         <li>Do not point Rust <code>save_state</code> at live AppData</li>
@@ -78,18 +88,19 @@
       <table>
         <tr><th>Area</th><th>Status</th><th>Notes</th></tr>
         <tr><td>env / store / engines merge</td><td><span class="tag">done</span></td><td>lean serde</td></tr>
-        <tr><td>resolve-launch</td><td><span class="tag">sketch</span></td><td>no spawn; PathExists injectable</td></tr>
-        <tr><td>trust</td><td><span class="tag">sketch</span></td><td>builders only; no git/write</td></tr>
+        <tr><td>resolve-launch</td><td><span class="tag">sketch</span></td><td>in pq-core; no spawn; PathExists injectable</td></tr>
+        <tr><td>trust</td><td><span class="tag">sketch</span></td><td>in pq-core; builders only; no git/write</td></tr>
         <tr><td>providers detection</td><td><span class="tag">sketch+fixtures</span></td><td>injectable auth texts; no real home</td></tr>
         <tr><td>IPC duplex + LocalTcp + --ipc-demo</td><td><span class="tag">spike e2e</span></td><td>not production IPC</td></tr>
         <tr><td>Named pipe</td><td><span class="tag">Windows spike</span></td><td>real OS I/O + --ipc-pipe; stub else</td></tr>
-        <tr><td>pq-voice listen/transcribe</td><td><span class="tag warn">skeleton</span></td><td>GGML probe; no whisper.cpp</td></tr>
-        <tr><td>Electron pq-voice spawn</td><td><span class="tag">opt-in + StartListen/Status</span></td><td>honest StartListen/Cancel; Status reader; language default pl; before-quit no-op when idle</td></tr>
+        <tr><td>pq-voice listen/transcribe</td><td><span class="tag warn">skeleton</span></td><td>GGML probe; no whisper.cpp; --help says so</td></tr>
+        <tr><td>Electron pq-voice spawn</td><td><span class="tag">opt-in + StartListen/Status</span></td><td>honest StartListen/Cancel; Status reader; language default pl</td></tr>
         <tr><td>SessionRegistry / PTY</td><td><span class="tag">registry + pump</span></td><td>pty-spike reader pump</td></tr>
         <tr><td>auth / remote / board</td><td><span class="tag warn">deep stubs</span></td><td>no live I/O</td></tr>
         <tr><td>resume / usage / sync</td><td><span class="tag">types+fixtures</span></td><td>resume path/fixture I/O; usage/sync still lean</td></tr>
         <tr><td>updater fixtures</td><td><span class="tag">CLI</span></td><td><code>--check-update</code></td></tr>
         <tr><td>Android STT bridge</td><td><span class="tag">glue wired</span></td><td>pqSttGlue + mic wired</td></tr>
+        <tr><td>MSI / NSIS</td><td><span class="tag warn">unsigned, reclaimed</span></td><td>built then deleted from release\ to free disk</td></tr>
         <tr><td>Tauri shell</td><td><span class="tag warn">doc spike</span></td><td>no lock-in</td></tr>
         <tr><td>rust-smoke.cmd</td><td><span class="tag">added</span></td><td>no model download</td></tr>
       </table>
@@ -100,7 +111,7 @@
         <table>
           <tr><th>#</th><th>Item</th><th>Status</th></tr>
           <tr><td>8</td><td>Android SpeechRecognizer</td><td><span class="tag">bridge+JS glue</span></td></tr>
-          <tr><td>9</td><td>MSI / NSIS</td><td><span class="tag warn">unsigned dist</span></td></tr>
+          <tr><td>9</td><td>MSI / NSIS</td><td><span class="tag warn">unsigned; reclaimed</span></td></tr>
           <tr><td>10</td><td>Logos / marks</td><td><span class="tag">inventory+brand</span></td></tr>
           <tr><td>11</td><td>Terminal DnD</td><td><span class="tag warn">quoting done; matrix TODO</span></td></tr>
           <tr><td>12</td><td>Gauntlet process</td><td><span class="tag warn">adopted; A/B conditional</span></td></tr>
@@ -108,10 +119,10 @@
         <div>
           <h2 style="margin-top:0">Toward 07:00</h2>
           <ul>
-            <li>Honest report: <code>docs/NIGHT-REPORT-DRAFT.md</code></li>
-            <li>Tests green + <code>scripts\rust-smoke.cmd</code></li>
-            <li>Still no cutover, no Large v3 runtime</li>
-            <li>Next: signing; optional pipe ACL; no cutover claim</li>
+            <li>Raport: <code>docs/NIGHT-REPORT-DRAFT.md</code></li>
+            <li><code>cargo test --workspace</code> + <code>scripts\rust-smoke.cmd</code></li>
+            <li>Still no cutover, no Large v3 runtime, no signing</li>
+            <li>Next: cert; optional extraResource; no cutover claim</li>
           </ul>
         </div>
       </div>
@@ -120,12 +131,13 @@
       <h2>Commands</h2>
       <table>
         <tr><th>Check</th><th>Command</th></tr>
-        <tr><td>Unit tests</td><td><code>cd crates &amp;&amp; cargo test -p pq-core -p pq-work -p pq-voice</code></td></tr>
+        <tr><td>Unit tests</td><td><code>cd crates &amp;&amp; cargo test --workspace</code> — 96 passed @ ~04:05 PT</td></tr>
         <tr><td>Smoke</td><td><code>scripts\rust-smoke.cmd</code></td></tr>
-        <tr><td>Voice probe</td><td><code>cargo run -p pq-voice -- --listen</code> (no download)</td></tr>
+        <tr><td>Voice help</td><td><code>cargo run -p pq-voice -- --help</code> (honest skeleton)</td></tr>
+        <tr><td>Voice probe</td><td><code>cargo run -p pq-voice -- --listen</code> (no download; exit 2 if missing)</td></tr>
       </table>
     </section>
   </main>
-  <footer>Silent overnight · report HEAD to parent only · no push · 07:00 report target · keep ≥2 GB free</footer>
+  <footer>Silent overnight · report HEAD to parent only · no push · 07:00 report target · ~1.6 GB free · no dist refill</footer>
 </body>
 </html>
