@@ -204,3 +204,23 @@ Noc dowiozła **rusztowanie Phase 2** i dokumentację pod poranny przegląd. Pro
 - Brak cargo / GGML / `npm run dist`
 - Brak UI spawn / StartListen framing wave
 - Brak push
+
+---
+
+## Wave — disk reclaim overnight dist (~03:41 PT)
+
+**Cel:** odzyskać miejsce na C: (było ~0.74 GB free — krytycznie mało) przed dalszą pracą TS.
+
+**Usunięte (regenerowalne artefakty `release\` only):**
+- `release\pq 1.1.1.msi`
+- `release\pq Setup 1.1.1.exe`
+- `release\pq Setup 1.1.1.exe.blockmap`
+- cały `release\win-unpacked\`
+
+**Zachowane:** `builder-debug.yml`, `dist-wave2.log`, `latest.yml` (małe logi/yml).
+
+**Nie ruszane:** `node_modules`, `crates\target`, `.git`, źródła.
+
+**Dysk:** ~0.74 GB free → ~1.80 GB free. Honest: MSI/NSIS smoke artifacts removed to free disk; rebuild later via `npm run dist`.
+
+**Świadomie nie:** brak push; brak GGML; brak pełnego refill release tej nocy.
