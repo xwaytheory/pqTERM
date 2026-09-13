@@ -26,6 +26,11 @@ describe('quotePath cmd/pwsh', () => {
     assert.equal(quotePath('C:\\a&b.txt'), '"C:\\a&b.txt"')
   })
 
+  it('quotes paths with percent and caret', () => {
+    assert.equal(quotePath('C:\\a%PATH%.txt'), '"C:\\a%PATH%.txt"')
+    assert.equal(quotePath('C:\\a^b.txt'), '"C:\\a^b.txt"')
+  })
+
   it('trims and returns empty for blank', () => {
     assert.equal(quotePath('   '), '')
   })
@@ -52,6 +57,13 @@ describe('formatDroppedPaths', () => {
   it('handles UNC + quotes mix', () => {
     const out = formatDroppedPaths(['\\\\srv\\share\\f.txt', 'C:\\q\\"x".dat'])
     assert.equal(out, '\\\\srv\\share\\f.txt "C:\\q\\""x"".dat" ')
+  })
+
+  it('quotes percent and caret edges in joined output', () => {
+    assert.equal(
+      formatDroppedPaths(['C:\\x%Y%.txt', 'C:\\a^b.txt']),
+      '"C:\\x%Y%.txt" "C:\\a^b.txt" '
+    )
   })
 })
 

@@ -580,7 +580,7 @@ impl PtyManager {
     }
 
     /// Reject shell metacharacters so `cmd /C` cannot be used for injection.
-    #[cfg(feature = "pty-spike")]
+    /// Always available so denylist unit tests run without `pty-spike`.
     fn assert_safe_cmdline(cmdline: &str) -> Result<(), String> {
         const BAD: &[char] = &[
             '&', '|', '<', '>', '^', '%', '\n', '\r', '\0', ';', '`', '$', '(', ')', '{', '}',
@@ -782,6 +782,26 @@ mod tests {
         assert_eq!(m.get("p1").unwrap().cwd, "");
     }
 
+
+    #[test]
+    fn spawn_cmd_denylist_rejects_percent_caret_and_pipe() {
+        for bad in ["echo %PATH%", "echo hi^&calc", "dir | more", "a&b", "x>y", "a<b"] {
+            let err = PtyManager::assert_safe_cmdline(bad).expect_err(bad);
+            assert!(
+                err.contains("metacharacter") || err.contains("refused"),
+                "bad={bad} err={err}"
+            );
+        }
+    }
+
+    #[test]
+    fn spawn_cmd_denylist_rejects_too_long_and_accepts_plain() {
+        assert!(PtyManager::assert_safe_cmdline("echo hello").is_ok());
+        assert!(PtyManager::assert_safe_cmdline("dir C:\\tmp").is_ok());
+        let long = "a".repeat(513);
+        let err = PtyManager::assert_safe_cmdline(&long).expect_err("len");
+        assert!(err.contains("too long"), "{err}");
+    }
     #[cfg(feature = "pty-spike")]
     #[test]
     fn spawn_cmd_rejects_metacharacters() {

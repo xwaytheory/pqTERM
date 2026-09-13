@@ -38,7 +38,7 @@
   <main>
     <section>
       <h2>Stage</h2>
-      <div>Phase 2 overnight — locked for 07:00 review (docs + help honesty)</div>
+      <div>Phase 2 overnight — frozen for 07:00 review (docs + help honesty; not cutover lock-in)</div>
       <div class="pct">~95%</div>
       <div class="bar" title="Phase 2 scaffolding @ 3a06472"><i></i></div>
       <p class="meta" style="margin-top:.75rem">Gauntlet: <span class="tag warn">A/B WARUNKOWO OK</span> · product = <strong>Electron</strong></p>
@@ -131,7 +131,7 @@
       <h2>Commands</h2>
       <table>
         <tr><th>Check</th><th>Command</th></tr>
-        <tr><td>Unit tests</td><td><code>cd crates &amp;&amp; cargo test --workspace</code> — 96 passed @ ~04:05 PT</td></tr>
+        <tr><td>Unit tests</td><td><code>cd crates &amp;&amp; cargo test --workspace</code> — 98 passed @ ~04:07 PT; <code>npm run test:unit</code> 24 passed</td></tr>
         <tr><td>Smoke</td><td><code>scripts\rust-smoke.cmd</code></td></tr>
         <tr><td>Voice help</td><td><code>cargo run -p pq-voice -- --help</code> (honest skeleton)</td></tr>
         <tr><td>Voice probe</td><td><code>cargo run -p pq-voice -- --listen</code> (no download; exit 2 if missing)</td></tr>

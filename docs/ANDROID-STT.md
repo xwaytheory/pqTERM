@@ -18,7 +18,7 @@ Mic button on phone UI → native STT (`pl-PL`) → text into the same remote WS
 3. **Partial results:** stream to JS for UI; send **final** hypothesis over remote WS as a command string (**JS glue still optional** — `onFinal` → WS not auto-wired).
 4. **Errors (PL copy):** map `ERROR_INSUFFICIENT_PERMISSIONS`, `ERROR_NETWORK`, `ERROR_NO_MATCH`, `ERROR_CLIENT`, etc.
 5. **Offline:** only if OEM/Google offline speech pack installed — surface “wymaga usług Google / pakietu mowy”.
-6. **Origin lock:** `PqSttBridge.originsMatch` compares **scheme + authority** (not string prefix). Blocks `about:blank` and foreign hosts (incl. prefix tricks).
+6. **Origin lock:** `PqSttBridge.originsMatch` compares **scheme + authority** (not string prefix). Blocks `about:blank` and foreign hosts (incl. prefix tricks). Contract mirrored in `src/phone/src/originsMatch.ts` + `originsMatch.test.ts` (Node URL API; not a JVM harness).
 7. **Mic permission:** `REQ_MIC_STT` → `onMicPermissionResult` auto-retries `startListen` after grant (no empty handler / forced double-tap).
 8. **Mixed content:** `MIXED_CONTENT_NEVER_ALLOW` on https pairings; `COMPATIBILITY_MODE` only for http LAN.
 

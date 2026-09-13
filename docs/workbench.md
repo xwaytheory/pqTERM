@@ -4,7 +4,7 @@ Last update: 2026-09-13 ~04:05 PT (Europe/Warsaw) — polish toward **07:00** Sz
 Product HEAD: **3a06472** (voice-host StartListen + Status reader)
 
 ## Stage / progress
-- **Stage:** Phase 2 overnight locked for morning review (docs + `--help` honesty)
+- **Stage:** Phase 2 overnight **frozen for 07:00 review** (docs + `--help` honesty) — not a cutover lock-in
 - **Rough %:** ~95% Phase 2 scaffolding (product unchanged vs 3a06472)
 - **Branch:** feat/rust-phase1 (local commits only, no push)
 - **Base:** 3a06472 + polish `6a1f879` (NIGHT-REPORT + workbench stamp + pq-voice `--help`)
@@ -26,7 +26,8 @@ Product HEAD: **3a06472** (voice-host StartListen + Status reader)
 ## This polish slice
 | Item | Outcome |
 |------|---------|
-| NIGHT-REPORT-DRAFT.md | Full PL arc 23:06→03:50; gauntlet; MSI built-then-reclaimed; blockers; day plan |
+| DAY-PLAN.md | After 07:00: push?, signing, whisper.cpp, second MSI upgrade |
+| NIGHT-REPORT-DRAFT.md | Full PL arc 23:06→04:07; gauntlet; MSI built-then-reclaimed; blockers; DAY-PLAN |
 | workbench.md/html | Stamped to 3a06472 (not stale 1004423 / named-pipe-only table) |
 | pq-voice --help | Honest: not production STT, no mic, no whisper.cpp, no download, exit 2, `--pipeline` alias, Windows-only pipe, opt-in `PQ_VOICE_HOST` |
 
@@ -40,7 +41,8 @@ Product HEAD: **3a06472** (voice-host StartListen + Status reader)
 | 12 | Gauntlet process | adopted; A/B conditional (same-session critic) |
 
 ## Tests
-- `cargo test --workspace`: **96 passed, 0 failed** (pq-core 89 + pq-voice 1 + pq-work 6)
+- `cargo test --workspace`: **98 passed, 0 failed** (pq-core 89 + pq-voice 1 + pq-work 8 denylist)
+- `npm run test:unit`: **24 passed** (dropPaths %/^ + originsMatch contract)
 - Smoke: `scripts\rust-smoke.cmd` (no model download)
 - TS: `node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts`
 

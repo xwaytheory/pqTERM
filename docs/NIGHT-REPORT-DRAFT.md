@@ -3,7 +3,7 @@
 **Data:** 2026-09-13 (noc 12/13 → poranek)  
 **Strefa:** Europe/Warsaw (PT)  
 **Branch:** `feat/rust-phase1`  
-**HEAD (ten raport / polish):** `6a1f879` — finalize 07:00 + pq-voice `--help` honesty  
+**HEAD (ten raport / polish):** `PENDING_STAMP` — unit denylist + DAY-PLAN + claim soften  
 **HEAD produktu (ostatni feature):** `3a06472` — voice-host StartListen + Status reader  
 **Zasada nocy:** commity **lokalne, bez push**. Bez pobierania `ggml-large-v3` (~3.1 GB). Dysk ciasny — pełny `npm run dist` nie jest bramką poranną.
 
@@ -51,6 +51,7 @@ Przygotowanie migracji Electron → Rust (Phase 1–2): crate’y `pq-core` / `p
 | 03:40 | `581cb18` | Listen **przed** spawn + Cancel JSON-line (uczciwy boolean) |
 | 03:45 | `1004423` | **Reclaim MSI/NSIS** (~0.74 → ~1.8 GB free); źródła nietknięte |
 | 03:50 | `3a06472` | StartListen + Status/Transcript reader na trzymanym duplexie |
+| 04:07 | *(ten commit)* | Unit: spawn_cmd denylist (%/^/|), dropPaths %/^, originsMatch contract; DAY-PLAN; LOCKED→frozen |
 
 ---
 
@@ -106,7 +107,9 @@ Rebuild installerów = osobna decyzja dzienna, gdy będzie ≥4–5 GB i (najlep
 
 ## 6. Testy
 
-`cargo test --workspace` (crates, ~04:05 PT): **96 passed, 0 failed** (`pq-core` 89 + `pq-voice` 1 help-honesty + `pq-work` 6). Doc-tests pq-core: 0.
+`cargo test --workspace` (crates, ~04:07 PT): **98 passed, 0 failed** (`pq-core` 89 + `pq-voice` 1 help-honesty + `pq-work` 8 incl. spawn_cmd denylist). Doc-tests pq-core: 0.
+
+`npm run test:unit`: **24 passed** (dropPaths %/^ edges + `originsMatch` Android STT contract mirror).
 
 `scripts\rust-smoke.cmd` — bez download; nie odpalany ponownie (dysk). Help `pq-voice` pokryty unit testem.
 
@@ -128,6 +131,9 @@ Smoke voice-host (TS, bez cargo; nie powtarzane w tej fali):
 ---
 
 ## 8. Plan na dzień (po 07:00)
+
+Szczegóły: **`docs/DAY-PLAN.md`** (push?, signing, whisper.cpp, second MSI upgrade).
+
 
 1. Przegląd tego raportu + `docs/workbench.html` — **bez** twierdzenia cutover.  
 2. Code signing, gdy będzie cert; dopiero potem refill `npm run dist`.  
@@ -230,3 +236,17 @@ Usunięte tylko regenerowalne artefakty `release\`. Dysk ~0.74 → ~1.80 GB. Źr
 - Gauntlet Architecture + IPC → **WARUNKOWO OK**
 
 **Świadomie nie:** brak cargo / GGML / `npm run dist` / push; brak UI spawn / production STT cutover.
+
+### Wave — cheap unit tests + DAY-PLAN (~04:07 PT)
+
+**Cel:** kilka tanich testów + uczciwy plan dnia; bez dist/GGML/push.
+
+**Dostarczone:**
+- `pq-work`: `assert_safe_cmdline` zawsze kompilowane; testy denylist `%` `^` `|` `<>&` + too-long / plain OK
+- `dropPaths`: edge `%` / `^` w `quotePath` + `formatDroppedPaths`
+- `originsMatch` contract mirror (`src/phone/src/originsMatch.ts`) + Node tests (scheme+authority; docs/ANDROID-STT)
+- `docs/DAY-PLAN.md` — push?, signing, whisper.cpp, second MSI upgrade
+- workbench: "locked" → **frozen for 07:00 review** (not cutover lock-in)
+- `cargo test --workspace` **98** green; `npm run test:unit` **24** green
+
+**Świadomie nie:** brak dist, brak GGML, brak push, brak whisper.cpp link.
