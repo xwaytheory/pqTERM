@@ -92,3 +92,29 @@ describe('formatDroppedPaths shell-aware', () => {
     )
   })
 })
+
+describe('pathShellForPane ENGINE_SPECS matrix contract', () => {
+  // Keep in sync with ENGINE_SPECS ids (src/main/engines.ts) and docs/DND-ENGINE-MATRIX.md
+  const engines = [
+    'grok',
+    'omp',
+    'hermes',
+    'opencode',
+    'codex',
+    'claude',
+    'qwen',
+    'dsh',
+    'gemini',
+    'crush',
+    'aider',
+    'copilot',
+    'shell'
+  ] as const
+
+  it('pwsh only for shell; all other engines → cmd', () => {
+    for (const engine of engines) {
+      const expected = engine === 'shell' ? 'pwsh' : 'cmd'
+      assert.equal(pathShellForPane({ engine }), expected, engine)
+    }
+  })
+})

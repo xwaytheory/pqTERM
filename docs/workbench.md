@@ -37,7 +37,7 @@ Product HEAD: **3a06472** (voice-host StartListen + Status reader)
 | 8 | Android SpeechRecognizer | WARUNKOWO OK — bridge + origin lock + JS glue |
 | 9 | MSI / NSIS | unsigned; built then reclaimed for disk |
 | 10 | Logos / marks | inventory + brand + letter-marks |
-| 11 | Terminal DnD | quoting done; engine matrix TODO |
+| 11 | Terminal DnD | quoting done; matrix doc `DND-ENGINE-MATRIX.md` |
 | 12 | Gauntlet process | adopted; A/B conditional (same-session critic) |
 
 ## Tests

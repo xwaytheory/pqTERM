@@ -88,7 +88,7 @@ See `docs/LOGOS-INVENTORY.md`.
 - Add tiny drop overlay CSS (“upuść ścieżki”).
 - Tests: unit for path quoting; manual matrix Grok/Claude/OpenCode.
 
-**Status (r2):** Windows `quotePath` (`""` escapes); pathFor failures surfaced (console + overlay); `sandbox:false` threat note; unit tests `npm run test:unit`. Manual engine matrix + Ctrl+Drop still TODO.
+**Status (r2 + matrix doc):** Windows `quotePath` (`""` escapes); pathFor failures surfaced (console + overlay); `sandbox:false` threat note; unit tests `npm run test:unit`. Engine matrix + manual checklist: [`docs/DND-ENGINE-MATRIX.md`](./DND-ENGINE-MATRIX.md). Ctrl+Drop → `.pq/drops/` still TODO.
 
 ---
 

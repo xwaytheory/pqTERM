@@ -41,5 +41,6 @@ Living board — update with PORT-MAP. Electron remains production.
 | Electron pq-voice spawn | **opt-in sketch + listen-before-spawn + Hello/Ack + Cancel/StartListen + Status reader** (`net.Server` before spawn; honest send; language default pl) |
 | Android STT | **wired** origin lock + gauntlet B (getUserMedia deny, mic retry) |
 | Tauri shell | **spike doc only** (`docs/TAURI-SPIKE.md`) |
+| Terminal DnD path quoting | **electron** — see [`docs/DND-ENGINE-MATRIX.md`](./DND-ENGINE-MATRIX.md) |
 
 Updated: 2026-09-13 named-pipe ACL + Hello/Ack harden; voice-host handshake gate; still demo/opt-in (no STT cutover).
