@@ -564,7 +564,7 @@ function registerIpc(): void {
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('app:info', () => ({
     mode: productName() === 'pqTERM-dev' ? 'dev' : 'prod',
-    name: productName()
+    name: 'pqTERM'
   }))
   ipcMain.handle('app:toggleSidebar', () => {
     state.sidebarOpen = !state.sidebarOpen
@@ -986,7 +986,7 @@ function registerIpc(): void {
          const filepath = join(dropsDir, filename)
          image.save(filepath)
 
-         return relative(ws.cwd, filepath)
+         return filepath
        }
        return ''
      } catch {
@@ -1009,9 +1009,9 @@ function registerIpc(): void {
            if (!existsSync(dropsDir)) mkdirSync(dropsDir, { recursive: true })
            const timestamp = Date.now()
            const filename = `clipboard-${timestamp}.png`
-           const filepath = join(dropsDir, filename)
-           writeFileSync(filepath, buf)
-           return relative(ws.cwd, filepath)
+            const filepath = join(dropsDir, filename)
+            writeFileSync(filepath, buf)
+            return filepath
          }
        }
 

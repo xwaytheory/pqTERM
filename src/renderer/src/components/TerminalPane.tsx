@@ -13,7 +13,7 @@ import {
   type ProviderInfo
 } from '../../../shared/types'
 import { areaStyle } from '../../../shared/grid'
-import { formatDroppedPaths, pathShellForPane } from '../lib/dropPaths'
+import { formatDroppedPaths, pathShellForPane, quotePath } from '../lib/dropPaths'
 import EngineMark from './EngineMark'
 
 function resetLeft(ms?: number): string {
@@ -333,9 +333,17 @@ export default function TerminalPane({
       // combined text-first clipboardRead which may miss images).
       const imagePath = await window.pq.terminals.clipboardReadImage()
       if (imagePath) {
-        // Image saved by main process; paste its file path so CLI
-        // engines (opencode, hermes, shell) can reference the file.
-        term.paste(imagePath.replace(/\r\n|\r|\n/g, '\r'))
+        if (pane.engine && pane.engine !== 'shell') {
+          // Agent TUIs (opencode & co.) read the clipboard themselves on a
+          // forwarded Ctrl+V (\x16) — pass the raw key through so they
+          // attach the image natively ([Image 1]) instead of a file path.
+          window.pq.terminals.write(pane.id, '\x16')
+          return
+        }
+        // Image saved by main process; paste its quoted file path so plain
+        // shells and other engines can reference the file.
+        const quotedPath = quotePath(imagePath, 'cmd')
+        term.paste(quotedPath.replace(/\r\n|\r|\n/g, '\r'))
         return
       }
       const text = await window.pq.terminals.clipboardRead()

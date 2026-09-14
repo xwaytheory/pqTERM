@@ -26,21 +26,21 @@ export const ENGINE_LOGO_IDS = [
 export type EngineLogoId = (typeof ENGINE_LOGO_IDS)[number]
 
 export const ENGINE_LOGO_FILES: Record<EngineLogoId, string> = {
-  grok: 'grok.svg',
+  grok: 'grok.png',
   omp: 'omp.svg',
   hermes: 'hermes.png',
-  opencode: 'opencode.svg',
+  opencode: 'opencode.png',
   codex: 'codex.png',
   claude: 'claude.png',
   qwen: 'qwen.png',
-  dsh: 'dsh.svg',
-  gemini: 'gemini.svg',
+  dsh: 'deepseek.png',
+  gemini: 'geminicli.png',
   crush: 'crush.png',
   aider: 'aider.png',
-  copilot: 'copilot.svg',
+  copilot: 'copilot.png',
   antigravity: 'antigravity.png',
   zcode: 'zcode.png',
   ori: 'ori.png',
-  cursor: 'cursor.svg',
+  cursor: 'cursor.png',
   shell: 'shell.svg'
 }

@@ -5,6 +5,7 @@ release
 host
 .pq
 *.log
+*.heapsnapshot
 .DS_Store
 Thumbs.db
 .env

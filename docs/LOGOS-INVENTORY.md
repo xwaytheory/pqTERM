@@ -28,44 +28,47 @@ PowerShell prompt). External `EngineSpec.logo` / `icon` URLs still win when set.
 
 ## Official asset sources (per-engine)
 
-User explicitly requested original vendor marks (overrides the old
-monogram-only trademark caution — these ship inside the user's own local app):
+All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehub/icons-static-svg npm package):
 
-| id | asset | source |
-|----|-------|--------|
-| `grok` | `grok.svg` (xAI mark, fill lightened for dark UI) | Wikimedia Commons `File:XAI-Logo.svg` (sourced from x.ai) |
-| `omp` | `omp.svg` (official favicon: gradient glyph on dark rounded square) | https://omp.sh/favicon.svg |
-| `hermes` | `hermes.png` (NousResearch org avatar) | https://github.com/NousResearch.png |
-| `opencode` | `opencode.svg` (blocky “O” glyph, dark variant) | https://opencode.ai/brand (inline wordmark SVG) |
-| `codex` | `codex.png` (OpenAI blossom avatar) | https://github.com/openai.png |
-| `claude` | `claude.png` (Anthropic org avatar) | https://github.com/anthropics.png |
-| `qwen` | `qwen.png` (Qwen org avatar, transparent) | https://github.com/QwenLM.png |
-| `dsh` | `dsh.svg` (DeepSeek whale path, brand blue) | simple-icons `deepseek` (CC0) |
-| `gemini` | `gemini.svg` (Gemini spark path + brand gradient) | simple-icons `googlegemini` (CC0) |
-| `crush` | `crush.png` (Charm org avatar — Crush ships no square icon; same brand family) | https://github.com/charmbracelet.png |
-| `aider` | `aider.png` (official square touch icon) | Aider-AI/aider repo `aider/website/assets/icons/apple-touch-icon.png` |
-| `copilot` | `copilot.svg` (Copilot mark path) | simple-icons `githubcopilot` (CC0) |
-| `ori` | `ori.png` (OpenRouter glyph mark) | Google favicon `openrouter.ai` |
-| `cursor` | `cursor.svg` (Cursor cube/C mark) | cursor.com/favicon.svg |
-| `shell` | `shell.svg` (generic `>_` glyph, not a vendor mark) | drawn for pq |
+| id | asset | LobeHub slug |
+|----|-------|--------------|
+| `grok` | `grok.png` (xAI mark) | `grok` |
+| `omp` | `omp.svg` | `omp` (not on LobeHub) |
+| `hermes` | `hermes.png` (NousResearch) | `nousresearch` |
+| `opencode` | `opencode.png` | `opencode` |
+| `codex` | `codex.png` | `codex-color` |
+| `claude` | `claude.png` | `claude-color` |
+| `qwen` | `qwen.png` | `qwen-color` |
+| `dsh` | `deepseek.png` | `deepseek-color` |
+| `gemini` | `geminicli.png` | `geminicli-color` |
+| `crush` | `crush.png` | `crush` (not on LobeHub) |
+| `aider` | `aider.png` | `aider` (not on LobeHub) |
+| `copilot` | `copilot.png` | `copilot-color` |
+| `antigravity` | `antigravity.png` | `antigravity-color` |
+| `zcode` | `zcode.png` (Z.AI / `zai`) | `zai` |
+| `ori` | `ori.png` (OpenRouter) | `openrouter-color` |
+| `cursor` | `cursor.png` | `cursor` |
+| `shell` | `shell.svg` (generic `>_` glyph) | drawn for pq |
 
 | id | name | vendor | color | asset |
 |----|------|--------|-------|-------|
-| `grok` | Grok CLI | xAI | `#39ffb6` | Gr (letter-mark chip + color) |
-| `omp` | Omp | oh-my-pi | `#c084fc` | Om (letter-mark chip + color) |
-| `hermes` | Hermes | Nous / Hermes | `#f5c542` | H (letter-mark chip + color) |
-| `opencode` | OpenCode | OpenCode | `#7aa2ff` | Oc (letter-mark chip + color) |
-| `codex` | Codex | OpenAI | `#9ae6b4` | Cx (letter-mark chip + color) |
-| `claude` | Claude Code | Anthropic | `#d4a574` | Cl (letter-mark chip + color) |
-| `qwen` | Qwen Code | Alibaba | `#7c5cff` | Q (letter-mark chip + color) |
-| `dsh` | DeepSeek Harness | DeepSeek | `#4cc9f0` | D (letter-mark chip + color) |
-| `gemini` | Gemini CLI | Google | `#4285f4` | Ge (letter-mark chip + color) |
-| `crush` | Crush | Charmbracelet | `#ff387b` | Cr (letter-mark chip + color) |
-| `aider` | Aider | Aider-AI | `#e8c547` | A (letter-mark chip + color) |
-| `copilot` | Copilot CLI | GitHub | `#f0f6fc` | Co (letter-mark chip + color) |
-| `ori` | Ori | OpenRouter | `#8b5cf6` | Or (letter-mark chip + color) |
-| `cursor` | Cursor CLI | Anysphere | `#2563eb` | Cu (letter-mark chip + color) |
-| `shell` | PowerShell | Windows | `#5b9fd6` | PS (letter-mark chip + color) |
+| `grok` | Grok CLI | xAI | `#39ffb6` | `Gr` + `grok.png` |
+| `omp` | Omp | oh-my-pi | `#c084fc` | `Om` |
+| `hermes` | Hermes | Nous / Hermes | `#f5c542` | `H` + `hermes.png` (NousResearch) |
+| `opencode` | OpenCode | OpenCode | `#7aa2ff` | `Oc` + `opencode.png` |
+| `codex` | Codex | OpenAI | `#9ae6b4` | `Cx` + `codex.png` |
+| `claude` | Claude Code | Anthropic | `#d4a574` | `Cl` + `claude.png` |
+| `qwen` | Qwen Code | Alibaba | `#7c5cff` | `Q` + `qwen.png` |
+| `dsh` | DeepSeek Harness | DeepSeek | `#4cc9f0` | `D` + `deepseek.png` |
+| `gemini` | Gemini CLI | Google | `#4285f4` | `Ge` + `geminicli.png` |
+| `crush` | Crush | Charmbracelet | `#ff387b` | `Cr` |
+| `aider` | Aider | Aider-AI | `#e8c547` | `A` |
+| `copilot` | Copilot CLI | GitHub | `#f0f6fc` | `Co` + `copilot.png` |
+| `antigravity` | Antigravity CLI | Google | `#ea4335` | `Ag` + `antigravity.png` |
+| `zcode` | ZCode | Z.AI | `#ff8c1a` | `Zc` + `zcode.png` (LobeHub `zai`) |
+| `ori` | Ori | OpenRouter | `#8b5cf6` | `Or` + `ori.png` |
+| `cursor` | Cursor CLI | Anysphere | `#2563eb` | `Cu` + `cursor.png` |
+| `shell` | PowerShell | Windows | `#5b9fd6` | `PS` |
 
 ## Letter-mark chip plan
 

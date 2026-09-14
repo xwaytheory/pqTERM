@@ -259,11 +259,11 @@ export const ENGINE_SPECS: EngineSpec[] = [
     color: '#8b5cf6',
     mark: 'Or',
     binaries: ['ori', 'ori.exe'],
-    args: ['--yolo'],
+    args: [],
     hint: 'Ori CLI (OpenRouter) — wszystkie modele OpenRouter. Instalacja: curl -fsSL https://openrouter.ai/labs/ori/install.sh | bash',
     extraPathDirs: ['%USERPROFILE%\\.local\\bin', '%APPDATA%\\npm'],
     npmPackage: '@openrouter/ori',
-    modelFlag: (id) => ['-m', id],
+    modelFlag: (id) => ['--model', id],
     models: [
       { id: 'anthropic/claude-sonnet-4', name: 'Sonnet 4' },
       { id: 'anthropic/claude-opus-4', name: 'Opus 4' },
