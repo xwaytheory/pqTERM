@@ -387,7 +387,7 @@ button {
 }
 .eng .engine-mark,
 .eng .engine-logo {
-  margin-bottom: 2px;
+  margin: 0 auto 6px;
 }
 .chip .engine-mark,
 .chip .engine-logo {
@@ -781,8 +781,9 @@ body.dragging {
 .engines {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   justify-content: center;
+  align-items: stretch;
   max-width: 520px;
   padding: 0 16px;
 }
@@ -791,11 +792,17 @@ body.dragging {
   background: var(--bg-2);
   color: var(--text);
   border-radius: 8px;
-  padding: 8px 10px;
-  min-width: 120px;
-  text-align: left;
+  padding: 12px 8px;
+  width: 148px;
+  min-width: 0;
+  flex: 0 0 148px;
+  min-height: 116px;
+  box-sizing: border-box;
+  text-align: center;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 3px;
 }
 .eng:hover {
@@ -807,13 +814,32 @@ body.dragging {
 }
 .eng .n {
   font-size: 12px;
+  width: 100%;
+  text-align: center;
+  line-height: 1.35;
+  min-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .eng .v {
   color: var(--muted);
   font-size: 10px;
+  width: 100%;
+  text-align: center;
+  line-height: 1.35;
+  min-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .eng .st {
   font-size: 10px;
+  width: 100%;
+  text-align: center;
+  line-height: 1.35;
+  min-height: 14px;
+  white-space: nowrap;
 }
 
 .blank {
