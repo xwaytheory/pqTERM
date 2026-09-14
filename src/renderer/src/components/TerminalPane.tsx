@@ -189,7 +189,11 @@ export default function TerminalPane({
       if (!seq || seq > stream.dropUntil) term.write(data)
     })
     const offExit = window.pq.terminals.onExit((id, code) => {
-      if (id === pane.id) {
+      if (id !== pane.id) return
+      if (pane.engine && pane.engine !== 'shell') {
+        // Agent TUIs: process ended → go back to the engine picker.
+        void window.pq.terminals.clearPane(workspaceId, pane.id)
+      } else {
         term.write(`\r\n\x1b[90m[pqTERM] process exit ${code}\x1b[0m\r\n`)
       }
     })
