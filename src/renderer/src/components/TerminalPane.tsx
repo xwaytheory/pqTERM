@@ -147,7 +147,14 @@ export default function TerminalPane({
     term.attachCustomKeyEventHandler((e) => {
       const mod = e.ctrlKey || e.metaKey
       if (mod && !e.altKey && e.code === 'KeyV') {
-        // Ctrl+V / Ctrl+Shift+V — paste from system clipboard.
+        if (pane.engine && pane.engine !== 'shell') {
+          // Agent TUIs (opencode & co.) handle clipboard themselves via
+          // DOM paste → bracketed paste → own PowerShell clipboard read.
+          // Let xterm.js pass the event through so they receive [Image 1].
+          return true
+        }
+        // Shell panes: Electron DOM paste is unreliable — handle via
+        // main-process clipboard + xterm paste.
         e.preventDefault()
         void pasteFromClipboard()
         return false
@@ -333,15 +340,8 @@ export default function TerminalPane({
       // combined text-first clipboardRead which may miss images).
       const imagePath = await window.pq.terminals.clipboardReadImage()
       if (imagePath) {
-        if (pane.engine && pane.engine !== 'shell') {
-          // Agent TUIs (opencode & co.) read the clipboard themselves on a
-          // forwarded Ctrl+V (\x16) — pass the raw key through so they
-          // attach the image natively ([Image 1]) instead of a file path.
-          window.pq.terminals.write(pane.id, '\x16')
-          return
-        }
         // Image saved by main process; paste its quoted file path so plain
-        // shells and other engines can reference the file.
+        // shells can reference the file.
         const quotedPath = quotePath(imagePath, 'cmd')
         term.paste(quotedPath.replace(/\r\n|\r|\n/g, '\r'))
         return
