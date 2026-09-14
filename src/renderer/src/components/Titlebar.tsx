@@ -1,9 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
 
 export default function Titlebar({ center }: { center?: ReactNode }) {
-  const [name, setName] = useState('pqTERM')
+  const [info, setInfo] = useState<{
+    name: string
+    edition: 'pq' | 'dev' | 'test'
+    build: number
+    version: string
+  } | null>(null)
   useEffect(() => {
-    void window.pq.app.info().then((i) => setName(i.name))
+    void window.pq.app.info().then(setInfo)
   }, [])
   return (
     <header className="titlebar">
@@ -19,7 +24,17 @@ export default function Titlebar({ center }: { center?: ReactNode }) {
           <i />
           <i />
         </span>
-        {name}
+        {info?.name ?? 'pqTERM'}
+        {info && (
+          <span className="edition-chip">
+            {info.edition === 'dev'
+              ? 'dev'
+              : info.edition === 'test'
+                ? 'test'
+                : 'stable'}{' '}
+            · v{info.version} · build {info.build}
+          </span>
+        )}
       </div>
       <div className="center">{center}</div>
       <div className="win">

@@ -11,7 +11,7 @@ import {
   writeFileSync,
   chmodSync
 } from 'fs'
-import { productName, runningDev } from './env'
+import { productName, runningDev, editionName, editionId, buildNumber } from './env'
 import type {
   AppSnapshot,
   EngineId,
@@ -564,7 +564,10 @@ function registerIpc(): void {
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('app:info', () => ({
     mode: productName() === 'pqTERM-dev' ? 'dev' : 'prod',
-    name: 'pqTERM'
+    name: editionName(),
+    edition: editionId(),
+    build: buildNumber(),
+    version: app.getVersion()
   }))
   ipcMain.handle('app:toggleSidebar', () => {
     state.sidebarOpen = !state.sidebarOpen

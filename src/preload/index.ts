@@ -36,7 +36,14 @@ const pq = {
     maximize: () => ipcRenderer.send('window:maximize'),
     close: () => ipcRenderer.send('window:close'),
     version: () => invoke('app:version') as Promise<string>,
-    info: () => invoke('app:info') as Promise<{ mode: 'dev' | 'prod'; name: string }>,
+    info: () =>
+      invoke('app:info') as Promise<{
+        mode: 'dev' | 'prod'
+        name: string
+        edition: 'pq' | 'dev' | 'test'
+        build: number
+        version: string
+      }>,
     toggleSidebar: () => invoke('app:toggleSidebar') as Promise<void>
   },
   remote: {
