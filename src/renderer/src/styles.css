@@ -805,12 +805,12 @@ body.dragging {
 }
 .engines {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
   align-content: center;
   width: 100%;
-  max-width: 520px;
-  padding: 0 12px;
+  max-width: 440px;
+  padding: 0 8px;
   box-sizing: border-box;
 }
 .eng {
@@ -818,7 +818,7 @@ body.dragging {
   background: var(--bg-2);
   color: var(--text);
   border-radius: 8px;
-  padding: 8px;
+  padding: 6px;
   min-width: 0;
   box-sizing: border-box;
   text-align: left;
@@ -826,7 +826,7 @@ body.dragging {
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 6px;
 }
 .eng:hover {
   border-color: var(--green-dim);
