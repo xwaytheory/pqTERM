@@ -55,7 +55,7 @@ function envFor(
     `${homedir()}\\.grok\\bin`,
     `${homedir()}\\AppData\\Roaming\\npm`,
     `${homedir()}\\AppData\\Local\\hermes\\bin`,
-    // Krytyk r3: do not inject Cursor IDE bin into agent PTY PATH
+    'C:\\Program Files\\Git\\usr\\bin',
   ].filter(Boolean)
   const pathKey = env.Path ? 'Path' : 'PATH'
   const current = env[pathKey] ?? ''
