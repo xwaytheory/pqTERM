@@ -273,6 +273,31 @@ export const ENGINE_SPECS: EngineSpec[] = [
     ]
   },
   {
+    id: 'freebuff',
+    name: 'Freebuff',
+    vendor: 'Freebuff',
+    color: '#00d4aa',
+    binaries: ['freebuff', 'freebuff.cmd'],
+    args: [],
+    hint: 'Freebuff — AI coding agent. Install: npm install -g freebuff',
+    extraPathDirs: ['%APPDATA%\\npm'],
+    npmPackage: 'freebuff',
+    models: []
+  },
+  {
+    id: 'kimi',
+    name: 'Kimi Code',
+    vendor: 'Moonshot AI',
+    color: '#e85d75',
+    logo: 'https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/dark/kimi-color.png',
+    binaries: ['kimi', 'kimi.cmd'],
+    args: [],
+    hint: 'Kimi Code — Moonshot AI coding agent',
+    extraPathDirs: ['%APPDATA%\\npm'],
+    npmPackage: 'kimi-code',
+    models: []
+  },
+  {
     id: 'cursor',
     name: 'Cursor CLI',
     vendor: 'Anysphere',

@@ -15,6 +15,8 @@ export type EngineId =
   | 'zcode'
   | 'ori'
   | 'cursor'
+  | 'freebuff'
+  | 'kimi'
   | 'shell'
 
 /** Any number of panes is allowed (the UI shows presets, +/- stepper, and drag-to-snap). */
@@ -53,7 +55,9 @@ const ids: EngineId[] = [
     'antigravity',
     'zcode',
     'ori',
-    'cursor'
+    'cursor',
+    'freebuff',
+    'kimi'
   ]
   for (const id of ids) {
     if (new RegExp(`\\b${id}\\b`, 'i').test(t)) {
@@ -219,6 +223,8 @@ export const ENGINE_ORDER: EngineId[] = [
   'zcode',
   'ori',
   'cursor',
+  'freebuff',
+  'kimi',
   'shell'
 ]
 
