@@ -101,7 +101,7 @@ pub struct CheckOnLaunchPlan {
 
 /// Fake remote latest used only by Phase-1/2 stubs so `compare_semver` is not a tautology
 /// (`current == current`). Replace with real `fetch_manifest` when networking is wired.
-pub const STUB_REMOTE_LATEST: &str = "1.1.2";
+pub const STUB_REMOTE_LATEST: &str = "1.1.3";
 
 impl Default for CheckOnLaunchPlan {
     fn default() -> Self {
@@ -324,39 +324,39 @@ mod tests {
         let path = dir.join("pq-update-manifest.json");
         std::fs::write(
             &path,
-            r#"{"latest":"1.1.2","channel":"stable","assets":[{"platform":"windows-x64","url":"file:///fake/pq.msi","size":1}]}"#,
+            r#"{"latest":"1.1.3","channel":"stable","assets":[{"platform":"windows-x64","url":"file:///fake/pq.msi","size":1}]}"#,
         )
         .unwrap();
         let fetcher = FileManifestFetch::new(&path);
         let m = fetch_manifest(&fetcher, "ignored").unwrap();
-        assert_eq!(m.latest, "1.1.2");
-        assert_eq!(compare_semver("1.1.1", &m.latest).unwrap(), -1);
+        assert_eq!(m.latest, "1.1.3");
+        assert_eq!(compare_semver("1.1.2", &m.latest).unwrap(), -1);
         let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     fn github_release_fixture_shape() {
         let raw = r#"{
-          "tag_name": "v1.1.2",
-          "name": "pq 1.1.2",
+          "tag_name": "v1.1.3",
+          "name": "pq 1.1.3",
           "published_at": "2026-09-13T00:00:00Z",
           "prerelease": false,
           "assets": [
             {
-              "name": "pq Setup 1.1.2.exe",
-              "browser_download_url": "https://example.com/pq-Setup-1.1.2.exe",
+              "name": "pq Setup 1.1.3.exe",
+              "browser_download_url": "https://example.com/pq-Setup-1.1.3.exe",
               "size": 177000000
             },
             {
-              "name": "pq 1.1.2.msi",
-              "browser_download_url": "https://example.com/pq-1.1.2.msi",
+              "name": "pq 1.1.3.msi",
+              "browser_download_url": "https://example.com/pq-1.1.3.msi",
               "size": 194000000
             }
           ]
         }"#;
         let rel: GitHubReleaseFixture = serde_json::from_str(raw).unwrap();
         let m = manifest_from_github_release(&rel);
-        assert_eq!(m.latest, "1.1.2");
+        assert_eq!(m.latest, "1.1.3");
         assert_eq!(m.channel.as_deref(), Some("stable"));
         assert_eq!(m.assets.len(), 2);
         assert!(m.assets.iter().all(|a| a.platform == "windows-x64"));
@@ -365,7 +365,7 @@ mod tests {
     #[test]
     fn offer_when_remote_newer() {
         let m = UpdateManifest {
-            latest: "1.1.2".into(),
+            latest: "1.1.3".into(),
             channel: Some("stable".into()),
             published_at: None,
             assets: vec![UpdateAsset {
@@ -375,9 +375,9 @@ mod tests {
                 size: Some(1),
             }],
         };
-        let offer = offer_from_manifest("1.1.1", &m, "fixture").unwrap().expect("offer");
-        assert_eq!(offer.latest, "1.1.2");
-        assert_eq!(offer.current, "1.1.1");
-        assert!(offer_from_manifest("1.1.2", &m, "fixture").unwrap().is_none());
+        let offer = offer_from_manifest("1.1.2", &m, "fixture").unwrap().expect("offer");
+        assert_eq!(offer.latest, "1.1.3");
+        assert_eq!(offer.current, "1.1.2");
+        assert!(offer_from_manifest("1.1.3", &m, "fixture").unwrap().is_none());
     }
 }

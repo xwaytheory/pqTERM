@@ -2,7 +2,7 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–9 żywych TUI po prawej.
 
-**Wersja: 1.1.1** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.1.2** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
 
 Na razie **prywatne**. Publicznie wyjdzie dopiero gdy zdecydujesz.
 
@@ -255,7 +255,7 @@ Albo jednym strzałem:
 START-pr.cmd
 ```
 
-**Uwaga**: `scripts/stamp-host.cjs` używa `rcedit` do podpisania `electron.exe` → `pqterm.exe` (zmiana ProductName, FileDescription, wersja 1.1.1). Wymaga `node_modules/rcedit/bin/rcedit-x64.exe`.
+**Uwaga**: `scripts/stamp-host.cjs` używa `rcedit` do podpisania `electron.exe` → `pqterm.exe` (zmiana ProductName, FileDescription, wersja 1.1.2). Wymaga `node_modules/rcedit/bin/rcedit-x64.exe`.
 
 ---
 

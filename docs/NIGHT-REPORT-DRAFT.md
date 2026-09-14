@@ -101,7 +101,7 @@ Późniejsze fale voice-host / IPC / fixture I/O: Architecture + IPC **WARUNKOWO
 
 1. **23:27** `e4941f7` — `npm run dist` (NSIS Setup.exe + MSI), unsigned, stamp-host `dir` zachowany.  
 2. **00:55** `535fb80` — dist MSI smoke.  
-3. **03:45** `1004423` — reclaim: skasowane `release\pq 1.1.1.msi`, `pq Setup 1.1.1.exe` (+ blockmap), cały `win-unpacked\`. Zostawione małe `builder-debug.yml` / `dist-wave2.log` / `latest.yml`.  
+3. **03:45** `1004423` — reclaim: skasowane `release\pq 1.1.2.msi`, `pq Setup 1.1.2.exe` (+ blockmap), cały `win-unpacked\`. Zostawione małe `builder-debug.yml` / `dist-wave2.log` / `latest.yml`.  
 4. **Nie ruszane:** `node_modules`, `crates\target`, `.git`, źródła.
 
 **Teraz:** C: ~1.49 GB wolnego (po reclaimu było ~1.8 GB; target Rust ~611 MB). Tej nocy **nie** powtarzać `npm run dist` i **nie** ciągnąć GGML.
