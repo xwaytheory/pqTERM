@@ -74,7 +74,7 @@ Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:
 - Do NOT touch `host/`, `release/`, `out/`, `node_modules/`, `crates/target/`.
 - Do NOT "fix" `sandbox:false` (needed for DnD paths), `win.signAndEditExecutable:false`
   (no cert yet), or the dual Rust tracks (`crates/` vs `src-tauri/` spike).
-- Version `1.1.3` is synced across `package.json`, `crates/`, `src-tauri/`,
+- Version `1.1.4` is synced across `package.json`, `crates/`, `src-tauri/`,
   `stamp-host.cjs`, README — never bump it in one place alone.
 - Do NOT edit `%AppData%\pq*\pq-state.json` by hand while the app runs
   (in-memory state overwrites it on next persist).

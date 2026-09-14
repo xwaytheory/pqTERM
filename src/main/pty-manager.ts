@@ -48,9 +48,12 @@ function envFor(
   const env = sanitizeEnv({ ...process.env } as NodeJS.ProcessEnv)
   if (engine) Object.assign(env, yoloEnv(engine))
   if (extraEnv) Object.assign(env, extraEnv)
+  const spec = engine ? specById(engine) : null
+  const extraDirs = spec?.extraPathDirs?.map((d) => d.replace('%USERPROFILE%', homedir()).replace('%APPDATA%', `${homedir()}\\AppData\\Roaming`).replace('%LOCALAPPDATA%', `${homedir()}\\AppData\\Local`)) ?? []
   const extras = [
     extraEnv?.PQ_BIN || '',
     extraPath ? dirname(extraPath) : '',
+    ...extraDirs,
     `${homedir()}\\AppData\\Roaming\\${runningDev() ? 'pqTERM-dev' : 'pqTERM-pr'}\\bin`,
     `${homedir()}\\.grok\\bin`,
     `${homedir()}\\AppData\\Roaming\\npm`,

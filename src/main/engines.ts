@@ -259,7 +259,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     color: '#8b5cf6',
     mark: 'Or',
     binaries: ['ori', 'ori.exe'],
-    args: ['code', '-i'],
+    args: ['code', '-i', '--tty'],
     hint: 'Ori Code (OpenRouter) — natywny coding agent. Instalacja: curl -fsSL https://openrouter.ai/labs/ori/install.sh | bash',
     extraPathDirs: ['%USERPROFILE%\\.local\\bin'],
     modelFlag: (id) => ['--model', id],
