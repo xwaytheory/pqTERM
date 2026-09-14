@@ -598,6 +598,7 @@ export default function TerminalPane({
         </>
       ) : (
         <div className="picker">
+          <div className="picker-inner">
           <h3>SPAWN ENGINE</h3>
           {installError && (
             <div className="hint" style={{ marginTop: -8, color: '#ff387b' }}>
@@ -627,6 +628,7 @@ export default function TerminalPane({
                     mark={p.mark}
                     size={34}
                   />
+                  <span className="meta">
                   <span className="n" style={{ color: p.color }}>
                     {p.name}
                   </span>
@@ -640,19 +642,23 @@ export default function TerminalPane({
                           : 'installed'
                         : 'click to install'}
                   </span>
+                  </span>
                 </button>
               )
             })}
             {shell ? (
               <button className="eng" onClick={() => launch('shell')}>
                 <EngineMark id={shell.id} name={shell.name} color={shell.color} logo={shell.logo} icon={shell.icon} mark={shell.mark} size={34} />
+                <span className="meta">
                 <span className="n" style={{ color: shell.color }}>
                   PowerShell
                 </span>
                 <span className="v">Windows</span>
                 <span className="st">raw shell</span>
+                </span>
               </button>
             ) : null}
+          </div>
           </div>
         </div>
       )}

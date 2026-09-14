@@ -387,7 +387,18 @@ button {
 }
 .eng .engine-mark,
 .eng .engine-logo {
-  margin: 0 auto 6px;
+  margin: 0;
+  flex-shrink: 0;
+}
+.eng .meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
 }
 .chip .engine-mark,
 .chip .engine-logo {
@@ -764,12 +775,21 @@ body.dragging {
 }
 .picker {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  color: var(--dim);
+}
+.picker-inner {
+  margin: auto;
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  color: var(--dim);
+  gap: 10px;
+  padding: 12px 0;
 }
 .picker h3 {
   margin: 0;
@@ -777,33 +797,36 @@ body.dragging {
   font-weight: 500;
   letter-spacing: 0.14em;
   font-size: 11px;
+  text-align: center;
+}
+.picker-inner .hint {
+  text-align: center;
+  padding: 0 12px;
 }
 .engines {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+  align-content: center;
+  width: 100%;
   max-width: 520px;
-  padding: 0 16px;
+  padding: 0 12px;
+  box-sizing: border-box;
 }
 .eng {
   border: 1px solid var(--line);
   background: var(--bg-2);
   color: var(--text);
   border-radius: 8px;
-  padding: 12px 8px;
-  width: 148px;
+  padding: 8px 10px;
   min-width: 0;
-  flex: 0 0 148px;
-  min-height: 116px;
   box-sizing: border-box;
-  text-align: center;
+  text-align: left;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 3px;
+  justify-content: flex-start;
+  gap: 10px;
 }
 .eng:hover {
   border-color: var(--green-dim);
@@ -815,7 +838,7 @@ body.dragging {
 .eng .n {
   font-size: 12px;
   width: 100%;
-  text-align: center;
+  text-align: left;
   line-height: 1.35;
   min-height: 16px;
   white-space: nowrap;
@@ -826,7 +849,7 @@ body.dragging {
   color: var(--muted);
   font-size: 10px;
   width: 100%;
-  text-align: center;
+  text-align: left;
   line-height: 1.35;
   min-height: 14px;
   white-space: nowrap;
@@ -836,7 +859,7 @@ body.dragging {
 .eng .st {
   font-size: 10px;
   width: 100%;
-  text-align: center;
+  text-align: left;
   line-height: 1.35;
   min-height: 14px;
   white-space: nowrap;
