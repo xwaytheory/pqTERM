@@ -805,7 +805,7 @@ body.dragging {
 }
 .engines {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
   gap: 8px;
   align-content: center;
   width: 100%;
@@ -818,7 +818,7 @@ body.dragging {
   background: var(--bg-2);
   color: var(--text);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 8px;
   min-width: 0;
   box-sizing: border-box;
   text-align: left;
@@ -826,7 +826,7 @@ body.dragging {
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
+  gap: 8px;
 }
 .eng:hover {
   border-color: var(--green-dim);

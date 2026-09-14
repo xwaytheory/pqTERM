@@ -377,6 +377,16 @@ export default function TerminalPane({
   const enabled = providers.filter((p) => p.enabled && p.id !== 'shell')
   const shell = providers.find((p) => p.id === 'shell')
 
+  function tileName(p: ProviderInfo): string {
+    return p.id === 'shell' ? 'PowerShell' : p.name
+  }
+
+  // All tiles (CLIs + raw shell) sorted alphabetically so the grid reads
+  // the same in every pane size.
+  const tiles = [...enabled]
+  if (shell) tiles.push(shell)
+  tiles.sort((a, b) => tileName(a).localeCompare(tileName(b), 'en', { sensitivity: 'base' }))
+
   async function launch(engine: EngineId, allIdle = false) {
     if (allIdle) {
       await window.pq.panes.fill({ engine })
@@ -609,19 +619,32 @@ export default function TerminalPane({
             shift+klik = wszystkie puste okna
           </div>
           <div className="engines">
-            {enabled.map((p) => {
+            {tiles.map((p) => {
+              const isShell = p.id === 'shell'
               const isInstalling = installing.has(p.id)
+              const name = tileName(p)
+              const vendor = isShell ? 'Windows' : p.vendor
+              const status = isShell
+                ? 'raw shell'
+                : isInstalling
+                  ? 'installing…'
+                  : p.installed
+                    ? p.detectedAuth
+                      ? 'detected'
+                      : 'installed'
+                    : 'click to install'
               return (
                 <button
                   key={p.id}
                   className={`eng${!p.installed ? ' disabled-visual' : ''}`}
                   style={!p.installed ? { opacity: 0.35, filter: 'grayscale(1)' } : undefined}
                   disabled={isInstalling}
+                  title={`${name} · ${vendor}`}
                   onClick={(e) => launch(p.id, e.shiftKey)}
                 >
                   <EngineMark
                     id={p.id}
-                    name={p.name}
+                    name={name}
                     color={p.color}
                     logo={p.logo}
                     icon={p.icon}
@@ -630,34 +653,14 @@ export default function TerminalPane({
                   />
                   <span className="meta">
                   <span className="n" style={{ color: p.color }}>
-                    {p.name}
+                    {name}
                   </span>
-                  <span className="v">{p.vendor}</span>
-                  <span className="st">
-                    {isInstalling
-                      ? 'installing…'
-                      : p.installed
-                        ? p.detectedAuth
-                          ? 'detected'
-                          : 'installed'
-                        : 'click to install'}
-                  </span>
+                  <span className="v">{vendor}</span>
+                  <span className="st">{status}</span>
                   </span>
                 </button>
               )
             })}
-            {shell ? (
-              <button className="eng" onClick={() => launch('shell')}>
-                <EngineMark id={shell.id} name={shell.name} color={shell.color} logo={shell.logo} icon={shell.icon} mark={shell.mark} size={34} />
-                <span className="meta">
-                <span className="n" style={{ color: shell.color }}>
-                  PowerShell
-                </span>
-                <span className="v">Windows</span>
-                <span className="st">raw shell</span>
-                </span>
-              </button>
-            ) : null}
           </div>
           </div>
         </div>
