@@ -1,4 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Port scaffolding (spike): the Rust surface — wire types in `shared`, `board`,
+// `remote`, `sync`, `usage`, provider helpers — lands ahead of the webview→Tauri
+// bridge, so a chunk of it has no caller yet. Warnings for that are off ON PURPOSE;
+// remove this allow once the renderer talks to Tauri and every item has a caller.
+// See docs/workbench.md (status @ 2026-09-15).
+#![allow(dead_code)]
 
 mod auth;
 mod board;
@@ -27,6 +33,9 @@ fn ping() -> bool {
 }
 
 fn boot(app: AppHandle) {
+    // second task needs its own handle — `app` is moved into the first spawn below
+    let updater_app = app.clone();
+
     tauri::async_runtime::spawn(async move {
         let snapshot = store::load_state();
         let email = snapshot.user.as_ref().map(|u| u.email.clone());
@@ -56,7 +65,7 @@ fn boot(app: AppHandle) {
     // check GitHub for a new release shortly after launch
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        update::check_on_boot(app.clone()).await;
+        update::check_on_boot(updater_app).await;
     });
 }
 
@@ -64,6 +73,16 @@ fn boot(app: AppHandle) {
 pub fn run() {
     let initial = store::load_state();
     let app = tauri::Builder::default()
+        // MUST be the first plugin: a second launch has to bail out before any
+        // other init (two instances = two servers on :4747 + split /pair token)
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // second launch → surface the window that already runs
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![

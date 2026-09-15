@@ -6,6 +6,12 @@ import type { BoardNote, BoardPane, BoardSnapshot, EngineId } from '../shared/ty
 const FILE_RE =
   /(?:[A-Za-z]:[\\/])?(?:[\w.+-]+[\\/])+[\w.+-]+\.[A-Za-z0-9]{1,8}|[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|rs|go|cs|java|kt|md|json|toml|yml|yaml|css|html|vue|php|rb|sql|xml)/g
 
+/**
+ * A flush runs `git status` and rewrites two files, so fast pane/title churn must not
+ * run one per event — the OSC title alone can change many times per second.
+ */
+const FLUSH_MIN_GAP_MS = 250
+
 const SKIP =
   /node_modules|\.git\\|\/\.git\/|\.pq\\|dist\\|out\\|release\\|AppData|\\bun\\|\.(exe|dll|cmd|bat|sys)$/i
 
@@ -50,6 +56,10 @@ export class BoardHub {
   private timer: ReturnType<typeof setInterval> | null = null
   private last: BoardSnapshot | null = null
   private onChange: ((s: BoardSnapshot) => void) | null = null
+  private running = false
+  private queued = false
+  private lastFlushAt = 0
+  private pendingFlush: ReturnType<typeof setTimeout> | null = null
 
   setListener(fn: (s: BoardSnapshot) => void): void {
     this.onChange = fn
@@ -64,7 +74,7 @@ export class BoardHub {
     this.flush()
     if (!this.timer) {
       this.timer = setInterval(() => {
-        void this.flush()
+        this.requestFlush()
       }, 2500)
     }
   }
@@ -74,6 +84,11 @@ export class BoardHub {
       clearInterval(this.timer)
       this.timer = null
     }
+    if (this.pendingFlush) {
+      clearTimeout(this.pendingFlush)
+      this.pendingFlush = null
+    }
+    this.queued = false
     this.panes.clear()
     this.cwd = ''
     this.last = null
@@ -88,20 +103,20 @@ export class BoardHub {
       files: new Map(),
       tail: ''
     })
-    void this.flush()
+    this.requestFlush()
   }
 
   paneTitle(paneId: string, title: string): void {
     const p = this.panes.get(paneId)
     if (!p) return
     p.title = title
-    void this.flush()
+    this.requestFlush()
   }
 
   paneEnd(paneId: string): void {
     const p = this.panes.get(paneId)
     if (p) p.alive = false
-    void this.flush()
+    this.requestFlush()
   }
 
   onOutput(paneId: string, chunk: string): void {
@@ -190,7 +205,47 @@ export class BoardHub {
     return notes.slice(0, 12)
   }
 
+  /**
+   * Coalesced entry point: at most one flush per FLUSH_MIN_GAP_MS, and while a pass is
+   * in flight another request is remembered and replayed right after it (trailing run).
+   */
+  private requestFlush(): void {
+    if (this.running) {
+      this.queued = true
+      return
+    }
+    const since = Date.now() - this.lastFlushAt
+    if (since >= FLUSH_MIN_GAP_MS) {
+      void this.flush()
+      return
+    }
+    if (this.pendingFlush) return
+    this.pendingFlush = setTimeout(() => {
+      this.pendingFlush = null
+      void this.flush()
+    }, FLUSH_MIN_GAP_MS - since)
+  }
+
   private async flush(): Promise<void> {
+    if (!this.cwd) return
+    if (this.running) {
+      this.queued = true
+      return
+    }
+    this.running = true
+    try {
+      await this.flushOnce()
+    } finally {
+      this.running = false
+      this.lastFlushAt = Date.now()
+      if (this.queued) {
+        this.queued = false
+        this.requestFlush()
+      }
+    }
+  }
+
+  private async flushOnce(): Promise<void> {
     if (!this.cwd) return
     this.ensureDir()
     const now = Date.now()

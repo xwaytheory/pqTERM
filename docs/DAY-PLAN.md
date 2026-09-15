@@ -1,5 +1,7 @@
 # Day plan — after 07:00 (Europe/Warsaw)
 
+> Snapshot historyczny (noc 13/14.09 — plan na poranek). Bieżący stan i backlog: `docs/workbench.md`.
+
 **Branch:** `feat/rust-phase1` (local commits only overnight; **push is a morning decision**)
 **HEAD overnight tip:** `0ec9f0f` (~06:15 verify-night OK) / polish `92c8459` / product tip `3a06472`.  
 **Disk:** ~0.43 GB free after ENOSPC reclaim — hard constraint. **First:** restore Electron (`npm rebuild` / reinstall `electron`) — overnight zeroed `node_modules/electron/dist/electron.exe` to free Shell.  

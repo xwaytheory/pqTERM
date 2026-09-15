@@ -34,7 +34,7 @@ async function opencodeSessions(cwd: string, target: string): Promise<SessionRef
   const { spawnFile, args } = resolveLaunch(
     'opencode',
     target,
-    ['db', 'select id, directory, title, time_updated from session', '--format', 'json']
+    ['db', 'select id, directory, title, time_updated from session where time_archived is null', '--format', 'json']
   )
   const { stdout } = await execFileP(spawnFile, args, {
     timeout: 20000,

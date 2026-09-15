@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::fs;
+use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -60,16 +61,20 @@ pub fn clear_ignored() {
     write_ignored(Vec::new());
 }
 
+/// trims a version string down to its dotted numeric part (drops `v` prefix and `-suffix`)
+fn norm_version(s: &str) -> &str {
+    let s = s.trim();
+    let s = s
+        .strip_prefix('v')
+        .or_else(|| s.strip_prefix('V'))
+        .unwrap_or(s);
+    s.split(['-', '+']).next().unwrap_or(s)
+}
+
 /// numeric dotted comparison, handles optional leading "v" and "-suffix"
 pub fn compare_versions(a: &str, b: &str) -> Ordering {
-    let norm = |s: &str| {
-        let s = s.trim();
-        let s = s.strip_prefix('v').or_else(|| s.strip_prefix('V')).unwrap_or(s);
-        let s = s.split(['-', '+']).next().unwrap_or(s);
-        s
-    };
-    let a = norm(a);
-    let b = norm(b);
+    let a = norm_version(a);
+    let b = norm_version(b);
     let av: Vec<u64> = a
         .split('.')
         .map(|x| x.parse::<u64>().unwrap_or(0))
@@ -228,13 +233,14 @@ pub async fn check_on_boot(app: AppHandle) {
             .title("pq — aktualizacja")
             .kind(MessageDialogKind::Info)
             .buttons(MessageDialogButtons::YesNoCancel);
-        tauri::async_runtime::spawn_blocking(move || dialog.blocking_show())
+        // `blocking_show()` only returns bool; Yes/No/Cancel needs the *result* variant
+        tauri::async_runtime::spawn_blocking(move || dialog.blocking_show_with_result())
             .await
-            .unwrap_or(tauri_plugin_dialog::MessageDialogReply::No)
+            .unwrap_or(tauri_plugin_dialog::MessageDialogResult::No)
     };
 
     match reply {
-        tauri_plugin_dialog::MessageDialogReply::Yes => {
+        tauri_plugin_dialog::MessageDialogResult::Yes => {
             let app2 = app.clone();
             let _ = app.emit("update:status", "installing");
             tauri::async_runtime::spawn(async move {
@@ -258,7 +264,7 @@ pub async fn check_on_boot(app: AppHandle) {
                 }
             });
         }
-        tauri_plugin_dialog::MessageDialogReply::Cancel => {
+        tauri_plugin_dialog::MessageDialogResult::Cancel => {
             ignore_version(&latest);
         }
         _ => {}

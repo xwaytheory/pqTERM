@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react'
+import { memo, useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -54,7 +54,7 @@ function UsageChip({ usage }: { usage: EngineUsage }) {
   )
 }
 
-export default function TerminalPane({
+function TerminalPane({
   pane,
   workspaceId,
   cwd,
@@ -668,3 +668,25 @@ if (pane.engine && !isRawShell(pane.engine)) {
     </section>
   )
 }
+
+/**
+ * Panes only mount for the active workspace (see DeckScreen), so the xterm view and its PTY
+ * have different lifetimes on purpose: the PTY lives in the main process, survives the unmount
+ * and the replay buffer re-seeds the fresh terminal on the way back.
+ *
+ * The handler props are deliberately left out of the comparison — DeckScreen rebuilds them on
+ * every render, but each one reads live state through refs, so an older closure still acts on
+ * the current workspace instead of a stale snapshot.
+ */
+export default memo(TerminalPane, (a, b) =>
+  a.pane === b.pane &&
+  a.workspaceId === b.workspaceId &&
+  a.cwd === b.cwd &&
+  a.providers === b.providers &&
+  a.focused === b.focused &&
+  a.zoomed === b.zoomed &&
+  a.renameNonce === b.renameNonce &&
+  a.usage === b.usage &&
+  a.index === b.index &&
+  a.area === b.area
+)

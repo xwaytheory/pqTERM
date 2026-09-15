@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, WebviewWindowBuilder};
 use tauri::async_runtime::Mutex as AsyncMutex;
 
 use crate::shared::millis;

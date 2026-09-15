@@ -25,6 +25,9 @@ export class RemoteClient {
   private pending = new Map<string, { ok: (v: unknown) => void; fail: (e: Error) => void }>()
   private wantOpen = false
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  // backoff rośnie z każdą nieudaną próbą, żeby telefon nie stuktał w PC po wifi-setce
+  private reconnectDelay = 2500
+  private maxReconnectDelay = 30000
   onEvent: Handler | null = null
 
   get ready(): boolean {
@@ -97,7 +100,12 @@ export class RemoteClient {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       void this.open(false).catch(() => this.armReconnect())
-    }, 2500)
+    }, this.reconnectDelay)
+    // wykładniczo z jitterem — kilka telefonów w tej samej sieci nie wraca równocześnie
+    this.reconnectDelay = Math.min(
+      this.reconnectDelay * 1.5 + Math.random() * 1000,
+      this.maxReconnectDelay
+    )
   }
 
   call(m: string, a: unknown[] = []): Promise<unknown> {
@@ -152,5 +160,6 @@ export class RemoteClient {
     }
     this.ws?.close()
     this.ws = null
+    this.reconnectDelay = 2500
   }
 }

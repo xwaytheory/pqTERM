@@ -71,6 +71,10 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
   const handlersRef = useRef<{ move: (e: PointerEvent) => void; up: (e: PointerEvent) => void; cancel: () => void } | null>(null)
 
   const panes = ws?.panes ?? []
+  // Window-level drag handlers outlive a render and memoized panes can hold a handler prop from
+  // an earlier one, so anything they read goes through here rather than the render closure.
+  const liveRef = useRef({ ws, panes, zoomedId })
+  liveRef.current = { ws, panes, zoomedId }
   const areas = useMemo(() => resolveAreas(panes), [panes])
   const areaById = useMemo(() => new Map(areas.map((a) => [a.id, a.area])), [areas])
   const draggedTitle = drag ? panes.find((p) => p.id === drag.paneId)?.title ?? '' : ''
@@ -148,7 +152,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
   )
 
   function beginDrag(paneId: string, e: ReactPointerEvent<HTMLElement>): void {
-    if (zoomedId) return
+    if (liveRef.current.zoomedId) return
     e.preventDefault()
     cleanupDrag()
     dragRef.current = { paneId, x: e.clientX, y: e.clientY, started: false }
@@ -184,7 +188,9 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
       const rawZone = zoneNear(nx, ny)
       const frameZone = rawZone === 'full' ? null : rawZone
       let h: Hover = NO_HOVER
-      const paneIds = panes.map((p) => p.id)
+      // Zoom / pane set may have changed since this handler was created.
+      const live = liveRef.current
+      const paneIds = live.panes.map((p) => p.id)
       const selfIdx = paneIds.indexOf(d.paneId)
       if (dFrame <= FRAME_SNAP_PX && frameZone) {
         const z = zoneRect(frameZone)
@@ -199,9 +205,9 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           },
           haloStyle: null,
           preview: (() => {
-            const next = selfIdx >= 0 ? snapAreas(panes.length, selfIdx, frameZone) : null
+            const next = selfIdx >= 0 ? snapAreas(live.panes.length, selfIdx, frameZone) : null
             if (!next) return null
-            return panes.map((p, i) => ({
+            return live.panes.map((p, i) => ({
               id: p.id,
               self: p.id === d.paneId,
               style: rectStyle(next[i], rect)
@@ -214,7 +220,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
         const id = paneEl?.dataset.paneId ?? null
         if (paneEl && id && id !== d.paneId) {
           const r = paneEl.getBoundingClientRect()
-          const swapped = swapAreasById(resolveAreas(panes), d.paneId, id)
+          const swapped = swapAreasById(resolveAreas(live.panes), d.paneId, id)
           h = {
             zone: null,
             paneId: id,
@@ -237,9 +243,10 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
       pushHover(NO_HOVER)
       setDrag(null)
       dragRef.current = null
-      if (!d?.started || !ws) return
-      if (h.zone) await window.pq.workspaces.snapPane(ws.id, d.paneId, h.zone)
-      else if (h.paneId) await window.pq.workspaces.swapPanes(ws.id, d.paneId, h.paneId)
+      const { ws: wsNow } = liveRef.current
+      if (!d?.started || !wsNow) return
+      if (h.zone) await window.pq.workspaces.snapPane(wsNow.id, d.paneId, h.zone)
+      else if (h.paneId) await window.pq.workspaces.swapPanes(wsNow.id, d.paneId, h.paneId)
     }
     const cancel = () => {
       dragRef.current = null
@@ -478,37 +485,32 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                   style={p.style}
                 />
               ))}
-              {snap.workspaces.map((w) => {
-                const active = w.id === snap.activeWorkspaceId
-                const zId = w.zoomedPaneId ?? null
-                return (
-                  <div key={w.id} className={`ws-grid${active ? ' active' : ''}`}>
-                    <div
-                      ref={active ? gridRef : undefined}
-                      className={`grid${zId ? ' zoomed' : ''}`}
-                    >
-                      {w.panes.map((p, i) => (
-                        <TerminalPane
-                          key={p.id}
-                          pane={p}
-                          workspaceId={w.id}
-                          cwd={w.cwd}
-                          providers={snap.providers}
-                          focused={active && focus === p.id}
-                          zoomed={zId === p.id}
-                          renameNonce={active && focus === p.id ? renameNonce : 0}
-                          usage={p.engine ? usage[p.engine] : undefined}
-                          index={i + 1}
-                          area={zId === p.id ? FULL : areaById.get(p.id)}
-                          onDragStart={active ? beginDrag : undefined}
-                          onFocus={() => void (active && setFocus(p.id))}
-                          onZoom={() => toggleZoomFor(w.id, zId, p.id)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
+              {/* Only the active workspace keeps terminals mounted: the others used to hold a live
+                  xterm + PTY per pane in the background. The PTY itself lives in main and is not
+                  killed here, so switching back re-spawns the view and the replay buffer refills
+                  it — same path a renderer reload already used. */}
+              <div key={ws.id} className="ws-grid active">
+                <div ref={gridRef} className={`grid${zoomedId ? ' zoomed' : ''}`}>
+                  {ws.panes.map((p, i) => (
+                    <TerminalPane
+                      key={p.id}
+                      pane={p}
+                      workspaceId={ws.id}
+                      cwd={ws.cwd}
+                      providers={snap.providers}
+                      focused={focus === p.id}
+                      zoomed={zoomedId === p.id}
+                      renameNonce={focus === p.id ? renameNonce : 0}
+                      usage={p.engine ? usage[p.engine] : undefined}
+                      index={i + 1}
+                      area={zoomedId === p.id ? FULL : areaById.get(p.id)}
+                      onDragStart={beginDrag}
+                      onFocus={() => setFocus(p.id)}
+                      onZoom={() => toggleZoomFor(ws.id, zoomedId, p.id)}
+                    />
+                  ))}
+                </div>
+              </div>
             </>
           ) : (
             <div className="blank">

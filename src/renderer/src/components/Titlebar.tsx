@@ -11,7 +11,10 @@ export default function Titlebar({ center }: { center?: ReactNode }) {
     void window.pq.app.info().then(setInfo)
   }, [])
   return (
-    <header className="titlebar">
+    // `data-tauri-drag-region` is what the Tauri track uses for window dragging (Tauri injects
+    // drag.js, which only starts a drag when the event target carries this attribute; Electron
+    // ignores it and uses the -webkit-app-region rules from styles.css).
+    <header className="titlebar" data-tauri-drag-region>
       <div className="brand">
         <span className="grid-mark" aria-hidden>
           <i />

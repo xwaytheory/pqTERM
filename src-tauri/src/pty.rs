@@ -5,10 +5,9 @@ use std::sync::{Arc, Mutex};
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use portable_pty::PtySize;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tauri::async_runtime::JoinHandle as TauriJoin;
 
-use crate::shared::millis;
 
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -124,7 +123,7 @@ impl PtyManager {
             }
         };
 
-        let mut writer = match pair.master.take_writer() {
+        let writer = match pair.master.take_writer() {
             Ok(w) => w,
             Err(e) => {
                 eprintln!("[pq] take_writer failed: {e}");
@@ -155,7 +154,7 @@ impl PtyManager {
             },
         );
         let sessions = self.sessions.clone();
-        let active = self.active_panes.clone();
+        let _active = self.active_panes.clone();
         let app = svc.clone();
         let pane_owner = pane_id.clone();
         let handle = tauri::async_runtime::spawn(Box::pin(async move {

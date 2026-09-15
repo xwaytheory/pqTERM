@@ -173,7 +173,7 @@ impl UsageManager {
         inner.panes = inner
             .panes
             .drain()
-            .map(|(k, v)| (k, PaneUsage { by_cmd: HashMap::new() }))
+            .map(|(k, _v)| (k, PaneUsage { by_cmd: HashMap::new() }))
             .collect();
         self.add_window_if_needed(&mut inner, millis(), true);
     }

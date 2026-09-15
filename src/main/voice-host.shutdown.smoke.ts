@@ -87,6 +87,8 @@ const child = fakeChild()
 setActiveVoiceHostForTest({
   child,
   sessionId: 'smoke1',
+  lastStatus: null,
+  lastTranscripts: [],
   transport: 'ipc-tcp',
   exe: 'fake-pq-voice.exe',
   server: null,
@@ -112,6 +114,8 @@ const sock = fakeWritableSocket()
 setActiveVoiceHostForTest({
   child: child2,
   sessionId: 'smoke2',
+  lastStatus: null,
+  lastTranscripts: [],
   transport: 'ipc-pipe',
   exe: 'fake-pq-voice.exe',
   server: null,
@@ -176,7 +180,9 @@ assert(pipeArgs.ok && pipeArgs.args[0] === '--ipc-pipe' && pipeArgs.args[1] === 
     exe: 'fake-pq-voice.exe',
     server: bound.server,
     socket: peerSock,
-    listenAddr: tcpAddr
+    listenAddr: tcpAddr,
+    lastStatus: null,
+    lastTranscripts: []
   })
   assert(trySendCancelToActiveVoiceHost('host-shutdown') === true, 'real socket Cancel')
   await new Promise((r) => setTimeout(r, 50))
@@ -317,6 +323,8 @@ assert(slEn.includes('"timeout_ms":1500'), 'override timeout')
     server: bound.server,
     socket: peerSock,
     listenAddr: tcpAddr,
+    lastStatus: null,
+    lastTranscripts: [],
     lastStatus: null,
     lastTranscripts: [],
     handshakeOk: false

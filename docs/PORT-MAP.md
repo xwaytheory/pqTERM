@@ -41,7 +41,7 @@ See also: `docs/MIGRATION-RUST.md`, `crates/pq-core/src/ipc.rs`.
 | Updater (new) | `pq-core::updater` + fixtures | 1 / 10 e2e | **stub** FileManifestFetch + `OfferUpdate` + `pq-work --check-update` |
 | Version constants | `pq-core::version` | 1 | stub |
 | Voice IPC protocol | `pq-core::ipc` | 2 | **spike** LocalTcp + Windows NamedPipe (ACL+Hello/Ack); demo only |
-| `voiceCommander.ts` / VoicePanel | `pq-voice` + IPC | 9 | **skeleton** listen/transcribe + host-bridge doc |
+| ~~`voiceCommander.ts` / VoicePanel~~ (removed in `36d083c`) | `pq-voice` + IPC | 9 | **skeleton** listen/transcribe + host-bridge doc |
 | Android mic | Kotlin `SpeechRecognizer` + origin lock | docs + bridge | **wired** (gauntlet B revise) |
 
 ## IPC message map (work ↔ voice)

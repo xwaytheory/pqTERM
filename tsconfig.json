@@ -21,5 +21,8 @@
     "src/renderer/src/**/*",
     "src/shared/**/*",
     "src/preload/**/*"
-  ]
+  ],
+  // node --experimental-strip-types test scripts import with explicit .ts extensions
+  // (see AGENTS.md) — they are executed by node, not compiled, so keep them out.
+  "exclude": ["**/*.test.ts", "**/*.smoke.ts"]
 }

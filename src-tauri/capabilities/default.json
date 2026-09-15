@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Główne okno: pełny dostęp IPC + dialogs",
+  "description": "Główne okno: własne komendy IPC + dialogs. core:window:allow-start-dragging jest wymagane przez wstrzykiwany przez Tauri drag.js (decorations:false → drag po data-tauri-drag-region); minimize/maximize/close idą własnymi komendami cmd::window_* i nie potrzebują uprawnień core.",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "opener:default",
+    "core:window:allow-start-dragging"
+  ]
 }

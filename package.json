@@ -17,7 +17,9 @@
     "postinstall": "node scripts/rebuild.cjs",
     "dist": "npm run build && electron-builder --win nsis msi",
     "new-work": "node scripts/new-work.cjs",
-    "test:unit": "node --experimental-strip-types --test src/main/osc-title.test.ts src/renderer/src/lib/dropPaths.test.ts src/renderer/src/lib/engineMarkLetter.test.ts src/renderer/src/components/engineLogoMeta.test.ts src/phone/src/originsMatch.test.ts src/shared/grid.test.ts"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "check:version": "node scripts/check-version-sync.cjs",
+    "test:unit": "npm run typecheck && node --experimental-strip-types --test src-tauri/commands.test.ts src/main/osc-title.test.ts src/main/ws-coalesce.test.ts src/main/db-title.test.ts src/renderer/src/lib/dropPaths.test.ts src/renderer/src/lib/engineMarkLetter.test.ts src/renderer/src/components/engineLogoMeta.test.ts src/phone/src/originsMatch.test.ts src/shared/grid.test.ts"
   },
   "build": {
     "appId": "com.pqterm.app",

@@ -188,7 +188,7 @@ pub async fn providers_authorize(
         hint: Some(email),
     };
     let result = state.auth.oauth_flow(&params).await?;
-    let mut g = state.state.lock().unwrap();
+    let g = state.state.lock().unwrap();
     store::save_state(&g.clone());
     Ok(result)
 }
@@ -349,7 +349,7 @@ pub async fn workspace_spawn(app: AppHandle, state: State<'_, Pq>, payload: Work
 
 #[tauri::command]
 pub async fn workspace_resume(
-    state: State<'_, Pq>,
+    _state: State<'_, Pq>,
     workspace_id: String,
     engine: EngineId,
     session_handle: String,
@@ -407,7 +407,7 @@ pub async fn remote_start(app: AppHandle, state: State<'_, Pq>) -> Result<bool, 
 
 #[tauri::command]
 pub async fn remote_tunnel_start(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, Pq>,
     name: String,
 ) -> Result<String, String> {

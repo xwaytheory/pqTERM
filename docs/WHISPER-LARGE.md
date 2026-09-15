@@ -1,6 +1,6 @@
 # Whisper Large v3 — pq-voice INTENT path (spike)
 
-**Status:** INTENT / research stub — **not** runtime. Electron CURRENT stays `Xenova/whisper-tiny` in `voiceCommander.ts`.
+**Status:** INTENT / research stub — **not** runtime. Desktop CURRENT has **no STT at all** (the Electron `Xenova/whisper-tiny` path was removed in `36d083c`).
 
 ## Target
 

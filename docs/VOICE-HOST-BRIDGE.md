@@ -5,7 +5,7 @@ Production path does **not** auto-spawn. Gate: `PQ_VOICE_HOST=1` **or** explicit
 `spawnVoiceHost({ enabled: true, sessionId })`. Re-export from `src/main/index.ts`. `before-quit` calls `shutdownVoiceHost()` (no-op when never spawned).
 Not called from `app.whenReady` / UI. No auto-spawn.
 
-Production STT stays in-renderer `Xenova/whisper-tiny` (`voiceCommander.ts`).
+(2026-09-15) **There is no production STT left to “stay” in.** `36d083c` removed the in-renderer path: `voiceCommander.ts` / `VoicePanel.tsx` are gone and `@huggingface/transformers` left `package.json`. This bridge is the only desktop voice plan on the table — and nothing calls `spawnVoiceHost` yet.
 
 See also: `pq_core::ipc::VoiceHostSpawnPlan`, `docs/WHISPER-LARGE.md`, `docs/PORT-MAP.md`.
 

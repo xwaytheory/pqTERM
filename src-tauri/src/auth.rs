@@ -82,17 +82,16 @@ impl AuthManager {
         .map_err(|e| e.to_string())?;
 
         let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
-        let mut seen_title = String::new();
         while std::time::Instant::now() < deadline {
             // WebviewWindow can be closed by the user
-            match popup.title() {
-                Ok(t) => seen_title = t.to_string(),
+            let title = match popup.title() {
+                Ok(t) => t,
                 Err(_) => {
                     return Err("window closed".into());
                 }
-            }
-            if seen_title.starts_with("__pq__") {
-                let payload = seen_title.trim_start_matches("__pq__").to_string();
+            };
+            if title.starts_with("__pq__") {
+                let payload = title.trim_start_matches("__pq__").to_string();
                 let _ = popup.close();
                 return Ok(payload);
             }

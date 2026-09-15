@@ -9,5 +9,8 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["pq.vite.config.ts", "src/main/**/*", "src/shared/**/*"]
+  "include": ["pq.vite.config.ts", "src/main/**/*", "src/shared/**/*"],
+  // node --experimental-strip-types test scripts import with explicit .ts extensions
+  // (see AGENTS.md) — they are executed by node, not compiled, so keep them out.
+  "exclude": ["**/*.test.ts", "**/*.smoke.ts"]
 }

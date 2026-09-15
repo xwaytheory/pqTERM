@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::engines::{default_provider, ENGINE_SPECS};
 use crate::env::{app_data_dir, home_dir};

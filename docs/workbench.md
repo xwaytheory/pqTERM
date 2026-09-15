@@ -1,56 +1,221 @@
 # pq workbench (gauntlet live board)
 
-Last update: 2026-09-13 ~06:15 PT (Europe/Warsaw) — verify-night OK after ENOSPC reclaim; toward **07:00** Szef report
-Product HEAD: **3a06472** (voice-host StartListen + Status reader)
+Last update: **2026-09-15** (Europe/Warsaw, 4. fala + zmiana procesu: skill `ponytail`) — deep audit gauntlet-loop @ `1a2d7ac` i domknięcie backlogu: 2. fala (P0 lock + 6 błędów `src-tauri`, single-instance, guard wersji, bramka typechecku main), 3. fala (hardening `remote.ts`, wydajność: debounce OSC + coalescing board + `live={active}` + `React.memo`; kontrakt `cmd.rs`↔`lib.rs` w testach; wyrównane docs) oraz **4. fala: scalenie niezacommitowanego WIP z `pqTERM-dev` (poller tytułów z bazy opencode) z naprawą zepsutego testu** — `verify-night` + `npm run build` + `cargo test` = zielone end-to-end
+Product HEAD (`test` = `dev`): **`1a2d7ac`** · `fix: keep styled segments of OSC titles instead of cutting at first ESC`
+Official (`main`): **`350b60f`** — 4 commity za `test` (`main..test`: `0ec3ced`, `44843ad`, `feaa9b8`, `1a2d7ac`)
+Working tree: **47 pozycji** (42 zmienione · 1 usunięty `src/main/updater.ts` · 4 nowe pliki z 2–3. fali · 3 nowe z 4. fali), **0 commitów** (bez push — decyzja człowieka)
+Critic mode: **ta sama sesja** (brak niezależnego Krytyka) → werdykt najwyżej **WARUNKOWO OK**
 
 ## Stage / progress
-- **Stage:** Phase 2 overnight **frozen for 07:00 review** (docs + `--help` honesty) — not a cutover lock-in
-- **Rough %:** ~95% Phase 2 scaffolding (product unchanged vs 3a06472)
-- **Branch:** feat/rust-phase1 (local commits only, no push)
-- **Base:** product `3a06472` + polish `92c8459` + tip `0ec9f0f` (verify-night OK ~06:15; disk ~0.43 GB; electron.exe needs restore)
-- **Gauntlet A/B:** CLOSED WARUNKOWO OK (Architecture + IPC; honest StartListen/Cancel; language default pl; no auto-enable; no before-quit read block)
-- **HTML board:** docs/workbench.html
-- **Night report:** docs/NIGHT-REPORT-DRAFT.md (PL, 07:00 Szef)
 
-## Product reality @ 3a06472
-| Item | Outcome |
-|------|---------|
-| StartListen encode | `{"type":"start_listen","session_id","language":"pl","timeout_ms":0}` matches Rust IpcMessage |
-| sendStartListen / Cancel | Honest boolean — true only when writable peer socket + write ok |
-| Status reader | Non-blocking line buffer → `lastStatus` / `lastTranscripts` (capped); no throw on partial |
-| Gate | `PQ_VOICE_HOST=1` or `enabled:true`; `before-quit` no-op when inactive |
-| MSI / NSIS | Built unsigned overnight, then **reclaimed** from `release\` (disk). Rebuild later. |
-| resolve-launch / trust | Present in `pq-core` (pure helpers; no spawn / no live write) |
-| Dist / GGML | skipped (disk ~0.43 GB after ENOSPC reclaim; electron.exe truncated overnight — restore before `npm run dev`) |
+- **Stage:** produkt = Electron 1.1.7 + fala OSC pane-titles (adopcja tytułów z OSC CLaków) na `test`/`dev`; `main` jeszcze 1.1.6-era
+- **Rough %:** Phase 2 (Rust) = rusztowanie ~95%, **cutover 0%** (produkt path nadal Electron)
+- **`src-tauri` się kompiluje** (P0: lock + 6 błędów kodu) i ma **single-instance** → dwa procesy nie podzielą już portu :4747
+- **Realny brak funkcjonalny w torze Tauri (nowy, precyzyjny):** nie ma mostka webview→Tauri (żadnego `window.pq` shimu) — renderer woła `window.pq.*` z preloadu Electrona, więc w Tauri UI nie ma jak działać. Uprawnienia `core:window:*` tego NIE naprawiają (patrz korekta niżej)
+- **Gauntlet:** poprzednie fale A/B → *WARUNKOWO OK*; deep audit: **WARUNKOWO OK z 1 BLOKEREM P0** (P0 i P1 zamknięte); 3. fala: **WARUNKOWO OK** — jedyny otwarty bloker to mostek renderer→Tauri (3a), a werdyktu nie może podnieść ta sama sesja co autor
+- **HTML board:** `docs/workbench.html` to **zamrożony snapshot** z 2026-09-13 (dostał banner z odesłaniem) — żywą tablicą jest ten plik
 
-## This polish slice
-| Item | Outcome |
-|------|---------|
-| DAY-PLAN.md | After 07:00: push?, signing, whisper.cpp, second MSI upgrade |
-| NIGHT-REPORT-DRAFT.md | Full PL arc 23:06→04:07; gauntlet; MSI built-then-reclaimed; blockers; DAY-PLAN |
-| workbench.md/html | Stamped to 3a06472 (not stale 1004423 / named-pipe-only table) |
-| pq-voice --help | Honest: not production STT, no mic, no whisper.cpp, no download, exit 2, `--pipeline` alias, Windows-only pipe, opt-in `PQ_VOICE_HOST` |
+## Bramki (odpalone na `1a2d7ac`, dowody z tej sesji)
 
-## Gauntlet 8–12
-| # | Item | Status |
-|---|------|--------|
-| 8 | Android SpeechRecognizer | WARUNKOWO OK — bridge + origin lock + JS glue |
-| 9 | MSI / NSIS | unsigned; built then reclaimed for disk |
-| 10 | Logos / marks | inventory + brand + letter-marks |
-| 11 | Terminal DnD | quoting done; matrix doc `DND-ENGINE-MATRIX.md` |
-| 12 | Gauntlet process | adopted; A/B conditional (same-session critic) |
+| Bramka | Wynik | Uwaga |
+|---|---|---|
+| `npm run test:unit` | **77 passed / 0 fail** (10 suites) **+ `typecheck` obu projektów** | 62 → 73 (2–3. fala) → 77 (4. fala: +4 `src/main/db-title.test.ts`); `test:unit` odpala najpierw `npm run typecheck` |
+| `cargo test --workspace` | **106 passed / 0 fail** (pq-core 96 + pq-voice 1 + pq-work 9) | 98 → 106; doc-tests 0 |
+| `npm run typecheck` (`tsconfig.json`) | **0 błędów** | było 5× TS5097 — `*.test.ts`/`*.smoke.ts` wyłączone z projektu (uruchamia je node, nie kompilator) |
+| `npm run typecheck` (`tsconfig.node.json`, main!) | **0 błędów** | było **20**; naprawione realne błędy (index/remote/usage) + wyłączone pliki testowe |
+| `cargo check` w `src-tauri` | **PASS** (online, `--offline`, `--all-targets`), **0 warningów** | było 56 warningów (45 dead_code stubów + 11 lint) |
+| `npm run check:version` (nowe) | **OK** | sprawdza sync wersji + locki + `cargo metadata --locked` |
+| `scripts/verify-night.cmd` | **ALL OK** (uruchomione end-to-end) | rozszerzone o `check:version` i `cargo check (src-tauri)` |
+| `npm run build` (electron-vite: main + preload + renderer) | **✓ built** | renderer 706 kB JS / 28 kB CSS; potwierdza, że `memo`, `live={active}` i import typu `PqAPI` przechodzą przez bundler |
+| `src-tauri/commands.test.ts` (nowe) | **6 passed / 0 fail** + **przetestowane mutacją** | po usunięciu `cmd::usage_tick` z `generate_handler!` test FAIL, po przywróceniu PASS |
+| `cargo clippy --workspace` | 8 warningów (lib) + 10 (lib test) | nic krytycznego; `BOOL`/`DWORD`/`HANDLE` to typy WinAPI |
 
-## Tests
-- `cargo test --workspace`: **98 passed, 0 failed** (pq-core 89 + pq-voice 1 + pq-work 8 denylist)
-- `npm run test:unit`: **24 passed** (dropPaths %/^ + originsMatch contract)
-- Smoke: `scripts\rust-smoke.cmd` (no model download)
-- TS: `node --experimental-strip-types src/main/voice-host.shutdown.smoke.ts`
+## BLOKERY
 
-## Toward 07:00
-- Honest: still no whisper.cpp, no production Electron↔voice cutover, no PTY parity, no signing.
-- Next day: cert → sign → optional dist refill; whisper.cpp = separate disk decision.
+### P0 — NAPRAWIONE (2026-09-15): `src-tauri` nie kompilował się w ogóle
 
-## Next
-1. Code signing when cert available
-2. Optional packaging pq-voice as extraResource
-3. Real whisper.cpp = separate disk decision (not at ~1.49 GB free)
+Dwie warstwy, obie usunięte — dopiero razem dają `cargo check` = OK:
+
+**1) Lock** (przyczyna pierwotna, wada procesu bumpu)
+
+- **Propose (stan repo):** bump wersji 1.1.7 „across package, crates, src-tauri, stamp-host, docs” (`11b420b`).
+- **Krytyk pq:** bump zrobił **ślepy search/replace po `Cargo.lock`** i trafił w *cudzą* wersję: `toml 1.1.6+spec-1.1.0` → `toml 1.1.7+spec-1.1.0` (`src-tauri/Cargo.lock:4577-4581` wpis pakietu + 4 referencje w listach `dependencies`). Crate `toml` **nigdy nie miał 1.1.7** (kandydaci: `1.1.6+spec-1.1.0`, `1.1.0+spec-1.1.0`, `0.9.12+spec-1.1.0`). Dodatkowo **checksum został z 1.1.6** (`92060254…`) → lock byłby zły nawet gdyby wersja istniała.
+  Dowód: `cargo check --offline` w `src-tauri` → `failed to select a version for the requirement toml >=0.9, <=1 (locked to 1.1.7+spec-1.1.0) … required by tauri-utils v2.9.3`.
+- **Naprawione:** `src-tauri/Cargo.lock` — 5 odwołań do `toml` z powrotem na `1.1.6+spec-1.1.0` (4 referencje w listach `dependencies` + wpis pakietu). Check­sum nie wymagał zmiany: bump 1.1.7 ruszył **tylko string wersji**, więc checksum `92060254…` był już checksumem 1.1.6. `pq` w locku zostaje `1.1.7`.
+
+**2) Kod — 6 błędów kompilacji odsłoniętych po naprawie locka** (dotąd niewidocznych, bo build padał wcześniej)
+
+| Plik:linia | Błąd | Fix |
+|---|---|---|
+| `src/lib.rs:57` | E0382 `app` użyty po przeniesieniu do pierwszego `spawn` | `let updater_app = app.clone();` przed spawnem |
+| `src/update.rs:69` | lifetime: domknięcie `norm` nie może zwracać `&str` | wyciągnięte do `fn norm_version(s: &str) -> &str` |
+| `src/update.rs:191` | E0599 brak `creation_flags` (trait nie w zakresie) | `use std::os::windows::process::CommandExt;` (jak `cmd.rs:18`, `trust.rs:5`) |
+| `src/update.rs:233/237/261` | E0433 brak `tauri_plugin_dialog::MessageDialogReply` | to `MessageDialogResult` (+ `blocking_show_with_result()`, bo `blocking_show()` zwraca tylko `bool` i gubi Yes/No/Cancel) |
+
+**Dowód:** `cargo check` → `Finished dev profile (target)`, exit 0 — w trzech trybach: online, `--offline`, `--offline --all-targets`. Zmiany: `src-tauri/Cargo.lock` (10 linii), `src/lib.rs` (5), `src/update.rs` (30).
+
+**Revise (zostaje):** bump wersji produktu ograniczyć do `[package] version` (nie globalny replace po lockach) — inaczej 1.1.8 znowu trafi w `toml`/`toml_parser` i tor Tauri znów padnie.
+
+### P1 — `src/main/updater.ts` to martwy, niemożliwy do zbudowania moduł
+
+- **Propose:** commit `36d083c` „remove Electron voice, **add git updater** + Tauri spike”; w `scripts/` miał leżeć `updater.cjs`, job w `<userData>/pq-update-pending.json`.
+- **Krytyk pq:** pliku **nie importuje nic** (`index.ts` bez `PQUpdater`; brak referencji w `src/`), a sam plik się nie kompiluje:
+  - `src/main/updater.ts:4-5` → `Cannot find module '../../shared/types'` (to ścieżka do `<root>/shared`, katalogu nie ma; poprawnie `../shared/types`),
+  - `src/main/updater.ts:388` → `Cannot find name 'randomUUID'` (brak importu; w `index.ts:505` jest poprawnie `crypto.randomUUID()`) → `apply()` rzuca ReferenceError,
+  - `scripts/updater.cjs` **nie istnieje na żadnej gałęzi** (`main`, `dev`, `test`), więc odpalony updater i tak by nic nie zrobił.
+- **Revise:** zdecydować: albo podłączyć updater (poprawić import + `randomUUID` + dostarczyć `scripts/updater.cjs`), albo **usunąć plik**. Martwy plik z błędami kompilacji to fałszywy sygnał „mamy auto-update”.
+
+### P1 — `image.save()` nie istnieje → cicha śmierć fallbacku wklejania obrazu
+
+- **Propose:** `term:clipboardRead` / `term:clipboardReadImage` mają fallback „Electron native image” dla obrazów, których nie łapie surowy bufor.
+- **Krytyk pq:** `src/main/index.ts:1028` i `:1068` wołają `image.save(filepath)` — `NativeImage` **nie ma metody `save`** (`tsc` → TS2339 w obu miejscach). Wyjątek leci do zewnętrznego `catch {}` w handlerze → użytkownik dostaje **pusty string** (wklejenie nic nie robi) bez żadnego logu. Ścieżka działa tylko dla obrazów z nagłówkiem PNG w surowym buforze.
+- **Revise (WYKONANE 2026-09-15):** `writeFileSync(filepath, image.toPNG())` w obu handlerach + `catch (err)` loguje `[pqTERM] clipboard read failed:` zamiast cichego `return ''`.
+
+## Wykonane w tej fali (2. fala, 2026-09-15)
+
+| Co | Zmiana | Dowód |
+|---|---|---|
+| P0 lock | `toml` z powrotem na `1.1.6+spec-1.1.0` (5 miejsc) | `cargo check` zielony; `cargo` zachował 1.1.6 także po dodaniu nowej zależności |
+| P0 kod | 6 błędów kompilacji `src-tauri` (tabela wyżej) | `cargo check` + `--all-targets` + `cargo test` (0 testów, ale pełny link grafu) |
+| Single-instance | `tauri-plugin-single-instance = "2"` (2.4.4) jako **pierwszy** plugin; drugie uruchomienie pokazuje istniejące okno | `lib.rs` + `Cargo.toml`; `cargo check` zielony |
+| Uprawnienia okna | dodane **tylko** `core:window:allow-start-dragging` | patrz korekta w tabeli AUDIT niżej |
+| Martwy updater | `src/main/updater.ts` **usunięty** (474 linie) | `grep` = 0 referencji w `src/`, preload, renderer; tor Rust ma własny `src-tauri/src/update.rs` (kompiluje się) |
+| `image.save` P1 | `toPNG()` + log zamiast cichego `''` | `tsc` czysty, `index.ts` ~1028/1068 |
+| Warningi `src-tauri` | 56 → **0** | `cargo fix` (importy/`mut`) + `#![allow(dead_code)]` **z komentarzem** na czas spike'a (42 itemy stubów bez callera) |
+| Bramka | `npm run typecheck` (oba projekty) wpięty w `test:unit`; `verify-night.cmd` + `check:version` + `cargo check (src-tauri)` | `verify-night` = **ALL OK** |
+| Guard wersji | nowy `scripts/check-version-sync.cjs` (`npm run check:version`) | przetestowany na **podłożonej awarii**: wyłapał drift README, kolizję `toml=1.1.7`, i `cargo metadata --locked` → exit 1 |
+| AGENTS.md | opisany nowy gate + zakaz globalnego replace po lockach | `AGENTS.md` golden commands |
+
+## Wykonane w tej fali (3. fala, 2026-09-15)
+
+| Co | Zmiana | Dowód |
+|---|---|---|
+| Hardening `remote.ts` (P2 3.4/3.5/3.6/3.7) | cap `/pair` 1 KiB → 413; cache statyków + 304; `decodeURIComponent` w `try`; LAN IP bez martwego warunku `family !== 4` | `tsc` czysty; `remote.ts` +81/−9 |
+| Backpressure WS | `src/main/ws-coalesce.ts` (nowy) + `TermCoalescer` per gniazdo w `RemoteHub` | `src/main/ws-coalesce.test.ts` — **5 testów**: batching, cap, drop przy zapchanym peerze, porządek przy `flush`, `dispose` |
+| Debounce OSC | 400 ms na skutki uboczne adopcji tytułu + `flushTitleSideEffects()` w `before-quit` | `src/main/index.ts` (+24); tytuł w pamięci zmienia się dalej natychmiast |
+| Coalescing boardu | `BoardHub.requestFlush()` — 250 ms, skip-if-running, trailing run; interwał 2.5 s przez ten sam tryb | `src/main/board.ts` (+63/−10) |
+| `live={active}` | terminale montuje **tylko aktywny workspace** | `DeckScreen.tsx`; PTY w mainie nienaruszony, replay buforka refilluje widok |
+| `React.memo` | `TerminalPane` pod `memo` + `liveRef` w `DeckScreen` dla uchwytów drag | `TerminalPane.tsx`, `DeckScreen.tsx`; `npm run build` zielony |
+| Kontrakt Rust↔JS | nowy `src-tauri/commands.test.ts` (6 testów) | mutacja `usage_tick` → FAIL; przywrócone → PASS |
+| Guard hosta | `App.tsx` wykrywa brak `window.pq` i **mówi to zdaniem** zamiast crashować w Tauri | + `Titlebar` dostał `data-tauri-drag-region` (Elektron ignoruje) |
+| Docs | 6 miejsc z kłamstwem „CURRENT Electron = `Xenova/whisper-tiny` w `voiceCommander.ts`” zdjęte; `MIGRATION-RUST` dostał sekcję statusu na 2026-09-15; `workbench.html` — banner snapshotu | patrz sekcja „Rozjazdy docs ↔ kod” niżej |
+
+## Wykonane w tej fali (4. fala, 2026-09-15) — scalenie WIP z `pqTERM-dev`
+
+`dev` i `test` stoją na tym samym commicie (`1a2d7ac`), ale `pqTERM-dev` trzymał **niezacommitowaną** pracę, której `test` nie miał (`git status` w `test` jej nie pokazywał, bo pliki żyły wyłącznie w tamtym worktree). Przeniesione — i naprawione tam, gdzie była zepsuta:
+
+| Co | Pliki | Stan po porcie |
+|---|---|---|
+| Tytuł sesji z bazy opencode | `src/main/db-title.ts` (nowy) | `pickActiveTitle(rows, cwd)` — najświeższy (`time_updated`) niepusty tytuł dla znormalizowanego `cwd`; **`src/main/db-title.test.ts`, 4 testy** |
+| Pytanie CLI o tytuł | `src/main/opencode-title.ts` (nowy) | `queryActiveOpenCodeTitle()` → `opencode db select directory, title, time_updated from session where time_archived is null --format json` |
+| Poller tytułów DB | `src/main/index.ts` | start w `whenReady`, stop w `before-quit`; **jeden proces na workspace** co 5 s (nigdy na pane), tylko pane `opencode` bez `titleLocked` i żywe; wynik wchodzi przez `applyAutoTitle()` — czyli przez ten sam debounce 400 ms co OSC |
+| Filtr archiwalnych sesji | `src/main/resume.ts` | `resume` nie proponuje już zarchiwizowanych sesji opencode |
+| Reconnect z backoffem | `src/phone/src/client.ts` | 2,5 s → ×1,5 + jitter, limit 30 s, reset po rozłączeniu (telefon po wifi-setce nie stuka równo z innymi) |
+| `about:` na Androidzie | `PqSttBridge.kt` | Kotlin odrzuca wewnętrzne strony WebView — mirror reguły, którą TS `originsMatch` miał od dawna |
+
+**Naprawione przy porcie (realny defekt WIP):** dev importował `'./db-title'` **bez rozszerzenia**, a `node --experimental-strip-types` wymaga jawnego `.ts` → test dev **nie przechodził wcale** (`ERR_MODULE_NOT_FOUND`, 0 pass / 1 fail). Teraz test celuje w moduł z logiką (`db-title.test.ts` → `./db-title.ts`), a `opencode-title.ts` importuje statycznie **bez** rozszerzenia, bo `tsconfig.node.json` odrzuca jawne `.ts` w plikach kompilowanych (TS5097). Wynik: `77 passed / 0 fail`.
+
+**Uwaga o metodzie:** w tym środowisku `git apply --3way` **raportuje sukces i nie zapisuje plików** („Applied patch to … cleanly”, a plik bez zmian). Po tym, jak podmienił fałszywy sygnał za prawdę, cztery hunki wprowadzone ręcznie i zweryfikowane `grep`em.
+
+## Znalezione defekty (P2, nowe w tej fali)
+
+| # | Co | Dowód | Skutek |
+|---|---|---|---|
+| 1 | ~~**OSC title → `persist()` + `board.flush()` na każdą zmianę tytułu**~~ **NAPRAWIONE (3. fala)** | `index.ts:101,470-496` (`applyAutoTitle` → `board.paneTitle` :484/:490 → `persist()` :498); `board.ts:98,209` (`paneTitle` → `flush()` → `git status`) | CLI, które animuje OSC title (spinner/progres), generuje **`git status` + 2 zapisy plików + pełny snapshot IPC/WS na każdą zmianę tytułu**. To jest teraz nowy, najczęstszy trigger znanej wady „full-snapshot broadcast na każdy persist”. **Fix:** adopcja tytułu nadal natychmiast w pamięci, ale skutki uboczne (board = `git status`, `persist()`, snapshot IPC/WS) coalesced **400 ms** (`TITLE_FLUSH_MS`); pending dociąga `flushTitleSideEffects()` w `before-quit`. `BoardHub.flush()` → `requestFlush()`: min. **250 ms** między przejściami, skip-if-running + trailing run. |
+| 2 | **`oscTail` nie jest czyszczony w `kill()`** | `pty-manager.ts:90,186,199`; `kill()` ():158-172) nie woła `oscTail.delete`, a `onExit` wychodzi wcześniej na guardzie `sessions.get() !== session` | Drobny wyciek per ubity pane (bounded, ale niezerowy). |
+| 3 | **Martwy dep `@xterm/addon-webgl`** | `package.json:67`; zero użyć w `src/` | ~ładuje się do bundla bez powodu (wisi od AUDIT-2026-09-12, poz. 4.5). |
+| 4 | **`src/renderer/src/components/RemotePanel.tsx:13-17`** — poll `remote:info` co 1.5 s | istnieje push `board:changed`/`usage:changed`, ale nie ma `remote:changed` | Stały IPC nawet gdy panel zamknięty? (nie: poll tylko gdy panel otwarty) — ale nadal 4 kolejki/6 s na otwartym panelu. |
+| 5 | **`bridge.ts` porównuje token `!==`** | `bridge.ts:``handle` (`token !== this.token`) vs `remote.ts:``safeEqual` (timing-safe) | Niespójność; localhost-only, więc niski priorytet. |
+| 6 | **Zero `TODO/FIXME` w `src/`, `crates/`, `src-tauri/`** (grep = 0 trafień) | — | Dług techniczny istnieje wyłącznie w `docs/*.md`; czytający kod nie ma żadnego markera. Świadoma decyzja albo luka procesu — do rozstrzygnięcia. |
+
+## AUDIT 2026-09-12 — co nadal otwarte (re-weryfikacja na `1a2d7ac`)
+
+| Poz. AUDIT | Status | Dowód dziś |
+|---|---|---|
+| 2.2 brak single-instance (dwa procesy → dwa servery :4747) | **CLOSED** | `tauri-plugin-single-instance = "2"` (2.4.4) w `Cargo.toml` + `lib.rs` rejestruje go jako **pierwszy** plugin i `unminimize/show/set_focus` na istniejącym oknie |
+| 2.3 „brak `core:window:allow-minimize/maximize/close/start-dragging`” | **KOREKTA — ta diagnoza była błędna** | `cmd.rs` ma własne komendy `window_minimize/maximize_toggle/is_maximized/close/set_title`; **własne komendy Tauri nie wymagają capability**, więc dodanie tych uprawnień byłoby przywilejem bez użycia. Realnie potrzebne jest **jedno**: `core:window:allow-start-dragging`, bo Tauri wstrzykuje `drag.js`, który z JS woła `plugin:window\|start_dragging` (`tauri-2.11.5/src/window/scripts/drag.js:104`). **Dodane.** Prawdziwy blocker titlebara to nie uprawnienia, a brak mostka webview→Tauri (patrz niżej). |
+| 2.4 (nowe) brak mostka renderer→Tauri | **OPEN — realny blocker toru Tauri** | renderer woła `window.pq.*` (preload Electrona); w repo **zero** `invoke(`/`@tauri-apps` (`grep`), więc w Tauri nie ma warstwy pośredniej: `cmd.rs` (515 linii komend) jest nieosiągalny z UI, a `-webkit-app-region: drag` (styles.css:79,117) nie działa tak jak w Electronie — drag musi iść przez `data-tauri-drag-region` |
+| 2.1 brak `src/main.rs`/`lib.rs`/`AppState` | **CLOSED** | `src-tauri/src/lib.rs:1-159` + `main.rs` + `cmd.rs` (515 linii) |
+| 3.1 race kill/spawn w PTY (generation counter) | **częściowo** | Electron: guard jest (`pty-manager.ts` gen/session check w `onExit`). Rust: `crates/pq-work/src/pty_manager.rs` ma `MAX_BUF`/`cur_buf_len`, ale **brak `generation` countera** — sprawdzić, czy to świadome (Rust trzyma `Arc<Mutex<Session>>`, więc race może być nierozwiązywalny inaczej) |
+| 4.1 ukryte workspace’y = pełne xterm w DOM | **CLOSED** | `DeckScreen` renderuje **tylko aktywny workspace**. PTY nie jest ubijany (żyje w mainie), więc powrót = spawn widoku + replay buforka + `existed: true` — ta sama ścieżka, której używał reload renderera |
+| 4.2 zero `React.memo` | **CLOSED** | `TerminalPane` pod `memo` z komparatorem po propsach danych; handlery pominięte w porównaniu, bo czytają stan przez `liveRef` (zoom / lista pane / workspace) — inaczej zdarzony drag mógłby działać na nieaktualnym `zoomedId` |
+| 4.3 `RemotePanel` poll 1.5 s | **OPEN** | `RemotePanel.tsx:13-17` |
+| 4.6 WASM w installerze ~77 MB | **N/A obecnie** | `@huggingface/transformers` **nie ma już w `package.json`** (usunięte w `36d083c`) — instalator nie ciągnie już onnxruntime; pozycję zamknąć w docs |
+| 3.4 WS bez backpressure | **CLOSED** | nowy `src/main/ws-coalesce.ts` (`TermCoalescer`, +5 testów): jedno gniazdo = jeden bufor, okno **16 ms**, cap **1 MB** oczekujących znaków (najstarszy pane idzie pod nóż, `dropped` liczy), a przy `bufferedAmount` > **4 MB** okno jest **porzucane** zamiast kolejkowane; `dispose()` na zamknięciu gniazda i `stop()`. `broadcast()` najpierw opróżnia ogon terminala, żeby ramka sterująca nie wyprzedziła wyjścia |
+| 3.5 static serve `readFileSync` per request | **CLOSED** | `readStatic()`: cache ETag z `size+mtime` (do 32 plików) + **304** po `If-None-Match`; wcześniej 445 kB bundle telefonu leciał z dysku przy każdym żądaniu |
+| 3.6 `/pair` bez capa body | **CLOSED** | cap `PAIR_MAX_BODY = 1024` (tyle ma JSON z pinem) → **413** + `req.destroy()` + `notePairFail()` (istniejący rate-limit odpowiedzi) |
+| 3.7 `decodeURIComponent` bez try/catch | **CLOSED** | w `try` → 400 zamiast wyjątku lecącego z handlera żądania |
+| 3.9 token plaintext + do env każdego pane | **OPEN (design)** | `bridge.ts` `envFor` → `PQ_TOKEN`; `remote.json` na dysku (`remote.ts` `loadPersist`) |
+| 3.10/3.11 board flush co 2.5 s + full-snapshot na persist | **CZĘŚCIOWO (trigger zamknięty)** | coalescing `requestFlush()` (250 ms) + debounce OSC zamknęły **częstość** wywołań; sam **full-snapshot na każdy `persist()`** zostaje (osobna pozycja) |
+| 3.12 `bun.exe` co 60 s dla omp usage | **OPEN (złagodzone)** | `usage.ts:~292` ma już `running` guard (skip-if-running), interwał nadal 60 s |
+| 3.13 PTY dla każdego workspace na boot | **OPEN** | `index.ts` `restoreSessions()` w `whenReady` spawnuje wszystko z zapisu |
+
+## Rozjazdy docs ↔ kod — NAPRAWIONE (3. fala)
+
+Poniższe było prawdą jako opis stanu **przed** `36d083c`; w 3. fali zdjęte z dokumentów opisujących stan bieżący. Datowane snapshoty (`BACKLOG-NIGHT.md`, `NIGHT-REPORT-DRAFT.md`, `DAY-PLAN.md`) zostały nietknięte merytorycznie — dostały tylko odesłanie do tego boardu.
+
+Zdania przepisane: `MIGRATION-RUST.md` (podsumowanie PL, tabela modelu, inwentarz plików, `package.json`), `VOICE-HOST-BRIDGE.md`, `ANDROID-STT.md`, `WHISPER-LARGE.md`, `PORT-MAP.md`. Nowy, prawdziwy stan: **desktop nie ma żadnej ścieżki STT**; `src/main/voice-host.ts` to opt-in spike, do którego nic nie woła `spawnVoiceHost`.
+
+Dokumenty nadal opisują **usunięty** syntezator mowy Electrona jako produkcję:
+
+- `docs/DAY-PLAN.md:45`, `docs/MIGRATION-RUST.md:9,47,154,157`, `docs/VOICE-HOST-BRIDGE.md:8`, `docs/NIGHT-REPORT-DRAFT.md:90`, `docs/ANDROID-STT.md:4` twierdzą, że **CURRENT Electron = `Xenova/whisper-tiny` w `voiceCommander.ts`** (production).
+- Rzeczywistość: commit `36d083c` **usunął głos z Electrona** — `src/renderer/src/lib/voiceCommander.ts` i `VoicePanel.tsx` nie istnieją, `@huggingface/transformers` wypadł z `package.json`, w `src/renderer/src` nie ma ani jednego odwołania do voice/mic.
+- `src/main/voice-host.ts` (690 linii) + `docs/VOICE-HOST-BRIDGE.md`: **inert** — nic nie woła `spawnVoiceHost` (jedyne referencje to re-export w `index.ts:1200-1207` i komentarz); w `before-quit` leci tylko no-op.
+- **Wniosek dla itemu 8/9:** desktop **nie ma dziś żadnej ścieżki STT**, więc „parytet z Electronem” jest nieaktualny. Whisper Large v3 w `pq-voice` to od teraz jedyna ścieżka desktopu, nie „upgrade”.
+- `docs/workbench.html` stoi na `3a06472` — **już nie jako defekt**: to zamrożony snapshot, ma banner i nie jest stemplem żywego stanu.
+
+## Revise / next (kolejność)
+
+1. ~~**P0:** naprawić `src-tauri/Cargo.lock` (`toml`)~~ — **zrobione**. ~~Zabezpieczyć proces bumpu~~ — **zrobione** (`npm run check:version` w bramce).
+2. ~~**P1:** `src/main/updater.ts` + `image.save()`~~ — **zrobione** (usunięty / `toPNG()` + log).
+3. ~~**Bramka:** typecheck `src/main`~~ — **zrobione** (`npm run typecheck` w `test:unit` + `verify-night.cmd`); main ma teraz 0 błędów.
+3a. **Mostek renderer→Tauri** — nadal **otwarte i to jest główny bloker portu**. W 3. fali zrobione tylko to, co da się zweryfikować bez `tauri dev`: kontrakt `cmd.rs`↔`lib.rs` w testach, guard hosta w `App.tsx`, `data-tauri-drag-region`. Sam shim `window.pq` (mapowanie ~48 komend na ~40 metod; nazwy nie są 1:1 — `state_load` vs `state:load`, `pty_spawn` vs `term:spawn`) **nie został napisany świadomie**: bez uruchomienia toru byłby to kod zgadywany, a nie sprawdzony.
+3b. **Reszta martwego kontraktu updatera:** po usunięciu `src/main/updater.ts` w `src/shared/types.ts` zostały nieużywane typy `UpdatePhase`/`UpdateSteps`/`UpdateStatus`/`UpdateJob` + `compareVersions` (tylko typy, zero runtime). Nie ruszałem ich w tej fali (edycja długich polskich komentarzy przez dopasowanie stringów jest zawodna) — do wycięcia, gdy updater w Rasta dostanie swój kontrakt.
+4. ~~**Wydajność:** debounce tytułu OSC + coalescing `BoardHub.flush`; potem `live={active}` + `React.memo`~~ — **zrobione** (3. fala). Zostaje sam **full-snapshot na każdy `persist()`** (projekt, nie trigger).
+5. ~~**Docs:** przeciągnąć `DAY-PLAN`/`MIGRATION-RUST`/`VOICE-HOST-BRIDGE`/`ANDROID-STT` do stanu „Electron bez głosu”; zstampować `workbench.html`~~ — **zrobione** (3. fala): zdjęte fałszywe twierdzenia o `whisper-tiny`, `workbench.html` dostał banner zamiast fałszywego stempla.
+6. **Promocja:** `test` jest 4 commity nad `main` (`0ec3ced`,`44843ad`,`feaa9b8`,`1a2d7ac`) — po decyzji człowieka `test` → `main`.
+7. **Niezależny Krytyk:** dopóki audyt robi ta sama sesja co autor, werdykt zostaje **WARUNKOWO OK**. Ścieżki P0/P1 są jednak weryfikowalne maszynowo (`cargo check`, `tsc -p tsconfig.node.json`), więc ich domknięcie nie wymaga „wiary w krytyka”.
+
+## Czego ten audyt NIE sprawdził (uczciwie)
+
+- ~~`src-tauri`: czy się kompiluje~~ — **sprawdzone i naprawione**: `cargo check` (online/offline/all-targets) + `cargo test` przechodzą; `cargo test` zbudował **cały graf zależności** (linkowanie zweryfikowane), ale `tauri dev`/GUI **nie był uruchamiany** — nie ma sensu bez mostka renderer→Tauri (patrz 2.4), a to okno na pulpicie użytkownika.
+- `scripts/check-version-sync.cjs` nowy → konwencja EOL: plik ma LF, reszta `scripts/*.cjs` CRLF (kosmetyka; `git` znormalizuje przy commicie).
+- `android/`, `src/phone/App.tsx`, `host/`, `resources/`, `out/`, `node_modules/` — bez zmian w tym audycie.
+- `scripts/*.cjs` poza odczytem wersji; `docs/PARITY.md`, `docs/TAURI-SPIKE.md`, `docs/PTY-*.md` — nie czytane w tej fali (`PORT-MAP.md` czytany w 3. fali, poprawiony jeden wiersz).
+- Brak testu E2E/„uruchom aplikację” — bramki to unit + typecheck + build; **żaden test nie łapie P1 z `image.save`** ani wydajności.
+- **3. fala:** `live={active}` i `memo` przeszły `tsc` + bundling, ale **nie były klikane w oknie** — największe ryzyko to refaktor uchwytów drag w `DeckScreen` (przepisane na `liveRef`, żeby zdarzony handler nie działał na nieaktualnym `zoomedId`); do sprawdzenia wzrokiem przy pierwszym uruchomieniu `npm run dev`.
+- **3. fala:** hardening `remote.ts` i coalescing WS zweryfikowane typami + 5 testami jednostkowymi kolejki; **żadna żywa sesja telefon↔PC nie była odpalana** (cap `/pair`, 304, backpressure na prawdziwym gnieździe — niesprawdzone w boju).
+- **3. fala:** nowy koszt do świadomości — przełączenie workspace’u montuje wszystkie jego terminale naraz (spawn widoku + replay do 512 kB per pane), więc przy 9 pełnych pane i dużym buforze widać chwilę zacięcia; wcześniej były zamontowane na stałe. Zamiana: idle RAM/CPU ↔ koszt przełączenia.
+
+## Zmiana procesu: skill `ponytail` (2026-09-15)
+
+Minimalizm wpisany w `AGENTS.md` jako domyślny dla zadań kodowych: skill **`ponytail`** (`dietrichgebert/ponytail`, licencja **MIT**) zainstalowany projektowo w `.agents/skills/` — `ponytail` + `-review`, `-audit`, `-debt`, `-gain`, `-help`, poziom `full`. Drabinka: czy to ma istnieć (YAGNI) → jest w tym repo → stdlib → natywna funkcja platformy → zainstalowana zależność → jedna linia → minimum.
+
+Granice zapisane wprost, bo „mniej kodu” bywa czytane jako „mniej kontroli”: walidacja na granicach zaufania (`src/preload`, handlery IPC, `/pair`, wejście WS), obsługa błędów, bezpieczeństwo i dostępność **nigdy** nie są cięte, a bramki repo (`test:unit`, `typecheck`, `check:version`, `verify-night`) zostają zielone — „mniej kodu” nie znaczy mniej testów.
+
+Efekt uboczny: domyka się pozycja #6 z audytu („zero markerów długu w kodzie”) — świadomy skrót dostaje komentarz `// ponytail: <pułap>, <kiedy podnieść>`, który `ponytail-debt` zbiera w rejestr (zamiast `TODO`, które gnije).
+
+**Rollout — wszystkie instancje:** `pqTERM-test`, `pqTERM-dev`, `pqTERM`, `pq-work`. Każda ma `.agents/skills/` (6 skilli), sekcję w `AGENTS.md` i `.claude/` w `.gitignore`. Dodatkowo katalog użytkownika `~/.agents/skills/` (`--global`) — dzięki temu `skill ponytail` ładuje się **po nazwie** w sesji, a nie tylko przez `AGENTS.md`.
+
+Instalator dokłada `skills-lock.json` (SHA-256 per skill) — idzie do commita razem z `.agents/`. `.claude/skills/*` to bezwzględne symlinki w konkretną kopię, dlatego ignorowane.
+
+⚠️ W `pq-work` plik `AGENTS.md` był **już staged** przez inną sesję (`MM`), więc moja sekcja leży na cudzej niezacommitowanej zmianie tego pliku. Poza `AGENTS.md` i `.gitignore` nie ruszałem tam niczego.
+
+## ⚠️ Ryzyko w `pq-work`: staged zmiany **kasują** OSC pane-titles
+
+`pq-work` (branch `main`) trzyma **zacommitowane do indeksu** zmiany z innej sesji: 40 plików, **+130/−488** — w tym **usunięcie `src/main/osc-title.ts` (80 linii) i `osc-title.test.ts` (95 linii)**, czyli dokładnie tej fali, która jest produktem na `test`/`dev` (`1a2d7ac`).
+
+To nie jest praca do „dokończenia”: to gałąź stanu **sprzed** fali OSC. Jeśli ktoś w `pq-work` zrobi `git commit` bez czytania `git status`, funkcja adopcji tytułów zniknie z `main` przy najbliższym mergu, a bramka tego nie złapie (usunięcie pliku to nie błąd typów).
+
+- **Nie ruszałem** tego (cudza niezacommitowana praca).
+- Przed jakimkolwiek mergem `test`→`main`: `git -C C:\Users\pq\pq-work diff --cached --stat` i decyzja człowieka — `git restore --staged .` albo świadomy commit.
+- To samo dotyczy `C:\Users\pq\pqTERM`, gdzie `src/main/resume.ts` jest **całkowicie rozjechany** z `HEAD` (201 vs 189 linii) — inna, niezacommitowana wersja pliku.
+
+## Korekta: „martwa kopia” to **katalog metadanych gita** (nie śmieć)
+
+`C:/Users/pq/pq/worktrees/pqTERM-test` to **katalog metadanych worktree `test`**: plik `gitdir` w środku wskazuje `C:/Users/pq/pqTERM-test/.git`, a obok leżą `HEAD`, `index`, `commondir`, `ORIG_HEAD` i `logs/`. **Skasowanie tego katalogu zepsułoby `git status` w `test`** — wcześniejsza rekomendacja („usunąć martwą kopię”) była błędna i została wycofana **przed** wykonaniem, po sprawdzeniu zawartości.
+
+Po co ta notka: ścieżki **relatywne** w tym środowisku trafiają właśnie tam, przez co czytanie `worktrees/pqTERM-test/...` zwraca **stary snapshot z 2026-09-14 18:21** (bez `osc-title.ts`, jeszcze z `src/main/updater.ts`). Każda sesja pracująca tu powinna używać ścieżek **absolutnych** `C:/Users/pq/pqTERM-test/...`.
+
+- Nietknięte: cała ta kopia drzewa z 2026-09-14 (`AGENTS.md`, `README.md`, `android/`, `crates/`, `docs/*`, `host/`, `src/` …) — nie moja, **do decyzji człowieka**.
+- Usunięte: wyłącznie **mój** plik zapisany tam przez pomyłkę (porzucony szkic `docs/workbench.md`, 12 716 B, 18:07). Prawdziwy board = ten plik (24 kB+).

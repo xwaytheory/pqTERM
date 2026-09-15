@@ -1,7 +1,7 @@
 # Android STT — SpeechRecognizer bridge (no Whisper on phone)
 
 **INTENT (not a runtime lock):** Phone/Android target path is system `android.speech.SpeechRecognizer`.  
-Desktop **INTENT** for `pq-voice` is Whisper Large v3; **CURRENT Electron** still uses `Xenova/whisper-tiny`. Do **not** download GGML / run Whisper on the phone.
+Desktop **INTENT** for `pq-voice` is Whisper Large v3; the desktop product has **no STT path today** (`36d083c` removed the Electron in-renderer Whisper). Do **not** download GGML / run Whisper on the phone.
 
 **Status 2026-09-13 (gauntlet B):** `PqSttBridge` wired into `MainActivity.showWeb` with **scheme+authority origin lock**, mic permission auto-retry, WebView `getUserMedia` audio **denied** when native bridge is present, mixed-content tightened (https → NEVER_ALLOW).
 

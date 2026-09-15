@@ -47,6 +47,7 @@ import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag } from './resume'
 import { shutdownVoiceHost } from './voice-host'
 import { isCliBrandOnly, stripCliPrefix } from './osc-title'
+import { queryActiveOpenCodeTitle } from './opencode-title'
 
 app.setName('pqTERM')
 process.title = 'pqTERM'
@@ -463,6 +464,30 @@ function attachBoard(): void {
 }
 
 /**
+ * OSC titles churn fast (some CLIs update them on every tool call). The in-memory title
+ * still changes immediately, but the side effects — board write (a `git status`!) and the
+ * full state persist + IPC/WS broadcast — are coalesced to one pass per window.
+ */
+const TITLE_FLUSH_MS = 400
+const pendingTitlePanes = new Set<string>()
+let titleFlushTimer: ReturnType<typeof setTimeout> | null = null
+
+function flushTitleSideEffects(): void {
+  if (titleFlushTimer) {
+    clearTimeout(titleFlushTimer)
+    titleFlushTimer = null
+  }
+  if (!pendingTitlePanes.size) return
+  const all = state.workspaces.flatMap((w) => w.panes)
+  for (const id of pendingTitlePanes) {
+    const pane = all.find((p) => p.id === id)
+    if (pane) board.paneTitle(id, pane.title)
+  }
+  pendingTitlePanes.clear()
+  persist()
+}
+
+/**
  * The CLI (opencode/omp/…) set their own terminal title via OSC — adopt it as
  * the pane title, unless the user locked a custom one. Only meaningful, non
  * path-looking titles override the engine default name.
@@ -481,24 +506,71 @@ function applyAutoTitle(paneId: string, title: string): void {
         if (isCliBrandOnly(title, cli)) {
           if (p.title === spec.name) return p
           changed = true
-          board.paneTitle(paneId, spec.name)
           return { ...p, title: spec.name }
         }
         if (!t || looksLikePathTitle(t)) return p
         if (t === p.title) return p
         changed = true
-        board.paneTitle(paneId, t)
         return { ...p, title: t }
       })
     })
   })
-  if (changed) persist()
+  if (!changed) return
+  pendingTitlePanes.add(paneId)
+  if (!titleFlushTimer) titleFlushTimer = setTimeout(flushTitleSideEffects, TITLE_FLUSH_MS)
 }
 
 function persist(): void {
   saveState(state)
   mainWindow?.webContents.send('state:changed', state)
   remote?.pushState()
+}
+
+// opencode keeps its session title in its own DB, not in the terminal title: a long session can
+// be renamed without any OSC traffic. Poll it per workspace (one process per workspace, never
+// one per pane) and feed the result through the same adoption path as the OSC titles.
+let titlePoller: ReturnType<typeof setInterval> | null = null
+let titlePollBusy = false
+
+function startTitlePoller(): void {
+  if (titlePoller) return
+  const POLL_MS = 5000
+  titlePoller = setInterval(() => {
+    if (titlePollBusy) return
+    titlePollBusy = true
+    const target = state.providers.find((p) => p.id === 'opencode')?.resolvedPath || 'opencode'
+    const wsList = state.workspaces.filter((w) =>
+      w.panes.some((p) => p.engine === 'opencode' && !p.titleLocked && ptys.alive(p.id))
+    )
+    if (!wsList.length) {
+      titlePollBusy = false
+      return
+    }
+    Promise.all(
+      wsList.map(async (ws) => {
+        try {
+          const title = await queryActiveOpenCodeTitle(ws.cwd, target)
+          if (!title) return
+          for (const p of ws.panes) {
+            if (p.engine === 'opencode' && !p.titleLocked && ptys.alive(p.id)) {
+              applyAutoTitle(p.id, title)
+            }
+          }
+        } catch {
+          /* the CLI may be absent or the DB locked — keep the last known title */
+        }
+      })
+    ).then(() => {
+      titlePollBusy = false
+    })
+  }, POLL_MS)
+}
+
+function stopTitlePoller(): void {
+  if (titlePoller) {
+    clearInterval(titlePoller)
+    titlePoller = null
+  }
 }
 
 function newId(): string {
@@ -677,16 +749,19 @@ function registerIpc(): void {
 
   ipcMain.handle('engines:install', async (_e, id: EngineId) => {
     const spec = specById(id)
-    if (!spec.npmPackage && !spec.pipPackage) {
+    // narrow to plain strings first — `spec.pipPackage` stays optional inside the closures
+    const pipPackage = spec.pipPackage
+    const npmPackage = spec.npmPackage
+    if (!pipPackage && !npmPackage) {
       return { ok: false, message: `brak pakietu instalacyjnego dla ${spec.name}` }
     }
     const npmCmd = () => join(homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
     try {
-      if (spec.pipPackage) {
+      if (pipPackage) {
         const r = await new Promise<{ ok: boolean; text: string }>((resolve) => {
           execFile(
             'python',
-            ['-m', 'pip', 'install', '-U', spec.pipPackage],
+            ['-m', 'pip', 'install', '-U', pipPackage],
             {
               windowsHide: true,
               timeout: 240000,
@@ -701,11 +776,11 @@ function registerIpc(): void {
           )
         })
         if (!r.ok) return { ok: false, message: r.text || 'pip install failed' }
-      } else {
+      } else if (npmPackage) {
         const r = await new Promise<{ ok: boolean; text: string }>((resolve) => {
           execFile(
             npmCmd(),
-            ['install', '-g', spec.npmPackage],
+            ['install', '-g', npmPackage],
             {
               windowsHide: true,
               timeout: 240000,
@@ -1025,12 +1100,16 @@ function registerIpc(): void {
          const timestamp = Date.now()
          const filename = `clipboard-${timestamp}.png`
          const filepath = join(dropsDir, filename)
-         image.save(filepath)
+         writeFileSync(filepath, image.toPNG())
 
          return filepath
        }
        return ''
-     } catch {
+     } catch (err) {
+       console.error(
+         '[pqTERM] clipboard read failed:',
+         err instanceof Error ? err.message : String(err)
+       )
        return ''
      }
    })
@@ -1065,11 +1144,15 @@ function registerIpc(): void {
          const timestamp = Date.now()
          const filename = `clipboard-${timestamp}.png`
          const filepath = join(dropsDir, filename)
-         image.save(filepath)
+         writeFileSync(filepath, image.toPNG())
          return relative(ws.cwd, filepath)
        }
        return ''
-     } catch {
+     } catch (err) {
+       console.error(
+         '[pqTERM] clipboard read failed:',
+         err instanceof Error ? err.message : String(err)
+       )
        return ''
      }
    })
@@ -1164,6 +1247,7 @@ app.whenReady().then(async () => {
     console.error('[pqTERM]', err instanceof Error ? err.message : String(err))
   }
   restoreSessions()
+  startTitlePoller()
   createWindow()
   usage.start()
   void remote.restore().catch((err) => console.error('[pqTERM] remote', err))
@@ -1180,9 +1264,12 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  stopTitlePoller()
   usage.stop()
   bridge.stop()
   remote.stop()
+  // a title adopted <400 ms before quit would otherwise never reach the board/state file
+  flushTitleSideEffects()
   persistSessions()
   ptys.killAll()
   // No-op when voice-host was never spawned (production default unchanged).

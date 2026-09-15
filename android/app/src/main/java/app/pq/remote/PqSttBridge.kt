@@ -225,6 +225,8 @@ class PqSttBridge(
             return try {
                 val page = Uri.parse(pageUrl.trim())
                 val base = Uri.parse(allowedBase.trim().trimEnd('/'))
+                // wewnętrzne strony WebView (about:blank i spółka) nigdy nie przechodzą
+                if (page.scheme == "about") return false
                 val ps = page.scheme?.lowercase() ?: return false
                 val bs = base.scheme?.lowercase() ?: return false
                 val pa = page.authority?.lowercase() ?: return false

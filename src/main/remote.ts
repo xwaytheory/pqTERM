@@ -16,9 +16,26 @@ import { execFile, spawn, type ChildProcess } from 'child_process'
 import { randomBytes, randomInt, timingSafeEqual } from 'crypto'
 import https from 'https'
 import { WebSocketServer, type WebSocket } from 'ws'
+import { TermCoalescer } from './ws-coalesce'
 import type { AppSnapshot, RemoteInfo } from '../shared/types'
 
 const PORT = 4747
+/** `/pair` is public: a 1 KiB JSON pin is all it ever carries (used to buffer anything) */
+const PAIR_MAX_BODY = 1024
+
+/** static phone bundle cache — the 445 KB bundle was read from disk on every request */
+const STATIC_CACHE = new Map<string, { body: Buffer; etag: string }>()
+
+function readStatic(file: string): { body: Buffer; etag: string } {
+  const st = statSync(file)
+  const etag = `"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`
+  const hit = STATIC_CACHE.get(file)
+  if (hit && hit.etag === etag) return hit
+  const entry = { body: readFileSync(file), etag }
+  if (STATIC_CACHE.size >= 32) STATIC_CACHE.clear()
+  STATIC_CACHE.set(file, entry)
+  return entry
+}
 const CLOUDFLARED_URL =
   'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe'
 
@@ -46,7 +63,7 @@ function lanIps(): string[] {
   const nics = networkInterfaces()
   for (const list of Object.values(nics)) {
     for (const a of list || []) {
-      if (a.internal || (a.family !== 'IPv4' && a.family !== 4)) continue
+      if (a.internal || a.family !== 'IPv4') continue
       if (a.address.startsWith('172.20.') || a.address.startsWith('169.254.')) continue
       out.push(a.address)
     }
@@ -110,6 +127,8 @@ export class RemoteHub {
   private http: Server | null = null
   private wss: WebSocketServer | null = null
   private sockets = new Set<WebSocket>()
+  /** one terminal-output batcher per connected socket (backpressure per peer) */
+  private coalescers = new Map<WebSocket, TermCoalescer>()
   private extraUrls: string[] = []
   private wanUrl: string | null = null
   private tunnel: ChildProcess | null = null
@@ -159,7 +178,7 @@ export class RemoteHub {
   }
 
   pushTerm(paneId: string, data: string): void {
-    this.broadcast({ e: 'term', paneId, data })
+    for (const s of this.sockets) this.coalescerFor(s).push(paneId, data)
   }
 
   pushExit(paneId: string, code: number): void {
@@ -203,6 +222,8 @@ export class RemoteHub {
         /* ignore */
       }
     }
+    for (const c of this.coalescers.values()) c.dispose()
+    this.coalescers.clear()
     this.sockets.clear()
     this.wss?.close()
     this.http?.close()
@@ -452,12 +473,28 @@ export class RemoteHub {
     }
   }
 
+  /** control frames (state/exit/…) — flush each peer's terminal tail first so output keeps its order */
   private broadcast(msg: unknown): void {
     if (!this.sockets.size) return
     const raw = JSON.stringify(msg)
     for (const s of this.sockets) {
+      this.coalescers.get(s)?.flush()
       if (s.readyState === s.OPEN) s.send(raw)
     }
+  }
+
+  private coalescerFor(ws: WebSocket): TermCoalescer {
+    let c = this.coalescers.get(ws)
+    if (!c) {
+      c = new TermCoalescer({
+        send: (frame) => {
+          if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(frame))
+        },
+        bufferedAmount: () => ws.bufferedAmount
+      })
+      this.coalescers.set(ws, c)
+    }
+    return c
   }
 
   private safeEqual(a: string, b: string): boolean {
@@ -516,6 +553,8 @@ export class RemoteHub {
     const gone = () => {
       clearInterval(beat)
       this.sockets.delete(ws)
+      this.coalescers.get(ws)?.dispose()
+      this.coalescers.delete(ws)
     }
     ws.on('close', gone)
     ws.on('error', gone)
@@ -563,7 +602,19 @@ export class RemoteHub {
     const url = new URL(req.url || '/', 'http://127.0.0.1')
     if (req.method === 'POST' && url.pathname === '/pair') {
       const chunks: Buffer[] = []
-      for await (const c of req) chunks.push(c as Buffer)
+      let size = 0
+      for await (const c of req) {
+        const buf = c as Buffer
+        size += buf.length
+        if (size > PAIR_MAX_BODY) {
+          this.notePairFail()
+          res.writeHead(413, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'za duże żądanie' }))
+          req.destroy()
+          return
+        }
+        chunks.push(buf)
+      }
       let pin = ''
       try {
         pin = String((JSON.parse(Buffer.concat(chunks).toString('utf8')) as { pin?: string }).pin || '')
@@ -589,7 +640,14 @@ export class RemoteHub {
 
     const dir = join(this.opts.rootDir, 'out', 'phone')
     let rel = url.pathname === '/' ? '/index.html' : url.pathname
-    rel = decodeURIComponent(rel.split('?')[0] || '/index.html')
+    try {
+      rel = decodeURIComponent(rel.split('?')[0] || '/index.html')
+    } catch {
+      // malformed %-escape used to throw straight out of the request handler
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' })
+      res.end('zła ścieżka')
+      return
+    }
     const file = normalize(join(dir, rel))
     if (!file.startsWith(normalize(dir))) {
       res.writeHead(403)
@@ -603,7 +661,18 @@ export class RemoteHub {
       return
     }
     const ext = extname(serve)
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' })
-    res.end(readFileSync(serve))
+    const cached = readStatic(serve)
+    if (String(req.headers['if-none-match'] || '') === cached.etag) {
+      res.writeHead(304, { ETag: cached.etag })
+      res.end()
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      ETag: cached.etag,
+      // the phone bundle keeps its filename across builds → revalidate, don't blind-cache
+      'Cache-Control': 'no-cache'
+    })
+    res.end(cached.body)
   }
 }

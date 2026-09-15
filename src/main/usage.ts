@@ -256,7 +256,7 @@ async function ompUsage(): Promise<EngineUsage | null> {
         })
       }
     }
-    plan = plan ?? str(r?.provider)
+    plan = plan ?? str(r?.provider) ?? undefined
   }
   if (!windows.length) return null
   return { engine: 'omp', plan, windows: windows.slice(0, 3), fetchedAt: Date.now() }

@@ -1,11 +1,21 @@
 @echo off
-REM verify-night.cmd - overnight gate: cargo workspace tests + npm unit (if defined)
+REM verify-night.cmd - gate: version/lock sanity + cargo workspace tests + src-tauri check + npm unit
 REM No dist, no model download. Clear OK/FAIL echoes for pre-dawn checks.
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0.."
 
 set FAIL=0
 
+echo === verify-night: npm run check:version ===
+call npm run check:version
+if errorlevel 1 (
+  echo FAIL: npm run check:version
+  set FAIL=1
+) else (
+  echo OK: npm run check:version
+)
+
+echo.
 echo === verify-night: cargo test --workspace ===
 if not exist "crates\Cargo.toml" (
   echo FAIL: expected crates\Cargo.toml relative to repo root
@@ -20,6 +30,23 @@ if errorlevel 1 (
 ) else (
   popd
   echo OK: cargo test --workspace
+)
+
+echo.
+echo === verify-night: cargo check ^(src-tauri^) ===
+if not exist "src-tauri\Cargo.toml" (
+  echo SKIP: src-tauri ^(Cargo.toml not found^)
+) else (
+  pushd src-tauri
+  cargo check
+  if errorlevel 1 (
+    popd
+    echo FAIL: cargo check ^(src-tauri^)
+    set FAIL=1
+  ) else (
+    popd
+    echo OK: cargo check ^(src-tauri^)
+  )
 )
 
 echo.

@@ -6,7 +6,7 @@ Phase 1 to **plan + szkielet** — bez zastępowania Electrona.
 
 - Dzielimy produkt na dwa procesy: **pq-work** (workbench: siatka terminali, IPC, store, remote) i **pq-voice** (asystent głosowy + STT).
 - Workspace Cargo w `crates/`: `pq-core` (wspólne typy, wersja, updater stub), `pq-work`, `pq-voice`.
-- **STT INTENT (nie runtime lock):** Whisper **Large v3** (`openai/whisper-large-v3` / `ggml-large-v3.bin`), język `pl` — cel produktu dla **pq-voice**. **CURRENT Electron** nadal używa `Xenova/whisper-tiny` w `voiceCommander.ts` (`@huggingface/transformers`). Large dopiero przy porcie voice.
+- **STT INTENT (nie runtime lock):** Whisper **Large v3** (`openai/whisper-large-v3` / `ggml-large-v3.bin`), język `pl` — cel produktu dla **pq-voice**. **Desktop nie ma dziś żadnej ścieżki STT:** commit `36d083c` usunął głos z Electrona (`voiceCommander.ts` / `VoicePanel.tsx` nie istnieją, `@huggingface/transformers` wypadł z `package.json`), a `src/main/voice-host.ts` to opt-in spike bez callera. Large v3 jest więc **pierwszą** implementacją desktopu, nie „upgradem”.
 - Auto-update: check przy starcie względem manifestu z GitHub Releases (szkic JSON + `compare_semver` + mock fetch).
 - Electron (`src/`, `package.json`, `host/`) **zostaje** produkcją do kolejnych faz.
 - Hipoteza UI później: **Tauri** dla pq-work; terminale: **ConPTY** / `portable-pty` (lekka weryfikacja poniżej — bez implementacji w Phase 1).
@@ -23,7 +23,31 @@ Phase 1 to **plan + szkielet** — bez zastępowania Electrona.
   Provider merge vs `ENGINE_SPECS` still Electron-only (documented gap).
 - `NamedPipeTransport` stub in `pq-core::ipc` (path contract `\\.\pipe\pq-voice-{session}`); `LocalTcpTransport` kept.
 - Optional `pq-work` feature `pty-spike` (`portable-pty` ConPTY echo) — see `docs/PTY-SPIKE.md`.
-- Spike docs: `docs/TAURI-SPIKE.md`, parity board `docs/PARITY.md`, live `docs/workbench.html`.
+- Spike docs: `docs/TAURI-SPIKE.md`, parity board `docs/PARITY.md`, live board `docs/workbench.md` (`docs/workbench.html` is the frozen 2026-09-13 snapshot).
+
+### Phase 2 status (2026-09-15) — Tauri track builds again
+
+- **`src-tauri` compiles.** The track had been dead since the `1.1.7` bump: a blind version replace
+  had rewritten dependency entries in `src-tauri/Cargo.lock`, turning `toml 1.1.6` into a version
+  that does not exist (`cargo` fails while *selecting* the lock, so nothing downstream ran). Restored
+  to `1.1.6+spec-1.1.0`; the lock checksum already belonged to 1.1.6.
+- Behind the lock sat **6 real compile errors** (`lib.rs` moved-value, a closure lifetime in
+  `update.rs`, a missing `CommandExt` import, and `MessageDialogReply` → `MessageDialogResult` +
+  `blocking_show_with_result()`, which is the only call that keeps Yes/No/**Cancel** distinct).
+  `cargo check`, `--all-targets` and `--offline` are green, and the crate is down to 0 warnings.
+- **Single instance** (`tauri-plugin-single-instance`, first plugin): a second launch surfaces the
+  existing window instead of starting a rival server on `:4747`.
+- **Remaining blocker for the port — the webview→Tauri bridge.** The renderer is shared and only
+  Electron injects `window.pq` (preload/contextBridge), so under Tauri `App.tsx` now reports the
+  missing bridge in one sentence instead of crashing. Mapping the ~48 `cmd.rs` commands onto the
+  ~40-method `window.pq` surface is the actual cutover work; `src-tauri/commands.test.ts` guards the
+  Rust side of it (every `#[tauri::command]` registered in `lib.rs`, params snake_case).
+- **Guards added so this cannot rot quietly again:** `npm run check:version` (version/API-entry sync
+  across the 9 places incl. lock entries and a dependency-colliding-with-the-product-version check),
+  `npm run typecheck` now covers `src/main` and runs inside `test:unit`, and `scripts/verify-night.cmd`
+  adds `check:version` + `cargo check` for `src-tauri`.
+- **Not verified:** `tauri dev`/GUI was never launched for this track, and the phone (`android/`, `src/phone`)
+  is a separate gradle project that `npm run build` does not touch.
 ### Goals of the migration
 
 Replace the Electron shell gradually with native Rust binaries while keeping feature parity:
@@ -44,7 +68,7 @@ Shared logic lives in **pq-core** (version constants, update manifest types, lat
 | Local GGML / whisper.cpp | `ggml-large-v3.bin` |
 | Language | `pl` (Polish) |
 | Rationale | **Intent** for desktop Rust/pq-voice: Large v3 flagship Whisper for Polish. Not tiny/base/small/medium as the port default. |
-| Electron **CURRENT** | `Xenova/whisper-tiny` via `@huggingface/transformers` in `voiceCommander.ts` — **still production**; do not document as Large. Port upgrades to Large v3. |
+| Desktop **CURRENT** | **No STT at all** — `36d083c` removed the Electron path (no `voiceCommander.ts`, no `@huggingface/transformers`; `src/main/voice-host.ts` is inert, nothing calls `spawnVoiceHost`). Large v3 is a first implementation, not an upgrade. |
 
 Constants are mirrored in `pq_core::stt` for Rust code comments/docs.
 
@@ -150,11 +174,11 @@ Phase 1 implements: types, `compare_semver`, `ManifestFetch` trait + `MockManife
 
 | Path | Role |
 |------|------|
-| `src/renderer/src/components/VoicePanel.tsx` | UI: mic button, phase labels (PL), transcript, logs, clarify flow |
-| `src/renderer/src/lib/voiceCommander.ts` | Capture + VAD, Whisper pipeline (`Xenova/whisper-tiny`, `language: 'polish'`), intent router (`runText`) |
-| `src/renderer/src/styles.css` | `.voice-stage`, `.voice-state`, `.voice-log`, `.voice-edit`, `.voice-pending` (~line 1036+) |
-| `src/renderer/src/screens/DeckScreen.tsx` | Embeds / opens VoicePanel |
-| `package.json` | `@huggingface/transformers` ^4.2.0 |
+| ~~`src/renderer/src/components/VoicePanel.tsx`~~ | **removed in `36d083c`** |
+| ~~`src/renderer/src/lib/voiceCommander.ts`~~ | **removed in `36d083c`** (was: capture + VAD, `Xenova/whisper-tiny`, intent router) |
+| `src/renderer/src/styles.css` | voice classes (`.voice-stage`, `.voice-state`, …) removed with the panel |
+| `src/renderer/src/screens/DeckScreen.tsx` | no voice UI anymore (`VoicePanel` import removed in `36d083c`) |
+| `package.json` | ~~`@huggingface/transformers` ^4.2.0~~ — dropped in `36d083c` (installer no longer ships onnxruntime WASM) |
 | `android/.../AndroidManifest.xml` | `RECORD_AUDIO` permission |
 | `android/.../MainActivity.kt` | WebView `onPermissionRequest` → `REQ_MIC` (401); grants `RESOURCE_AUDIO_CAPTURE` |
 
