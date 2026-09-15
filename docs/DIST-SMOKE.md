@@ -7,9 +7,9 @@ Command: `npx electron-builder --win nsis msi` with `CSC_IDENTITY_AUTO_DISCOVERY
 | Artifact | Path | Size | Status |
 |----------|------|------|--------|
 | Unpacked | `release/win-unpacked/pq.exe` | — | OK |
-| MSI | `release/pq 1.1.6.msi` | ~194.6 MB | **OK** (unsigned; SmartScreen expected) |
-| NSIS Setup | `release/pq Setup 1.1.6.exe` | ~177.2 MB | **OK** (unsigned) |
-| Blockmap | `release/pq Setup 1.1.6.exe.blockmap` | ~185 KB | OK |
+| MSI | `release/pq 1.1.7.msi` | ~194.6 MB | **OK** (unsigned; SmartScreen expected) |
+| NSIS Setup | `release/pq Setup 1.1.7.exe` | ~177.2 MB | **OK** (unsigned) |
+| Blockmap | `release/pq Setup 1.1.7.exe.blockmap` | ~185 KB | OK |
 
 Log: `release/dist-wave2.log`.
 
