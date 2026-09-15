@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import type { AppSnapshot, EngineId, LayoutId, PaneState, Workspace } from '@shared/types'
-import { LAYOUTS } from '@shared/types'
+import { isRawShell, LAYOUTS } from '@shared/types'
 import { RemoteClient } from './client'
 import { attachPqSttGlue, isNativePqStt, startPqSttListen, stopPqSttListen } from './pqSttGlue'
 
@@ -166,7 +166,7 @@ export default function App() {
             onClick={() => {
               const eng =
                 ws.panes.find((p) => p.engine)?.engine ||
-                (snap.providers.find((p) => p.enabled && p.id !== 'shell')?.id ?? 'grok')
+                (snap.providers.find((p) => p.enabled && !isRawShell(p.id))?.id ?? 'grok')
               void client.fill(eng)
             }}
           >
@@ -294,7 +294,7 @@ function PaneView({
     }
   }, [pane.id, pane.engine])
 
-  const enabled = snap.providers.filter((p) => p.enabled && p.id !== 'shell')
+  const enabled = snap.providers.filter((p) => p.enabled && !isRawShell(p.id))
 
   return (
     <div className="screen term-screen">
@@ -378,7 +378,7 @@ function CreateView({
   const [cwd, setCwd] = useState(snap.workspaces[0]?.cwd || '')
   const [layout, setLayout] = useState<LayoutId>(2)
   const [engines, setEngines] = useState<EngineId[]>([])
-  const usable = snap.providers.filter((p) => p.enabled && p.id !== 'shell' && p.installed)
+  const usable = snap.providers.filter((p) => p.enabled && !isRawShell(p.id) && p.installed)
 
   return (
     <div className="screen">

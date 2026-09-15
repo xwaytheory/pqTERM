@@ -1,4 +1,5 @@
 import type { EngineId, ModelChoice, ProviderInfo } from '../shared/types'
+import { isRawShell } from '../shared/types'
 
 export interface EngineSpec {
   id: EngineId
@@ -327,6 +328,17 @@ export const ENGINE_SPECS: EngineSpec[] = [
     hint: 'Czysty shell — bez agenta',
     extraPathDirs: [],
     models: []
+  },
+  {
+    id: 'cmd',
+    name: 'cmd',
+    vendor: 'Windows',
+    color: '#4ec9b0',
+    binaries: ['cmd.exe'],
+    args: ['/K'],
+    hint: 'Czysty cmd — bez agenta',
+    extraPathDirs: [],
+    models: []
   }
 ]
 
@@ -349,7 +361,7 @@ export function defaultProvider(spec: EngineSpec, extras?: Partial<ProviderInfo>
     mark: spec.mark,
     installed: false,
     detectedAuth: false,
-    enabled: spec.id !== 'shell',
+    enabled: !isRawShell(spec.id),
     models: spec.models.map((m) => ({ ...m, enabled: true })),
     hint: spec.hint,
     ...extras

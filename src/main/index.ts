@@ -23,6 +23,7 @@ import type {
 } from '../shared/types'
 import {
   ENGINE_ORDER,
+  isRawShell,
   looksLikePathTitle,
   paneCount,
   type SnapZone
@@ -353,7 +354,7 @@ async function dispatchRemote(cmd: RemoteCommand): Promise<unknown> {
         engines: EngineId[]
       }
       const enabled = new Set(state.providers.filter((p) => p.enabled).map((p) => p.id))
-      const engines = (input.engines || []).filter((e) => enabled.has(e) || e === 'shell')
+      const engines = (input.engines || []).filter((e) => enabled.has(e) || isRawShell(e))
       const ws: Workspace = {
         id: newId(),
         title: input.title.trim() || 'untitled',
@@ -708,7 +709,7 @@ function registerIpc(): void {
       const title = input.title.trim() || 'untitled'
       const cwd = input.cwd.trim() || homedir()
       const enabled = new Set(state.providers.filter((p) => p.enabled).map((p) => p.id))
-      const engines = (input.engines || []).filter((e) => enabled.has(e) || e === 'shell')
+      const engines = (input.engines || []).filter((e) => enabled.has(e) || isRawShell(e))
       const ws: Workspace = {
         id: newId(),
         title,

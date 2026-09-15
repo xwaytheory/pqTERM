@@ -47,6 +47,7 @@ It does **not** pass `hostType` today (`PaneState` has no such field).
 | `aider` | Aider | **cmd** | |
 | `copilot` | Copilot CLI | **cmd** | |
 | `shell` | PowerShell | **pwsh** | Only engine mapped to pwsh without `hostType` |
+| `cmd` | cmd | **cmd** | Raw shell (`cmd.exe`) |
 
 **Quoting behavior:** for `cmd` and `pwsh`, `quotePath` uses the **same** Windows rules today — quote when spaces / `"&<>|^%` appear; escape `"` as `""`. Do **not** use Unix `\"`. `posix` uses single-quotes + `'\''` (unused until `hostType` is wired).
 

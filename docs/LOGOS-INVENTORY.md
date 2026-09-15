@@ -49,6 +49,7 @@ All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehu
 | `ori` | `ori.png` (OpenRouter) | `openrouter-color` |
 | `cursor` | `cursor.png` | `cursor` |
 | `shell` | `shell.svg` (generic `>_` glyph) | drawn for pq |
+| `cmd` | `cmd.svg` (generic `>_` glyph) | drawn for pq |
 
 | id | name | vendor | color | asset |
 |----|------|--------|-------|-------|
@@ -69,6 +70,7 @@ All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehu
 | `ori` | Ori | OpenRouter | `#8b5cf6` | `Or` + `ori.png` |
 | `cursor` | Cursor CLI | Anysphere | `#2563eb` | `Cu` + `cursor.png` |
 | `shell` | PowerShell | Windows | `#5b9fd6` | `PS` |
+| `cmd` | cmd | Windows | `#4ec9b0` | `C` + `cmd.svg` |
 
 ## Letter-mark chip plan
 

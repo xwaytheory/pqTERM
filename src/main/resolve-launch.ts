@@ -150,6 +150,9 @@ export function resolveLaunch(
   if (engine === 'shell') {
     return { spawnFile: 'powershell.exe', args: ['-NoLogo', '-NoExit'] }
   }
+  if (engine === 'cmd') {
+    return { spawnFile: 'cmd.exe', args: ['/K'] }
+  }
 
   const known = knownLaunch(engine, extra)
   if (known) return known

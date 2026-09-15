@@ -1,4 +1,5 @@
 import type { ProviderInfo } from '../../../shared/types'
+import { isRawShell } from '../../../shared/types'
 import EngineMark from './EngineMark'
 
 export default function ProvidersModal({
@@ -24,7 +25,7 @@ export default function ProvidersModal({
           </button>
         </div>
         {providers
-          .filter((p) => p.id !== 'shell')
+          .filter((p) => !isRawShell(p.id))
           .map((p) => (
             <ProviderCard key={p.id} p={p} email={email} />
           ))}

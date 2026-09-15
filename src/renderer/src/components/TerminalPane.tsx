@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import {
   clipTitle,
   isDefaultPaneTitle,
+  isRawShell,
   parseGridIntent,
   type EngineId,
   type EngineUsage,
@@ -147,7 +148,7 @@ export default function TerminalPane({
     term.attachCustomKeyEventHandler((e) => {
       const mod = e.ctrlKey || e.metaKey
       if (mod && !e.altKey && e.code === 'KeyV') {
-        if (pane.engine && pane.engine !== 'shell') {
+if (pane.engine && !isRawShell(pane.engine)) {
           // Agent TUIs (opencode & co.) handle clipboard themselves via
           // DOM paste → bracketed paste → own PowerShell clipboard read.
           // Let xterm.js pass the event through so they receive [Image 1].
@@ -190,7 +191,7 @@ export default function TerminalPane({
     })
     const offExit = window.pq.terminals.onExit((id, code) => {
       if (id !== pane.id) return
-      if (pane.engine && pane.engine !== 'shell') {
+      if (pane.engine && !isRawShell(pane.engine)) {
         // Agent TUIs: process ended → go back to the engine picker.
         void window.pq.terminals.clearPane(workspaceId, pane.id)
       } else {
@@ -374,8 +375,8 @@ export default function TerminalPane({
     return true
   }
 
-  const enabled = providers.filter((p) => p.enabled && p.id !== 'shell')
-  const shell = providers.find((p) => p.id === 'shell')
+  const enabled = providers.filter((p) => p.enabled && !isRawShell(p.id))
+  const rawShells = providers.filter((p) => isRawShell(p.id))
 
   function tileName(p: ProviderInfo): string {
     return p.id === 'shell' ? 'PowerShell' : p.name
@@ -383,8 +384,7 @@ export default function TerminalPane({
 
   // All tiles (CLIs + raw shell) sorted alphabetically so the grid reads
   // the same in every pane size.
-  const tiles = [...enabled]
-  if (shell) tiles.push(shell)
+  const tiles = [...enabled, ...rawShells]
   tiles.sort((a, b) => tileName(a).localeCompare(tileName(b), 'en', { sensitivity: 'base' }))
 
   async function launch(engine: EngineId, allIdle = false) {
@@ -620,7 +620,7 @@ export default function TerminalPane({
           </div>
           <div className="engines">
             {tiles.map((p) => {
-              const isShell = p.id === 'shell'
+              const isShell = isRawShell(p.id)
               const isInstalling = installing.has(p.id)
               const name = tileName(p)
               const vendor = isShell ? 'Windows' : p.vendor
