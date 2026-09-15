@@ -21,6 +21,14 @@ export function resumeFlag(engine: EngineId, handle: string): string[] | null {
       return ['--session', handle]
     case 'omp':
       return ['--resume', handle]
+    case 'hermes':
+      return ['--resume', handle]
+    case 'codex':
+      return ['resume', handle]
+    case 'claude':
+      return ['--resume', handle]
+    case 'qwen':
+      return ['--resume', handle]
     default:
       return null
   }
@@ -125,6 +133,10 @@ async function listSessions(engine: EngineId, cwd: string, target: string): Prom
   try {
     if (engine === 'opencode') return await opencodeSessions(cwd, target)
     if (engine === 'omp') return await ompSessions(cwd)
+    if (engine === 'hermes') return await hermesSessions(cwd, target)
+    if (engine === 'codex') return await codexSessions(cwd, target)
+    if (engine === 'claude') return await claudeSessions(cwd, target)
+    if (engine === 'qwen') return await qwenSessions(cwd, target)
   } catch {
     /* offline storage should never break startup */
   }

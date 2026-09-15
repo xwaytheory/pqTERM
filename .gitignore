@@ -22,6 +22,11 @@ android/emu-*
 # pq
 .pq/
 
+# skills: `.agents/skills/` is the real, portable install (commit it).
+# `.claude/skills/` holds absolute symlinks the installer creates for Claude Code —
+# machine-specific, they break on any other checkout, so keep them out of git.
+.claude/
+
 # Rust
 crates/target/
 src-tauri/target/
