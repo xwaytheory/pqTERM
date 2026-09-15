@@ -659,17 +659,23 @@ body.dragging {
   box-shadow: 0 0 0 1px rgba(57, 255, 182, 0.18);
 }
 .pane-head {
-  height: 26px;
+  min-height: 26px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  padding: 0 8px;
+  padding: 3px 8px;
   background: #0e1116;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 11px;
   flex-shrink: 0;
   cursor: grab;
+}
+.pane-head .engine-mark,
+.pane-head .slot,
+.pane-head .iconx,
+.pane-head .usage {
+  margin-top: 2px;
 }
 .pane-head:active {
   cursor: grabbing;
@@ -682,8 +688,10 @@ body.dragging {
 .pane-head .t {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
   cursor: text;
 }
 .pane-head .t:hover {
