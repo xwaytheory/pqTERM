@@ -1,9 +1,10 @@
 # pq workbench (gauntlet live board)
 
-Last update: **2026-09-15** (Europe/Warsaw, 5. fala — kaskada) — deep audit gauntlet-loop @ `1a2d7ac` i domknięcie backlogu: 2. fala (P0 lock + 6 błędów `src-tauri`, single-instance, guard wersji, bramka typechecku main), 3. fala (hardening `remote.ts`, wydajność: debounce OSC + coalescing board + `live={active}` + `React.memo`; kontrakt `cmd.rs`↔`lib.rs` w testach; wyrównane docs) oraz **4. fala: scalenie niezacommitowanego WIP z `pqTERM-dev` (poller tytułów z bazy opencode) z naprawą zepsutego testu** — `verify-night` + `npm run build` + `cargo test` = zielone end-to-end
-Product HEAD (`test` = `dev` = `main`): **`b3330b7`** · `fix: unbreak src-tauri build, harden remote, cut idle re-renders`
-Official (`main`): **`b3330b7`** — kaskada `test`→`dev`→`main` zrobiona (`--ff-only`, zero merge-commitów i konfliktów); poprzednie 4 commity (`0ec3ced`, `44843ad`, `feaa9b8`, `1a2d7ac`) są teraz jego przodkami
-Working tree: **czyste** we wszystkich czterech worktree (`test`/`dev`/`main`/`pq-work` — status 0) · **1 commit `b3330b7`** · **0 push** (decyzja człowieka) · 3 stashe bezpieczeństwa
+Last update: **2026-09-15** (Europe/Warsaw, 6. fala — release) — deep audit gauntlet-loop @ `1a2d7ac` i domknięcie backlogu: 2. fala (P0 lock + 6 błędów `src-tauri`, single-instance, guard wersji, bramka typechecku main), 3. fala (hardening `remote.ts`, wydajność: debounce OSC + coalescing board + `live={active}` + `React.memo`; kontrakt `cmd.rs`↔`lib.rs` w testach; wyrównane docs) oraz **4. fala: scalenie niezacommitowanego WIP z `pqTERM-dev` (poller tytułów z bazy opencode) z naprawą zepsutego testu** — `verify-night` + `npm run build` + `cargo test` = zielone end-to-end
+Product HEAD (`test` = `dev` = `main` = `origin/*`): **`85c7ecf`** · `chore(release): 1.1.8` · wersja produktu **1.1.8**
+**Wypchnięte na `origin`**: `350b60f..85c7ecf` na `dev`, `main` i `test` (fast-forward, bez sily). Repo nie używa tagów, więc release nie ma taga — świadomie, nie przez przeoczenie.
+Trzy commity tej sesji: `b3330b7` (fale 1–4 + ponytail), `5fcb55a` (board), `85c7ecf` (release 1.1.8). Poprzednie 4 produktowe (`0ec3ced`, `44843ad`, `feaa9b8`, `1a2d7ac`) są ich przodkami.
+Working tree: **czyste** we wszystkich czterech worktree (`test`/`dev`/`main`/`pq-work` — status 0) · 3 stashe bezpieczeństwa (cudze WIP) · build zrobiony w `test` i w oficjalnym `pqTERM` (`stamp-host.cjs` + `out/`)
 Critic mode: **ta sama sesja** (brak niezależnego Krytyka) → werdykt najwyżej **WARUNKOWO OK**
 
 ## Stage / progress
