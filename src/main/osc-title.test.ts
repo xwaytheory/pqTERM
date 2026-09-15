@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cleanOscTitle, scanOscTitle } from './osc-title.ts'
+import { cleanOscTitle, scanOscTitle, stripCliPrefix } from './osc-title.ts'
 
 test('scanOscTitle picks the last complete title from a single chunk', () => {
   const [title, keep] = scanOscTitle('\x1b]0;opencode: fix the grid\x07')
@@ -58,4 +58,38 @@ test('cleanOscTitle normalizes whitespace and trims', () => {
 test('cleanOscTitle clips very long titles to 60 chars', () => {
   const long = 't'.repeat(80)
   assert.equal(cleanOscTitle(long), `${'t'.repeat(59)}…`)
+})
+
+const omp = { id: 'omp', name: 'Omp', mark: 'Om' }
+const opencode = { id: 'opencode', name: 'OpenCode', mark: 'Oc' }
+
+test('stripCliPrefix removes glyph mark with separator', () => {
+  assert.equal(stripCliPrefix('π > Brak cmd.exe w wyborze CLI', omp), 'Brak cmd.exe w wyborze CLI')
+})
+
+test('stripCliPrefix removes id/name/mark with separator', () => {
+  assert.equal(stripCliPrefix('Omp: fixing the grid', omp), 'fixing the grid')
+  assert.equal(stripCliPrefix('omp | retry', omp), 'retry')
+  assert.equal(stripCliPrefix('Om – resize panes', omp), 'resize panes')
+  assert.equal(stripCliPrefix('OpenCode > schema', opencode), 'schema')
+})
+
+test('stripCliPrefix matches brand token case-insensitively', () => {
+  assert.equal(stripCliPrefix('OMP: fix me', omp), 'fix me')
+  assert.equal(stripCliPrefix('opencode: prompt', opencode), 'prompt')
+})
+
+test('stripCliPrefix removes glyph followed by plain space', () => {
+  assert.equal(stripCliPrefix('π session title', omp), 'session title')
+})
+
+test('stripCliPrefix keeps titles that start with the engine word', () => {
+  assert.equal(stripCliPrefix('Omp is a nice CLI', omp), 'Omp is a nice CLI')
+  assert.equal(stripCliPrefix('omp server', omp), 'omp server')
+})
+
+test('stripCliPrefix keeps unrelated titles intact', () => {
+  assert.equal(stripCliPrefix('fix the grid', omp), 'fix the grid')
+  assert.equal(stripCliPrefix('', omp), '')
+  assert.equal(stripCliPrefix('   ', omp), '')
 })

@@ -46,6 +46,7 @@ import { PaneBridge } from './bridge'
 import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag } from './resume'
 import { shutdownVoiceHost } from './voice-host'
+import { stripCliPrefix } from './osc-title'
 
 app.setName('pqTERM')
 process.title = 'pqTERM'
@@ -467,8 +468,6 @@ function attachBoard(): void {
  * path-looking titles override the engine default name.
  */
 function applyAutoTitle(paneId: string, title: string): void {
-  const t = title.trim()
-  if (!t || looksLikePathTitle(t)) return
   let changed = false
   state.workspaces = state.workspaces.map((w) => {
     if (!w.panes.some((p) => p.id === paneId)) return w
@@ -476,6 +475,9 @@ function applyAutoTitle(paneId: string, title: string): void {
       ...w,
       panes: w.panes.map((p) => {
         if (p.id !== paneId || p.titleLocked || !p.engine) return p
+        const spec = specById(p.engine)
+        const t = stripCliPrefix(title, { id: spec.id, name: spec.name, mark: spec.mark }).trim()
+        if (!t || looksLikePathTitle(t)) return p
         if (t === p.title) return p
         changed = true
         board.paneTitle(paneId, t)

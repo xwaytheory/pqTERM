@@ -34,3 +34,47 @@ export function cleanOscTitle(raw: string): string {
     .trim()
   return s.length > 60 ? `${s.slice(0, 59)}…` : s
 }
+
+/** The CLI's own brand identity — its OSC title often starts with a mark + separator. */
+export interface CliIdentity {
+  id?: string
+  name?: string
+  mark?: string
+}
+
+/** Brand glyphs that are not part of a session title (opencode/omp both use π). */
+const BRAND_GLYPHS = ['π']
+
+/**
+ * Strip a leading CLI brand token (id/name/mark, e.g. "Omp", "omp", "π") plus a
+ * separator (` > `, `: `, ` – `, ` | `) from a session title. Glyph-only tokens are
+ * dropped even when followed by a plain space; word tokens need a real separator
+ * so titles that legitimately start with the engine name survive.
+ */
+export function stripCliPrefix(raw: string, cli: CliIdentity): string {
+  let t = raw.trim()
+  if (!t) return t
+  const tokens = [cli.id, cli.name, cli.mark, ...BRAND_GLYPHS]
+    .map((x) => x?.trim())
+    .filter((x): x is string => Boolean(x))
+  if (!tokens.length) return t
+  const alts = [...new Set(tokens)]
+    .sort((a, b) => b.length - a.length)
+    .map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|')
+  const re = new RegExp(`^(?:${alts})`, 'i')
+  for (;;) {
+    t = t.trim()
+    if (!t) return t
+    const m = t.match(re)
+    if (!m || !m[0]) return t
+    const after = t.slice(m[0].length).trimStart()
+    if (!after) return t
+    const isGlyph = /^\W+$/.test(m[0]) || m[0].includes('π')
+    if (isGlyph || /^[>:|]/.test(after) || /^[–—−-]+\s/.test(after)) {
+      t = after.replace(/^[>:|]/, '').replace(/^[–—−-]+\s/, '').trimStart()
+      continue
+    }
+    return t
+  }
+}
