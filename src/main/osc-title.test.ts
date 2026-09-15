@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cleanOscTitle, scanOscTitle, stripCliPrefix } from './osc-title.ts'
+import { cleanOscTitle, isCliBrandOnly, scanOscTitle, stripCliPrefix } from './osc-title.ts'
 
 test('scanOscTitle picks the last complete title from a single chunk', () => {
   const [title, keep] = scanOscTitle('\x1b]0;opencode: fix the grid\x07')
@@ -57,7 +57,13 @@ test('cleanOscTitle normalizes whitespace and trims', () => {
 
 test('cleanOscTitle clips very long titles to 120 chars', () => {
   const long = 't'.repeat(150)
-  assert.equal(cleanOscTitle(long), `${'t'.repeat(119)}…`)
+  assert.equal(cleanOscTitle(long), 't'.repeat(120))
+})
+
+test('cleanOscTitle strips trailing ellipsis the CLI appends', () => {
+  assert.equal(cleanOscTitle('Dodanie freebuff i Kimi Code do Spawn…'), 'Dodanie freebuff i Kimi Code do Spawn')
+  assert.equal(cleanOscTitle('tytuł…'), 'tytuł')
+  assert.equal(cleanOscTitle('nie skracam… w środku'), 'nie skracam… w środku')
 })
 
 const omp = { id: 'omp', name: 'Omp', mark: 'Om' }
@@ -92,4 +98,13 @@ test('stripCliPrefix keeps unrelated titles intact', () => {
   assert.equal(stripCliPrefix('fix the grid', omp), 'fix the grid')
   assert.equal(stripCliPrefix('', omp), '')
   assert.equal(stripCliPrefix('   ', omp), '')
+})
+
+test('isCliBrandOnly detects a CLI reset to bare brand', () => {
+  assert.equal(isCliBrandOnly('π', omp), true)
+  assert.equal(isCliBrandOnly('Omp:', omp), true)
+  assert.equal(isCliBrandOnly('omp', omp), true)
+  assert.equal(isCliBrandOnly('', omp), true)
+  assert.equal(isCliBrandOnly('π > Brak cmd.exe', omp), false)
+  assert.equal(isCliBrandOnly('Omp: fixing the grid', omp), false)
 })

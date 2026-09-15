@@ -28,11 +28,12 @@ export function scanOscTitle(acc: string): [title: string, keep: string] {
 
 /** Strip any ANSI SGR inside the OSC payload and normalize whitespace. */
 export function cleanOscTitle(raw: string): string {
-  const s = raw
+  let s = raw
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-  return s.length > 120 ? `${s.slice(0, 119)}…` : s
+  s = s.replace(/(?:\.{3}|…)+\s*$/, '').trim()
+  return s.length > 120 ? s.slice(0, 120) : s
 }
 
 /** The CLI's own brand identity — its OSC title often starts with a mark + separator. */
@@ -51,6 +52,23 @@ const BRAND_GLYPHS = ['π']
  * dropped even when followed by a plain space; word tokens need a real separator
  * so titles that legitimately start with the engine name survive.
  */
+/**
+ * True when the CLI sent only its own brand (e.g. "π", "Omp") with no session
+ * title — that is the CLI resetting to a fresh session, so the pane should
+ * drop any prior auto title back to the engine default.
+ */
+export function isCliBrandOnly(raw: string, cli: CliIdentity): boolean {
+  const t = raw.trim()
+  if (!t) return true
+  const stripped = stripCliPrefix(t, cli).trim()
+  if (!stripped) return true
+  const tokens = [cli.id, cli.name, cli.mark, ...BRAND_GLYPHS]
+    .map((x) => x?.trim())
+    .filter((x): x is string => Boolean(x))
+    .map((x) => x.toLowerCase())
+  return tokens.includes(stripped.toLowerCase())
+}
+
 export function stripCliPrefix(raw: string, cli: CliIdentity): string {
   let t = raw.trim()
   if (!t) return t

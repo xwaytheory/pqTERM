@@ -46,7 +46,7 @@ import { PaneBridge } from './bridge'
 import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag } from './resume'
 import { shutdownVoiceHost } from './voice-host'
-import { stripCliPrefix } from './osc-title'
+import { isCliBrandOnly, stripCliPrefix } from './osc-title'
 
 app.setName('pqTERM')
 process.title = 'pqTERM'
@@ -476,7 +476,14 @@ function applyAutoTitle(paneId: string, title: string): void {
       panes: w.panes.map((p) => {
         if (p.id !== paneId || p.titleLocked || !p.engine) return p
         const spec = specById(p.engine)
-        const t = stripCliPrefix(title, { id: spec.id, name: spec.name, mark: spec.mark }).trim()
+        const cli = { id: spec.id, name: spec.name, mark: spec.mark }
+        const t = stripCliPrefix(title, cli).trim()
+        if (isCliBrandOnly(title, cli)) {
+          if (p.title === spec.name) return p
+          changed = true
+          board.paneTitle(paneId, spec.name)
+          return { ...p, title: spec.name }
+        }
         if (!t || looksLikePathTitle(t)) return p
         if (t === p.title) return p
         changed = true
