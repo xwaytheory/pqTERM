@@ -66,7 +66,7 @@ export function editionId(): EditionId {
 }
 
 /** Liczba commitów na HEAD — rośnie z KAŻDĄ zmianą, bez ruszania
- *  zsynchronizowanej wersji 1.1.4 (zero konfliktów przy dev→test→main). */
+ *  zsynchronizowanej wersji 1.1.5 (zero konfliktów przy dev→test→main). */
 export function buildNumber(): number {
   return resolveEdition().build
 }

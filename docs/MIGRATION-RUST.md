@@ -115,7 +115,7 @@ Full Electron→Rust module table: **`docs/PORT-MAP.md`**. Android phone STT ske
 
 Check-on-launch (both binaries):
 
-1. Read embedded `WORKSPACE_VERSION` (`pq_core::version`) — **synced to Electron `package.json` `1.1.4`** (dual-track documented in `version.rs`).
+1. Read embedded `WORKSPACE_VERSION` (`pq_core::version`) — **synced to Electron `package.json` `1.1.5`** (dual-track documented in `version.rs`).
 2. `GET` manifest URL (default sketch: `.../releases/latest/download/pq-update-manifest.json`).
 3. `compare_semver(current, manifest.latest)`.
 4. If newer: download matching `assets[].platform`, verify `sha256`, stage, relaunch.
