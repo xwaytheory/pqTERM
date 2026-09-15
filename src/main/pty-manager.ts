@@ -7,6 +7,7 @@ import type { EngineId } from '../shared/types'
 import { resolveLaunch, sanitizeEnv, yoloEnv } from './resolve-launch'
 import { trustWorkspace } from './trust'
 import { runningDev } from './env'
+import { cleanOscTitle, scanOscTitle } from './osc-title'
 
 let pty: typeof import('node-pty') | null = null
 
@@ -85,6 +86,8 @@ export class PtyManager {
   private sessions = new Map<string, PtySession>()
   private lastBuf = new Map<string, { data: string; seq: number }>()
   private gen = new Map<string, number>()
+  /** per-pane partial OSC sequence carried between data chunks */
+  private oscTail = new Map<string, string>()
 
   constructor(
     private getWin: () => BrowserWindow | null,
@@ -92,6 +95,8 @@ export class PtyManager {
       extraEnv?: (paneId: string) => NodeJS.ProcessEnv
       onOutput?: (paneId: string, data: string) => void
       onExit?: (paneId: string) => void
+      /** CLI set its own window title via OSC — expose it so a pane can adopt it */
+      onTitle?: (paneId: string, title: string) => void
     }
   ) {}
 
@@ -176,6 +181,13 @@ export class PtyManager {
       session.seq += 1
       session.buf = appendBuf(session.buf, data)
       this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
+      const acc = (this.oscTail.get(opts.paneId) ?? '') + data
+      const [oscTitle, keep] = scanOscTitle(acc)
+      this.oscTail.set(opts.paneId, keep)
+      if (oscTitle) {
+        const clean = cleanOscTitle(oscTitle)
+        if (clean) this.hooks?.onTitle?.(opts.paneId, clean)
+      }
       this.hooks?.onOutput?.(opts.paneId, data)
       this.getWin()?.webContents.send('term:data', opts.paneId, data, session.seq)
     })
@@ -184,6 +196,7 @@ export class PtyManager {
       if (this.sessions.get(opts.paneId) !== session) return
       session.alive = false
       this.sessions.delete(opts.paneId)
+      this.oscTail.delete(opts.paneId)
       this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
       this.hooks?.onExit?.(opts.paneId)
       this.getWin()?.webContents.send('term:exit', opts.paneId, exitCode ?? 0)

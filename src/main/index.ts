@@ -95,6 +95,9 @@ const ptys = new PtyManager(() => mainWindow, {
   onExit: (paneId) => {
     board.paneEnd(paneId)
     remote?.pushExit(paneId, 0)
+  },
+  onTitle: (paneId, title) => {
+    applyAutoTitle(paneId, title)
   }
 })
 const syncer = new EngineSync(() => mainWindow)
@@ -456,6 +459,31 @@ function attachBoard(): void {
   } else {
     board.detach()
   }
+}
+
+/**
+ * The CLI (opencode/omp/…) set their own terminal title via OSC — adopt it as
+ * the pane title, unless the user locked a custom one. Only meaningful, non
+ * path-looking titles override the engine default name.
+ */
+function applyAutoTitle(paneId: string, title: string): void {
+  const t = title.trim()
+  if (!t || looksLikePathTitle(t)) return
+  let changed = false
+  state.workspaces = state.workspaces.map((w) => {
+    if (!w.panes.some((p) => p.id === paneId)) return w
+    return touchWorkspace({
+      ...w,
+      panes: w.panes.map((p) => {
+        if (p.id !== paneId || p.titleLocked || !p.engine) return p
+        if (t === p.title) return p
+        changed = true
+        board.paneTitle(paneId, t)
+        return { ...p, title: t }
+      })
+    })
+  })
+  if (changed) persist()
 }
 
 function persist(): void {
