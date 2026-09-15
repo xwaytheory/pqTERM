@@ -6,7 +6,9 @@
 
 /** Scan accumulated output for the last complete OSC title. Returns the title and the tail to keep. */
 export function scanOscTitle(acc: string): [title: string, keep: string] {
-  const re = /\x1b\](?:0|1|2);([^\x07\x1b]*)(?:\x07|\x1b\\)/g
+  // CLIs style the payload with inline SGR (dim/colored segments) — allow
+  // those ESC-sequences inside the title instead of cutting it at the first one.
+  const re = /\x1b\](?:0|1|2);((?:\x1b\[[0-9;?]*[ -/]*[@-~]|[^\x07\x1b])*)(?:\x07|\x1b\\)/g
   let title = ''
   let cursor = 0
   let m: RegExpExecArray | null

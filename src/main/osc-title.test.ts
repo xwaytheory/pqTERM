@@ -14,6 +14,13 @@ test('scanOscTitle supports BEL and ESC\\ terminators and Pc 0/1/2', () => {
   assert.equal(scanOscTitle('\x1b]2;c\x1b\\')[0], 'c')
 })
 
+test('scanOscTitle keeps styled segments of the title (inline SGR)', () => {
+  const [title, keep] = scanOscTitle('\x1b]0;π Dodawanie cmd.exe do SPAWN ENGINE jak \x1b[2mpowershell\x1b[0m\x07')
+  assert.equal(title, 'π Dodawanie cmd.exe do SPAWN ENGINE jak \x1b[2mpowershell\x1b[0m')
+  assert.equal(keep, '')
+  assert.equal(cleanOscTitle(title), 'π Dodawanie cmd.exe do SPAWN ENGINE jak powershell')
+})
+
 test('scanOscTitle keeps only the most recent OSC title', () => {
   const [title, keep] = scanOscTitle('prefix \x1b]0;one\x07 middle \x1b]0;two\x07 suffix')
   assert.equal(title, 'two')
