@@ -111,7 +111,7 @@ Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:
 - Do NOT touch `host/`, `release/`, `out/`, `node_modules/`, `crates/target/`.
 - Do NOT "fix" `sandbox:false` (needed for DnD paths), `win.signAndEditExecutable:false`
   (no cert yet), or the dual Rust tracks (`crates/` vs `src-tauri/` spike).
-- Version `1.1.7` is synced across `package.json`, `crates/`, `src-tauri/`,
+- Version `1.1.8` is synced across `package.json`, `crates/`, `src-tauri/`,
   `stamp-host.cjs`, README — never bump it in one place alone. Bump **real version
   fields only**: a global search/replace over `Cargo.lock` once rewrote the `toml`
   *crate* to a version that does not exist and broke the whole `src-tauri` build
