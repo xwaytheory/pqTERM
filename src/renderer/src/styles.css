@@ -164,7 +164,7 @@ button {
 .titlebar .win {
   display: flex;
   justify-content: flex-end;
-  -webkit-app-region: no-drag;
+  /* no no-drag here: empty space must stay draggable; only the buttons opt out below */
 }
 .titlebar .win button,
 .nodrag {
