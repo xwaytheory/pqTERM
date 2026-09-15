@@ -1,17 +1,17 @@
 {
-  "tag_name": "v1.1.5",
-  "name": "pq 1.1.5",
+  "tag_name": "v1.1.6",
+  "name": "pq 1.1.6",
   "published_at": "2026-09-13T00:00:00Z",
   "prerelease": false,
   "assets": [
     {
-      "name": "pq Setup 1.1.5.exe",
-      "browser_download_url": "https://example.invalid/pq-Setup-1.1.5.exe",
+      "name": "pq Setup 1.1.6.exe",
+      "browser_download_url": "https://example.invalid/pq-Setup-1.1.6.exe",
       "size": 177200000
     },
     {
-      "name": "pq 1.1.5.msi",
-      "browser_download_url": "https://example.invalid/pq-1.1.5.msi",
+      "name": "pq 1.1.6.msi",
+      "browser_download_url": "https://example.invalid/pq-1.1.6.msi",
       "size": 194600000
     }
   ]
