@@ -540,9 +540,8 @@ button {
   color: var(--muted);
   border-radius: 4px;
   padding: 2px 8px;
-  max-width: 180px;
+  max-width: 320px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -684,7 +683,6 @@ body.dragging {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: text;
 }

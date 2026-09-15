@@ -319,7 +319,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
 
   async function commitRename(): Promise<void> {
     setEditing(false)
-    const t = clipTitle(draft, 60)
+    const t = clipTitle(draft, 120)
     if (!t) {
       await window.pq.workspaces.setPane(workspaceId, pane.id, {
         title: engineName,
@@ -524,7 +524,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
             className="rename"
             value={draft}
             placeholder={engineName}
-            maxLength={60}
+            maxLength={120}
             onChange={(e) => setDraft(e.target.value)}
             onMouseDown={(e) => e.stopPropagation()}
             onBlur={() => void commitRename()}
@@ -542,7 +542,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
         ) : (
           <span
             className="t"
-            title={`${cwd} · dwuklik albo F2 — własny tytuł`}
+            title={`${pane.title} — ${cwd} · dwuklik albo F2 — własny tytuł`}
             onDoubleClick={(e) => {
               e.stopPropagation()
               beginRename()

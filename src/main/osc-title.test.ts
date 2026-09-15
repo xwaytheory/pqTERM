@@ -55,9 +55,9 @@ test('cleanOscTitle normalizes whitespace and trims', () => {
   assert.equal(cleanOscTitle('  omp:   error   '), 'omp: error')
 })
 
-test('cleanOscTitle clips very long titles to 60 chars', () => {
-  const long = 't'.repeat(80)
-  assert.equal(cleanOscTitle(long), `${'t'.repeat(59)}…`)
+test('cleanOscTitle clips very long titles to 120 chars', () => {
+  const long = 't'.repeat(150)
+  assert.equal(cleanOscTitle(long), `${'t'.repeat(119)}…`)
 })
 
 const omp = { id: 'omp', name: 'Omp', mark: 'Om' }

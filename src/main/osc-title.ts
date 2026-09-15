@@ -32,7 +32,7 @@ export function cleanOscTitle(raw: string): string {
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-  return s.length > 60 ? `${s.slice(0, 59)}…` : s
+  return s.length > 120 ? `${s.slice(0, 119)}…` : s
 }
 
 /** The CLI's own brand identity — its OSC title often starts with a mark + separator. */
