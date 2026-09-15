@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { EngineId, LayoutId, ProviderInfo } from '../../../shared/types'
-import { isRawShell, LAYOUTS } from '../../../shared/types'
+import { LAYOUTS } from '../../../shared/types'
 import EngineMark from './EngineMark'
 
 export default function NewWorkspaceModal({
@@ -16,7 +16,7 @@ export default function NewWorkspaceModal({
   const [engines, setEngines] = useState<EngineId[]>([])
   const [err, setErr] = useState('')
 
-  const usable = providers.filter((p) => !isRawShell(p.id) && p.enabled)
+  const usable = providers.filter((p) => p.id !== 'shell' && p.enabled)
 
   function toggle(id: EngineId) {
     setEngines((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))

@@ -23,7 +23,6 @@ import type {
 } from '../shared/types'
 import {
   ENGINE_ORDER,
-  isRawShell,
   looksLikePathTitle,
   paneCount,
   type SnapZone
@@ -46,7 +45,6 @@ import { PaneBridge } from './bridge'
 import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag } from './resume'
 import { shutdownVoiceHost } from './voice-host'
-import { stripCliPrefix } from './osc-title'
 
 app.setName('pqTERM')
 process.title = 'pqTERM'
@@ -96,9 +94,6 @@ const ptys = new PtyManager(() => mainWindow, {
   onExit: (paneId) => {
     board.paneEnd(paneId)
     remote?.pushExit(paneId, 0)
-  },
-  onTitle: (paneId, title) => {
-    applyAutoTitle(paneId, title)
   }
 })
 const syncer = new EngineSync(() => mainWindow)
@@ -358,7 +353,7 @@ async function dispatchRemote(cmd: RemoteCommand): Promise<unknown> {
         engines: EngineId[]
       }
       const enabled = new Set(state.providers.filter((p) => p.enabled).map((p) => p.id))
-      const engines = (input.engines || []).filter((e) => enabled.has(e) || isRawShell(e))
+      const engines = (input.engines || []).filter((e) => enabled.has(e) || e === 'shell')
       const ws: Workspace = {
         id: newId(),
         title: input.title.trim() || 'untitled',
@@ -460,32 +455,6 @@ function attachBoard(): void {
   } else {
     board.detach()
   }
-}
-
-/**
- * The CLI (opencode/omp/…) set their own terminal title via OSC — adopt it as
- * the pane title, unless the user locked a custom one. Only meaningful, non
- * path-looking titles override the engine default name.
- */
-function applyAutoTitle(paneId: string, title: string): void {
-  let changed = false
-  state.workspaces = state.workspaces.map((w) => {
-    if (!w.panes.some((p) => p.id === paneId)) return w
-    return touchWorkspace({
-      ...w,
-      panes: w.panes.map((p) => {
-        if (p.id !== paneId || p.titleLocked || !p.engine) return p
-        const spec = specById(p.engine)
-        const t = stripCliPrefix(title, { id: spec.id, name: spec.name, mark: spec.mark }).trim()
-        if (!t || looksLikePathTitle(t)) return p
-        if (t === p.title) return p
-        changed = true
-        board.paneTitle(paneId, t)
-        return { ...p, title: t }
-      })
-    })
-  })
-  if (changed) persist()
 }
 
 function persist(): void {
@@ -739,7 +708,7 @@ function registerIpc(): void {
       const title = input.title.trim() || 'untitled'
       const cwd = input.cwd.trim() || homedir()
       const enabled = new Set(state.providers.filter((p) => p.enabled).map((p) => p.id))
-      const engines = (input.engines || []).filter((e) => enabled.has(e) || isRawShell(e))
+      const engines = (input.engines || []).filter((e) => enabled.has(e) || e === 'shell')
       const ws: Workspace = {
         id: newId(),
         title,

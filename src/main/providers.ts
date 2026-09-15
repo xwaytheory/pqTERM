@@ -2,7 +2,6 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import type { ProviderInfo } from '../shared/types'
-import { isRawShell } from '../shared/types'
 import { defaultProvider, ENGINE_SPECS, type EngineSpec } from './engines'
 import { knownLaunch } from './resolve-launch'
 
@@ -207,11 +206,11 @@ export function scanProviders(userEmail?: string, previous?: ProviderInfo[]): Pr
       knownLaunch(spec.id, [])?.spawnFile ??
       null
     const probe = probeFor(spec)
-    const installed = Boolean(resolved) || isRawShell(spec.id)
+    const installed = Boolean(resolved) || spec.id === 'shell'
     const matched = email
       ? probe.emails.find((e) => e === email)
       : probe.emails[0]
-    const detectedAuth = isRawShell(spec.id) ? true : probe.authed || Boolean(matched)
+    const detectedAuth = spec.id === 'shell' ? true : probe.authed || Boolean(matched)
     const old = prev.get(spec.id)
     const base = defaultProvider(spec, {
       installed,
@@ -219,7 +218,7 @@ export function scanProviders(userEmail?: string, previous?: ProviderInfo[]): Pr
       matchedEmail: matched,
       resolvedPath: resolved ?? undefined,
       command: resolved ?? spec.binaries[0],
-      enabled: old ? old.enabled : installed && (detectedAuth || isRawShell(spec.id))
+      enabled: old ? old.enabled : installed && (detectedAuth || spec.id === 'shell')
     })
     if (old) {
       base.enabled = old.enabled
@@ -230,7 +229,7 @@ export function scanProviders(userEmail?: string, previous?: ProviderInfo[]): Pr
     }
     // First-time: auto-enable if installed AND (auth detected OR email matched)
     if (!old) {
-      base.enabled = installed && (detectedAuth || isRawShell(spec.id))
+      base.enabled = installed && (detectedAuth || spec.id === 'shell')
     }
     return base
   })
@@ -240,7 +239,7 @@ export function applyEmailMatch(providers: ProviderInfo[], userEmail?: string): 
   if (!userEmail) return providers
   const email = userEmail.toLowerCase()
   return providers.map((p) => {
-    if (isRawShell(p.id)) return p
+    if (p.id === 'shell') return p
     const match = p.matchedEmail === email
     if (match && p.installed) {
       return { ...p, enabled: true, detectedAuth: true }

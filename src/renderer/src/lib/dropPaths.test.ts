@@ -108,8 +108,7 @@ describe('pathShellForPane ENGINE_SPECS matrix contract', () => {
     'crush',
     'aider',
     'copilot',
-    'shell',
-    'cmd'
+    'shell'
   ] as const
 
   it('pwsh only for shell; all other engines → cmd', () => {

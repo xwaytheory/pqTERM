@@ -20,8 +20,6 @@ export const ENGINE_LOGO_IDS = [
   'zcode',
   'ori',
   'cursor',
-  'freebuff',
-  'kimi',
   'shell',
   'cmd'
 ] as const
@@ -45,8 +43,6 @@ export const ENGINE_LOGO_FILES: Record<EngineLogoId, string> = {
   zcode: 'zcode.png',
   ori: 'ori.png',
   cursor: 'cursor.png',
-  freebuff: 'freebuff.svg',
-  kimi: 'kimi.png',
   shell: 'shell.svg',
   cmd: 'cmd.svg'
 }

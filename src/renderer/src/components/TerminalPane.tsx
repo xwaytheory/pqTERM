@@ -5,7 +5,6 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import {
   clipTitle,
   isDefaultPaneTitle,
-  isRawShell,
   parseGridIntent,
   type EngineId,
   type EngineUsage,
@@ -148,7 +147,7 @@ export default function TerminalPane({
     term.attachCustomKeyEventHandler((e) => {
       const mod = e.ctrlKey || e.metaKey
       if (mod && !e.altKey && e.code === 'KeyV') {
-if (pane.engine && !isRawShell(pane.engine)) {
+        if (pane.engine && pane.engine !== 'shell') {
           // Agent TUIs (opencode & co.) handle clipboard themselves via
           // DOM paste → bracketed paste → own PowerShell clipboard read.
           // Let xterm.js pass the event through so they receive [Image 1].
@@ -191,7 +190,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
     })
     const offExit = window.pq.terminals.onExit((id, code) => {
       if (id !== pane.id) return
-      if (pane.engine && !isRawShell(pane.engine)) {
+      if (pane.engine && pane.engine !== 'shell') {
         // Agent TUIs: process ended → go back to the engine picker.
         void window.pq.terminals.clearPane(workspaceId, pane.id)
       } else {
@@ -319,7 +318,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
 
   async function commitRename(): Promise<void> {
     setEditing(false)
-    const t = clipTitle(draft, 120)
+    const t = clipTitle(draft, 60)
     if (!t) {
       await window.pq.workspaces.setPane(workspaceId, pane.id, {
         title: engineName,
@@ -375,17 +374,8 @@ if (pane.engine && !isRawShell(pane.engine)) {
     return true
   }
 
-  const enabled = providers.filter((p) => p.enabled && !isRawShell(p.id))
-  const rawShells = providers.filter((p) => isRawShell(p.id))
-
-  function tileName(p: ProviderInfo): string {
-    return p.id === 'shell' ? 'PowerShell' : p.name
-  }
-
-  // All tiles (CLIs + raw shell) sorted alphabetically so the grid reads
-  // the same in every pane size.
-  const tiles = [...enabled, ...rawShells]
-  tiles.sort((a, b) => tileName(a).localeCompare(tileName(b), 'en', { sensitivity: 'base' }))
+  const enabled = providers.filter((p) => p.enabled && p.id !== 'shell')
+  const shell = providers.find((p) => p.id === 'shell')
 
   async function launch(engine: EngineId, allIdle = false) {
     if (allIdle) {
@@ -524,7 +514,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
             className="rename"
             value={draft}
             placeholder={engineName}
-            maxLength={120}
+            maxLength={60}
             onChange={(e) => setDraft(e.target.value)}
             onMouseDown={(e) => e.stopPropagation()}
             onBlur={() => void commitRename()}
@@ -542,7 +532,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
         ) : (
           <span
             className="t"
-            title={`${pane.title} — ${cwd} · dwuklik albo F2 — własny tytuł`}
+            title={`${cwd} · dwuklik albo F2 — własny tytuł`}
             onDoubleClick={(e) => {
               e.stopPropagation()
               beginRename()
@@ -608,7 +598,6 @@ if (pane.engine && !isRawShell(pane.engine)) {
         </>
       ) : (
         <div className="picker">
-          <div className="picker-inner">
           <h3>SPAWN ENGINE</h3>
           {installError && (
             <div className="hint" style={{ marginTop: -8, color: '#ff387b' }}>
@@ -619,49 +608,51 @@ if (pane.engine && !isRawShell(pane.engine)) {
             shift+klik = wszystkie puste okna
           </div>
           <div className="engines">
-            {tiles.map((p) => {
-              const isShell = isRawShell(p.id)
+            {enabled.map((p) => {
               const isInstalling = installing.has(p.id)
-              const name = tileName(p)
-              const vendor = isShell ? 'Windows' : p.vendor
-              const status = isShell
-                ? 'raw shell'
-                : isInstalling
-                  ? 'installing…'
-                  : p.installed
-                    ? p.detectedAuth
-                      ? 'detected'
-                      : 'installed'
-                    : 'click to install'
               return (
                 <button
                   key={p.id}
                   className={`eng${!p.installed ? ' disabled-visual' : ''}`}
                   style={!p.installed ? { opacity: 0.35, filter: 'grayscale(1)' } : undefined}
                   disabled={isInstalling}
-                  title={`${name} · ${vendor}`}
                   onClick={(e) => launch(p.id, e.shiftKey)}
                 >
                   <EngineMark
                     id={p.id}
-                    name={name}
+                    name={p.name}
                     color={p.color}
                     logo={p.logo}
                     icon={p.icon}
                     mark={p.mark}
                     size={34}
                   />
-                  <span className="meta">
                   <span className="n" style={{ color: p.color }}>
-                    {name}
+                    {p.name}
                   </span>
-                  <span className="v">{vendor}</span>
-                  <span className="st">{status}</span>
+                  <span className="v">{p.vendor}</span>
+                  <span className="st">
+                    {isInstalling
+                      ? 'installing…'
+                      : p.installed
+                        ? p.detectedAuth
+                          ? 'detected'
+                          : 'installed'
+                        : 'click to install'}
                   </span>
                 </button>
               )
             })}
-          </div>
+            {shell ? (
+              <button className="eng" onClick={() => launch('shell')}>
+                <EngineMark id={shell.id} name={shell.name} color={shell.color} logo={shell.logo} icon={shell.icon} mark={shell.mark} size={34} />
+                <span className="n" style={{ color: shell.color }}>
+                  PowerShell
+                </span>
+                <span className="v">Windows</span>
+                <span className="st">raw shell</span>
+              </button>
+            ) : null}
           </div>
         </div>
       )}

@@ -18,6 +18,34 @@ Each worktree keeps its own `node_modules/` (not shared by default).
 `host\` and `out\` are gitignored build artifact copies (binary, electron-hub
 host) — they live in the worktrees, NOT in git.
 
+## Ponytail (minimalism) — active by default
+
+Coding tasks in this repo run the **`ponytail` skill** at level `full`.
+Source: `dietrichgebert/ponytail` (MIT), installed project-scoped at
+`.agents/skills/ponytail/` together with `ponytail-review`, `-audit`, `-debt`,
+`-gain`, `-help`; reinstall with `npx skills add dietrichgebert/ponytail --yes`.
+
+Before writing code, stop at the first rung that holds — does this need to exist
+at all (YAGNI) → already in this codebase → stdlib → native platform feature →
+already-installed dependency → one line → the minimum that works. Climb it
+*after* reading the code the change touches, not instead of it. Deletion over
+addition; the shortest working diff wins. Bug fix = root cause: grep the callers
+and fix once where every caller routes through.
+
+**Lazy, not negligent — never on the chopping block here:**
+
+- trust-boundary validation (`src/preload`, IPC handlers, `/pair`, WS input),
+  error handling, security, accessibility;
+- **this repo's gates**: `npm run test:unit`, `npm run typecheck`,
+  `npm run check:version`, `scripts/verify-night.cmd` stay green. "Less code"
+  never means fewer tests or a skipped gate;
+- the board protocol — a change lands with its evidence in `docs/workbench.md`.
+
+A deliberate shortcut with a known ceiling gets a marker that names the ceiling
+and the upgrade path — `// ponytail: <ceiling>, <when to upgrade>` — instead of a
+vague TODO, so `ponytail-debt` can harvest it into a ledger. (This closes the
+2026-09-15 audit finding that the repo had no in-code debt markers at all.)
+
 ## Promoting changes (dev → test → main)
 
 Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:
@@ -74,7 +102,7 @@ Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:
 - Do NOT touch `host/`, `release/`, `out/`, `node_modules/`, `crates/target/`.
 - Do NOT "fix" `sandbox:false` (needed for DnD paths), `win.signAndEditExecutable:false`
   (no cert yet), or the dual Rust tracks (`crates/` vs `src-tauri/` spike).
-- Version `1.1.7` is synced across `package.json`, `crates/`, `src-tauri/`,
+- Version `1.1.2` is synced across `package.json`, `crates/`, `src-tauri/`,
   `stamp-host.cjs`, README — never bump it in one place alone.
 - Do NOT edit `%AppData%\pq*\pq-state.json` by hand while the app runs
   (in-memory state overwrites it on next persist).

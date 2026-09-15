@@ -1,17 +1,17 @@
 {
-  "latest": "1.1.7",
+  "latest": "1.1.2",
   "channel": "stable",
   "published_at": "2026-09-13T00:00:00Z",
   "assets": [
     {
       "platform": "windows-x64",
-      "url": "https://example.invalid/pq%20Setup%201.1.7.exe",
+      "url": "https://example.invalid/pq%20Setup%201.1.2.exe",
       "sha256": null,
       "size": 177200000
     },
     {
       "platform": "windows-x64",
-      "url": "https://example.invalid/pq%201.1.7.msi",
+      "url": "https://example.invalid/pq%201.1.2.msi",
       "size": 194600000
     }
   ]

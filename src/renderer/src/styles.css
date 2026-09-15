@@ -164,7 +164,7 @@ button {
 .titlebar .win {
   display: flex;
   justify-content: flex-end;
-  /* no no-drag here: empty space must stay draggable; only the buttons opt out below */
+  -webkit-app-region: no-drag;
 }
 .titlebar .win button,
 .nodrag {
@@ -387,18 +387,7 @@ button {
 }
 .eng .engine-mark,
 .eng .engine-logo {
-  margin: 0;
-  flex-shrink: 0;
-}
-.eng .meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-  text-align: left;
+  margin-bottom: 2px;
 }
 .chip .engine-mark,
 .chip .engine-logo {
@@ -540,8 +529,9 @@ button {
   color: var(--muted);
   border-radius: 4px;
   padding: 2px 8px;
-  max-width: 320px;
+  max-width: 180px;
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -683,6 +673,7 @@ body.dragging {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: text;
 }
@@ -773,21 +764,12 @@ body.dragging {
 }
 .picker {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  color: var(--dim);
-}
-.picker-inner {
-  margin: auto;
-  width: 100%;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 12px 0;
+  justify-content: center;
+  gap: 14px;
+  color: var(--dim);
 }
 .picker h3 {
   margin: 0;
@@ -795,36 +777,26 @@ body.dragging {
   font-weight: 500;
   letter-spacing: 0.14em;
   font-size: 11px;
-  text-align: center;
-}
-.picker-inner .hint {
-  text-align: center;
-  padding: 0 12px;
 }
 .engines {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  align-content: center;
-  width: 100%;
+  justify-content: center;
   max-width: 520px;
-  padding: 0 12px;
-  box-sizing: border-box;
+  padding: 0 16px;
 }
 .eng {
   border: 1px solid var(--line);
   background: var(--bg-2);
   color: var(--text);
   border-radius: 8px;
-  padding: 8px;
-  min-width: 0;
-  box-sizing: border-box;
+  padding: 8px 10px;
+  min-width: 120px;
   text-align: left;
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
+  flex-direction: column;
+  gap: 3px;
 }
 .eng:hover {
   border-color: var(--green-dim);
@@ -835,32 +807,13 @@ body.dragging {
 }
 .eng .n {
   font-size: 12px;
-  width: 100%;
-  text-align: left;
-  line-height: 1.35;
-  min-height: 16px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .eng .v {
   color: var(--muted);
   font-size: 10px;
-  width: 100%;
-  text-align: left;
-  line-height: 1.35;
-  min-height: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .eng .st {
   font-size: 10px;
-  width: 100%;
-  text-align: left;
-  line-height: 1.35;
-  min-height: 14px;
-  white-space: nowrap;
 }
 
 .blank {
