@@ -225,6 +225,8 @@ class PqSttBridge(
             return try {
                 val page = Uri.parse(pageUrl.trim())
                 val base = Uri.parse(allowedBase.trim().trimEnd('/'))
+                // Reject about: URLs which are internal Android WebView URLs
+                if (page.scheme == "about") return false
                 val ps = page.scheme?.lowercase() ?: return false
                 val bs = base.scheme?.lowercase() ?: return false
                 val pa = page.authority?.lowercase() ?: return false

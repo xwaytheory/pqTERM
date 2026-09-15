@@ -47,6 +47,7 @@ import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag } from './resume'
 import { shutdownVoiceHost } from './voice-host'
 import { isCliBrandOnly, stripCliPrefix } from './osc-title'
+import { queryActiveOpenCodeTitle } from './opencode-title'
 
 app.setName('pqTERM')
 process.title = 'pqTERM'
@@ -499,6 +500,42 @@ function persist(): void {
   saveState(state)
   mainWindow?.webContents.send('state:changed', state)
   remote?.pushState()
+}
+
+let titlePoller: ReturnType<typeof setInterval> | null = null
+let titlePollBusy = false
+
+function startTitlePoller(): void {
+  if (titlePoller) return
+  const POLL_MS = 5000
+  titlePoller = setInterval(() => {
+    if (titlePollBusy) return
+    titlePollBusy = true
+    const target = state.providers.find((p) => p.id === 'opencode')?.resolvedPath || 'opencode'
+    const wsList = state.workspaces.filter((w) =>
+      w.panes.some((p) => p.engine === 'opencode' && !p.titleLocked && ptys.alive(p.id))
+    )
+    if (!wsList.length) { titlePollBusy = false; return }
+    Promise.all(
+      wsList.map(async (ws) => {
+        try {
+          const title = await queryActiveOpenCodeTitle(ws.cwd, target)
+          if (!title) return
+          for (const p of ws.panes) {
+            if (p.engine === 'opencode' && !p.titleLocked && ptys.alive(p.id)) {
+              applyAutoTitle(p.id, title)
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      })
+    ).then(() => { titlePollBusy = false })
+  }, POLL_MS)
+}
+
+function stopTitlePoller(): void {
+  if (titlePoller) { clearInterval(titlePoller); titlePoller = null }
 }
 
 function newId(): string {
@@ -1164,6 +1201,7 @@ app.whenReady().then(async () => {
     console.error('[pqTERM]', err instanceof Error ? err.message : String(err))
   }
   restoreSessions()
+  startTitlePoller()
   createWindow()
   usage.start()
   void remote.restore().catch((err) => console.error('[pqTERM] remote', err))
@@ -1180,6 +1218,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  stopTitlePoller()
   usage.stop()
   bridge.stop()
   remote.stop()

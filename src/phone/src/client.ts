@@ -25,6 +25,8 @@ export class RemoteClient {
   private pending = new Map<string, { ok: (v: unknown) => void; fail: (e: Error) => void }>()
   private wantOpen = false
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private reconnectDelay = 2500 // Initial delay
+  private maxReconnectDelay = 30000 // Max delay: 30 seconds
   onEvent: Handler | null = null
 
   get ready(): boolean {
@@ -97,7 +99,9 @@ export class RemoteClient {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       void this.open(false).catch(() => this.armReconnect())
-    }, 2500)
+    }, this.reconnectDelay)
+    // Exponential backoff with jitter to avoid thundering herd
+    this.reconnectDelay = Math.min(this.reconnectDelay * 1.5 + Math.random() * 1000, this.maxReconnectDelay)
   }
 
   call(m: string, a: unknown[] = []): Promise<unknown> {
@@ -152,5 +156,7 @@ export class RemoteClient {
     }
     this.ws?.close()
     this.ws = null
+    // Reset reconnect delay on successful disconnect
+    this.reconnectDelay = 2500
   }
 }
