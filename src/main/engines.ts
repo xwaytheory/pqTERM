@@ -1,5 +1,4 @@
 import type { EngineId, ModelChoice, ProviderInfo } from '../shared/types'
-import { isRawShell } from '../shared/types'
 
 export interface EngineSpec {
   id: EngineId
@@ -260,7 +259,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     color: '#8b5cf6',
     mark: 'Or',
     binaries: ['ori', 'ori.exe'],
-    args: ['code', '-i', '--tty'],
+    args: ['code', '-i'],
     hint: 'Ori Code (OpenRouter) — natywny coding agent. Instalacja: curl -fsSL https://openrouter.ai/labs/ori/install.sh | bash',
     extraPathDirs: ['%USERPROFILE%\\.local\\bin'],
     modelFlag: (id) => ['--model', id],
@@ -272,31 +271,6 @@ export const ENGINE_SPECS: EngineSpec[] = [
       { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
       { id: 'xai/grok-4', name: 'Grok 4' }
     ]
-  },
-  {
-    id: 'freebuff',
-    name: 'Freebuff',
-    vendor: 'Freebuff',
-    color: '#00d4aa',
-    binaries: ['freebuff', 'freebuff.cmd'],
-    args: [],
-    hint: 'Freebuff — AI coding agent. Install: npm install -g freebuff',
-    extraPathDirs: ['%APPDATA%\\npm'],
-    npmPackage: 'freebuff',
-    models: []
-  },
-  {
-    id: 'kimi',
-    name: 'Kimi Code',
-    vendor: 'Moonshot AI',
-    color: '#e85d75',
-    logo: 'https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/dark/kimi-color.png',
-    binaries: ['kimi', 'kimi.cmd'],
-    args: [],
-    hint: 'Kimi Code — Moonshot AI coding agent',
-    extraPathDirs: ['%APPDATA%\\npm'],
-    npmPackage: 'kimi-code',
-    models: []
   },
   {
     id: 'cursor',
@@ -328,17 +302,6 @@ export const ENGINE_SPECS: EngineSpec[] = [
     hint: 'Czysty shell — bez agenta',
     extraPathDirs: [],
     models: []
-  },
-  {
-    id: 'cmd',
-    name: 'cmd',
-    vendor: 'Windows',
-    color: '#4ec9b0',
-    binaries: ['cmd.exe'],
-    args: ['/K'],
-    hint: 'Czysty cmd — bez agenta',
-    extraPathDirs: [],
-    models: []
   }
 ]
 
@@ -361,7 +324,7 @@ export function defaultProvider(spec: EngineSpec, extras?: Partial<ProviderInfo>
     mark: spec.mark,
     installed: false,
     detectedAuth: false,
-    enabled: !isRawShell(spec.id),
+    enabled: spec.id !== 'shell',
     models: spec.models.map((m) => ({ ...m, enabled: true })),
     hint: spec.hint,
     ...extras

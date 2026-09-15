@@ -94,14 +94,6 @@ export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: str
       const exe = firstExisting([join(homedir(), 'AppData', 'Local', 'agy', 'bin', 'agy.exe')])
       return exe ? { spawnFile: exe, args: extra } : null
     }
-    case 'ori': {
-      const exe = firstExisting([
-        join(homedir(), '.local', 'bin', 'ori.exe'),
-        join(npmDir(), 'ori.exe'),
-        join(npmDir(), 'ori.cmd')
-      ])
-      return exe ? { spawnFile: exe, args: extra } : null
-    }
     case 'cursor': {
       const exe = firstExisting([
         join(homedir(), 'AppData', 'Local', 'Cursor', 'resources', 'app', 'bin', 'cursor.exe'),
@@ -149,9 +141,6 @@ export function resolveLaunch(
 ): { spawnFile: string; args: string[] } {
   if (engine === 'shell') {
     return { spawnFile: 'powershell.exe', args: ['-NoLogo', '-NoExit'] }
-  }
-  if (engine === 'cmd') {
-    return { spawnFile: 'cmd.exe', args: ['/K'] }
   }
 
   const known = knownLaunch(engine, extra)

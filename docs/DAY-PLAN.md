@@ -57,7 +57,7 @@ Context: Wave 2 built MSI+NSIS, smoked, then **reclaimed** `release\` for disk. 
 Checklist when disk allows (≥4–5 GB) and (ideally) signing is decided:
 
 1. `npm run dist` → produce MSI + NSIS again (unsigned ok for lab).
-2. Install MSI v1.1.7 on a clean / VM machine.
+2. Install MSI v1.1.2 on a clean / VM machine.
 3. Bump or keep version per policy; rebuild; run **second MSI** over the first (upgrade path).
 4. Confirm shortcuts, `host/pq.exe` stamp path, and that upgrade does not leave dual installs.
 5. If signed: repeat smoke under SmartScreen-happy install.

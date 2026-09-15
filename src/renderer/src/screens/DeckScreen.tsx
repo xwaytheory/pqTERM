@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { AppSnapshot, EngineId, LayoutId, PaneArea, SnapZone, UsageMap } from '../../../shared/types'
-import { isRawShell, LAYOUTS } from '../../../shared/types'
+import { LAYOUTS } from '../../../shared/types'
 import {
   FULL,
   resolveAreas,
@@ -60,8 +60,8 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
   const [drag, setDrag] = useState<{ paneId: string; x: number; y: number } | null>(null)
   const [hover, setHover] = useState<Hover>(NO_HOVER)
   const ws = snap.workspaces.find((w) => w.id === snap.activeWorkspaceId) ?? null
-  const detected = snap.providers.filter((p) => p.installed && !isRawShell(p.id)).length
-  const authed = snap.providers.filter((p) => p.detectedAuth && !isRawShell(p.id)).length
+  const detected = snap.providers.filter((p) => p.installed && p.id !== 'shell').length
+  const authed = snap.providers.filter((p) => p.detectedAuth && p.id !== 'shell').length
   const zoomedId = ws?.zoomedPaneId ?? null
   const zoomedPane = ws?.panes.find((p) => p.id === zoomedId) ?? null
 

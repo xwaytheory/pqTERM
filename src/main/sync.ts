@@ -3,7 +3,6 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { BrowserWindow } from './host'
 import type { EngineId, SyncEvent } from '../shared/types'
-import { isRawShell } from '../shared/types'
 import { ENGINE_SPECS, specById, type EngineSpec } from './engines'
 import { knownLaunch, resolveLaunch, sanitizeEnv } from './resolve-launch'
 
@@ -77,7 +76,7 @@ export class EngineSync {
   }
 
   async ensure(id: EngineId): Promise<void> {
-    if (isRawShell(id)) return
+    if (id === 'shell') return
     if (this.done.has(id)) return
     const existing = this.inflight.get(id)
     if (existing) return existing
@@ -99,8 +98,8 @@ export class EngineSync {
   async start(priority: EngineId[] = []): Promise<void> {
     if (this.running) return
     this.running = true
-    const jobs = ENGINE_SPECS.map((s) => s.id).filter((id) => !isRawShell(id))
-    const order = [...new Set([...priority.filter((id) => !isRawShell(id)), ...jobs])]
+    const jobs = ENGINE_SPECS.map((s) => s.id).filter((id) => id !== 'shell')
+    const order = [...new Set([...priority.filter((id) => id !== 'shell'), ...jobs])]
     this.emit({ running: true, done: 0, total: order.length, line: 'pq · sync engines…' })
 
     let done = 0

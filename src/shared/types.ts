@@ -15,14 +15,7 @@ export type EngineId =
   | 'zcode'
   | 'ori'
   | 'cursor'
-  | 'freebuff'
-  | 'kimi'
   | 'shell'
-  | 'cmd'
-
-export function isRawShell(id: EngineId): boolean {
-  return id === 'shell' || id === 'cmd'
-}
 
 /** Any number of panes is allowed (the UI shows presets, +/- stepper, and drag-to-snap). */
 export type LayoutId = number
@@ -60,10 +53,7 @@ const ids: EngineId[] = [
     'antigravity',
     'zcode',
     'ori',
-    'cursor',
-    'freebuff',
-    'kimi',
-    'cmd'
+    'cursor'
   ]
   for (const id of ids) {
     if (new RegExp(`\\b${id}\\b`, 'i').test(t)) {
@@ -229,10 +219,7 @@ export const ENGINE_ORDER: EngineId[] = [
   'zcode',
   'ori',
   'cursor',
-  'freebuff',
-  'kimi',
-  'shell',
-  'cmd'
+  'shell'
 ]
 
 export interface SyncEvent {
