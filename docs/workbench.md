@@ -1,9 +1,9 @@
 # pq workbench (gauntlet live board)
 
-Last update: **2026-09-15** (Europe/Warsaw, 4. fala + zmiana procesu: skill `ponytail`) — deep audit gauntlet-loop @ `1a2d7ac` i domknięcie backlogu: 2. fala (P0 lock + 6 błędów `src-tauri`, single-instance, guard wersji, bramka typechecku main), 3. fala (hardening `remote.ts`, wydajność: debounce OSC + coalescing board + `live={active}` + `React.memo`; kontrakt `cmd.rs`↔`lib.rs` w testach; wyrównane docs) oraz **4. fala: scalenie niezacommitowanego WIP z `pqTERM-dev` (poller tytułów z bazy opencode) z naprawą zepsutego testu** — `verify-night` + `npm run build` + `cargo test` = zielone end-to-end
-Product HEAD (`test` = `dev`): **`1a2d7ac`** · `fix: keep styled segments of OSC titles instead of cutting at first ESC`
-Official (`main`): **`350b60f`** — 4 commity za `test` (`main..test`: `0ec3ced`, `44843ad`, `feaa9b8`, `1a2d7ac`)
-Working tree: **47 pozycji** (42 zmienione · 1 usunięty `src/main/updater.ts` · 4 nowe pliki z 2–3. fali · 3 nowe z 4. fali), **0 commitów** (bez push — decyzja człowieka)
+Last update: **2026-09-15** (Europe/Warsaw, 5. fala — kaskada) — deep audit gauntlet-loop @ `1a2d7ac` i domknięcie backlogu: 2. fala (P0 lock + 6 błędów `src-tauri`, single-instance, guard wersji, bramka typechecku main), 3. fala (hardening `remote.ts`, wydajność: debounce OSC + coalescing board + `live={active}` + `React.memo`; kontrakt `cmd.rs`↔`lib.rs` w testach; wyrównane docs) oraz **4. fala: scalenie niezacommitowanego WIP z `pqTERM-dev` (poller tytułów z bazy opencode) z naprawą zepsutego testu** — `verify-night` + `npm run build` + `cargo test` = zielone end-to-end
+Product HEAD (`test` = `dev` = `main`): **`b3330b7`** · `fix: unbreak src-tauri build, harden remote, cut idle re-renders`
+Official (`main`): **`b3330b7`** — kaskada `test`→`dev`→`main` zrobiona (`--ff-only`, zero merge-commitów i konfliktów); poprzednie 4 commity (`0ec3ced`, `44843ad`, `feaa9b8`, `1a2d7ac`) są teraz jego przodkami
+Working tree: **czyste** we wszystkich czterech worktree (`test`/`dev`/`main`/`pq-work` — status 0) · **1 commit `b3330b7`** · **0 push** (decyzja człowieka) · 3 stashe bezpieczeństwa
 Critic mode: **ta sama sesja** (brak niezależnego Krytyka) → werdykt najwyżej **WARUNKOWO OK**
 
 ## Stage / progress
@@ -200,6 +200,20 @@ Efekt uboczny: domyka się pozycja #6 z audytu („zero markerów długu w kodzi
 Instalator dokłada `skills-lock.json` (SHA-256 per skill) — idzie do commita razem z `.agents/`. `.claude/skills/*` to bezwzględne symlinki w konkretną kopię, dlatego ignorowane.
 
 ⚠️ W `pq-work` plik `AGENTS.md` był **już staged** przez inną sesję (`MM`), więc moja sekcja leży na cudzej niezacommitowanej zmianie tego pliku. Poza `AGENTS.md` i `.gitignore` nie ruszałem tam niczego.
+
+## Kaskada `test` → `dev` → `main` (2026-09-15)
+
+Cztery fale + ponytail zebrane w **jeden commit `b3330b7`** na `test` (`56 plików, +1813/−658`, w tym 16 nowych). Potem fast-forward: `git merge --ff-only test` w `pqTERM-dev` (`dev`) i `pqTERM` (`main`) — `main` był przodkiem `test`, więc **żadnych merge-commitów ani konfliktów**. Bramka po zmergowaniu, odpalona na `main` w `pqTERM`: **`verify-night ALL OK`**.
+
+Cudza niezacommitowana praca **nie zginęła** — jest w stashach (wspólny store, każdy opisany):
+
+| stash | skąd | co zawiera |
+|---|---|---|
+| `stash@{0}` | `pq-work` (`main`) | WIP innej sesji: 40 plików +130/−488, w tym **usunięcie `osc-title.ts`** (stan sprzed fali OSC) |
+| `stash@{1}` | `pqTERM` (`main`) | rozjechany `src/main/resume.ts` (201 vs 189 linii) |
+| `stash@{2}` | `pqTERM-dev` (`dev`) | WIP dev — **już przeniesiony** do 4. fali, więc stash jest tylko kopią |
+
+Podgląd/powrót: `git -C <worktree> stash show -p stash@{N}` → `git stash pop stash@{N}` **w tym samym worktree, z którego pochodzi**. Pułapka: `stash@{0}` i `{1}` zawierają też moje `AGENTS.md`/`.gitignore`/`.agents/` z chwili pakowania — po kaskadzie te pliki są w gicie, więc `pop` może się zderzyć; bezpieczniej obejrzeć `stash show -p` i wyłuskać tylko potrzebne pliki.
 
 ## ⚠️ Ryzyko w `pq-work`: staged zmiany **kasują** OSC pane-titles
 
