@@ -809,7 +809,7 @@ body.dragging {
   gap: 8px;
   align-content: center;
   width: 100%;
-  max-width: 520px;
+  max-width: 600px;
   padding: 0 12px;
   box-sizing: border-box;
 }
