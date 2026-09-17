@@ -295,6 +295,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     hint: 'Kimi Code — Moonshot AI coding agent',
     extraPathDirs: ['%APPDATA%\\npm'],
     npmPackage: '@moonshot-ai/kimi-code',
+    logo: 'src/renderer/src/assets/engines/kimi.png',
     models: []
   },
   {

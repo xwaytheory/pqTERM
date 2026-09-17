@@ -922,8 +922,8 @@ function registerIpc(): void {
       }
     }
     const win = spawn(install.exe, install.args, {
-      detached: true,
-      stdio: 'ignore',
+      detached: false,
+      stdio: 'inherit',
       windowsHide: false,
       cwd: homedir()
     })
