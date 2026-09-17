@@ -1,6 +1,7 @@
 import type { ProviderInfo } from '../../../shared/types'
 import { isRawShell } from '../../../shared/types'
 import EngineMark from './EngineMark'
+import EngineActions, { EngineFeedback, useEngineActions, type EngineActionState } from './EngineActions'
 
 export default function ProvidersModal({
   providers,
@@ -11,23 +12,25 @@ export default function ProvidersModal({
   email?: string
   onClose: () => void
 }) {
+  const actions = useEngineActions()
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>PROVIDERS / MODELS</h2>
         <div className="sub">
-          skan lokalnych CLI i plików auth. konto: <b>{email ?? '—'}</b>. zaznacz, których agentów
-          chcesz widzieć w gridzie.
+          skan lokalnych CLI i plików auth. konto: <b>{email ?? '—'}</b>. zaznacz domyślne silniki
+          dla nowych prac; wszystkie CLI są dostępne w Spawn Engine.
         </div>
         <div className="modal-actions" style={{ marginTop: 0, marginBottom: 12, justifyContent: 'flex-start' }}>
-          <button className="ghost" onClick={() => window.pq.providers.scan()}>
+          <button className="ghost" disabled={!!actions.pending} onClick={() => void window.pq.providers.scan().catch(actions.report)}>
             re-scan
           </button>
         </div>
+        <EngineFeedback actions={actions} />
         {providers
           .filter((p) => !isRawShell(p.id))
           .map((p) => (
-            <ProviderCard key={p.id} p={p} email={email} />
+            <ProviderCard key={p.id} p={p} email={email} actions={actions} />
           ))}
         <div className="modal-actions">
           <button className="primary" style={{ width: 'auto', padding: '0 18px', marginTop: 0 }} onClick={onClose}>
@@ -39,15 +42,15 @@ export default function ProvidersModal({
   )
 }
 
-function ProviderCard({ p, email }: { p: ProviderInfo; email?: string }) {
+function ProviderCard({ p, email, actions }: { p: ProviderInfo; email?: string; actions: EngineActionState }) {
   const matched = email && p.matchedEmail && p.matchedEmail === email.toLowerCase()
   return (
     <div className="prov">
       <div className="prov-top">
         <button
           className={p.enabled ? 'switch on' : 'switch'}
-          onClick={() => window.pq.providers.setEnabled(p.id, !p.enabled)}
-          aria-label="toggle"
+          onClick={() => void window.pq.providers.setEnabled(p.id, !p.enabled).catch(actions.report)}
+          aria-label={`enable ${p.name}`}
         >
           <i />
         </button>
@@ -69,13 +72,14 @@ function ProviderCard({ p, email }: { p: ProviderInfo; email?: string }) {
               <input
                 type="checkbox"
                 checked={m.enabled}
-                onChange={() => window.pq.providers.setModel(p.id, m.id, !m.enabled)}
+                onChange={() => void window.pq.providers.setModel(p.id, m.id, !m.enabled).catch(actions.report)}
               />
               {m.name}
             </label>
           ))}
         </div>
       )}
+      <EngineActions provider={p} actions={actions} />
     </div>
   )
 }

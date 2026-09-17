@@ -91,6 +91,9 @@ export interface ModelChoice {
   enabled: boolean
 }
 
+export type EngineOperation = 'install' | 'uninstall'
+export interface EngineResult { ok: boolean; message: string; log: string }
+
 export interface ProviderInfo {
   id: EngineId
   name: string
@@ -111,6 +114,7 @@ export interface ProviderInfo {
   enabled: boolean
   models: ModelChoice[]
   hint: string
+  cli?: { install: boolean; uninstall: boolean; reason?: string; managed: boolean }
 }
 
 export interface PaneState {

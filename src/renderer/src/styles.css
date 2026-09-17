@@ -805,9 +805,9 @@ body.dragging {
 }
 .engines {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
   gap: 8px;
-  align-content: center;
+  align-items: start;
   width: 100%;
   max-width: 640px;
   padding: 0 12px;
@@ -832,7 +832,7 @@ body.dragging {
   border-color: var(--green-dim);
 }
 .eng:disabled {
-  opacity: 0.35;
+  opacity: 0.65;
   cursor: not-allowed;
 }
 .eng .n {
@@ -862,7 +862,103 @@ body.dragging {
   text-align: left;
   line-height: 1.35;
   min-height: 14px;
-  white-space: nowrap;
+  white-space: normal;
+}
+.engine-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+.engine-card .eng {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.engine-card .eng:hover:not(:disabled) {
+  background: var(--bg);
+}
+.engine-card .engine-actions {
+  margin: 0;
+  padding: 0 8px 8px;
+}
+.engine-actions {
+  margin-top: 10px;
+  min-width: 0;
+}
+.engine-action-buttons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.engine-actions .ghost,
+.engine-feedback .ghost {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.engine-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.engine-uninstall {
+  color: var(--red);
+}
+.engine-reason,
+.engine-ownership {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.engine-reason {
+  margin-top: 4px;
+}
+.engine-feedback {
+  min-width: 0;
+  max-height: 40%;
+  flex-shrink: 0;
+  overflow: auto;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.engine-feedback:has(details),
+.engine-feedback:has([role="status"] > div) {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.engine-feedback .err {
+  margin-top: 0;
+}
+.engine-success {
+  color: var(--green);
+}
+.engine-feedback summary,
+.workspace-cli summary {
+  cursor: pointer;
+  color: var(--muted);
+  padding: 4px 0;
+}
+.engine-feedback pre {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.engine-feedback details > span {
+  margin-left: 8px;
+}
+.workspace-cli {
+  margin-top: 12px;
+}
+.workspace-cli-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .blank {

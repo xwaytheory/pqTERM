@@ -154,8 +154,11 @@ export function resolveLaunch(
     return { spawnFile: 'cmd.exe', args: ['/K'] }
   }
 
-  const known = knownLaunch(engine, extra)
-  if (known) return known
+  // Respect the scanned/managed target instead of silently preferring a different install.
+  if (!target || !existsSync(target)) {
+    const known = knownLaunch(engine, extra)
+    if (known) return known
+  }
 
   const lower = (target || '').toLowerCase()
   if (lower.endsWith('.exe') && existsSync(target)) {

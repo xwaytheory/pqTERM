@@ -40,6 +40,7 @@ import { signInWithGoogle, openGoogleConsole } from './auth'
 import { PtyManager } from './pty-manager'
 import { ENGINE_SPECS, specById } from './engines'
 import { EngineSync } from './sync'
+import { operateEngine, engineBusy } from './engine-manager'
 import { BoardHub } from './board'
 import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
@@ -102,8 +103,23 @@ const ptys = new PtyManager(() => mainWindow, {
     applyAutoTitle(paneId, title)
   }
 })
-const syncer = new EngineSync(() => mainWindow)
+const syncer = new EngineSync(() => mainWindow, (id) => manageEngine(id, 'install'))
 const usage = new UsageHub()
+  const manageEngine = async (id: EngineId, action: 'install' | 'uninstall') => {
+    if (typeof id !== 'string' || !ENGINE_SPECS.some((s) => s.id === id) || isRawShell(id)) {
+      return { ok: false, message: 'Nieznany CLI.', log: '' }
+    }
+    if (state.workspaces.some((w) => w.panes.some((p) => p.engine === id && ptys.alive(p.id)))) {
+      return { ok: false, message: 'Najpierw zamknij aktywne terminale tego CLI.', log: '' }
+    }
+    const result = await operateEngine(id, action)
+    state.providers = scanProviders(state.user?.email, state.providers)
+    if (result.ok && action === 'install') {
+      state.providers = state.providers.map((p) => p.id === id ? { ...p, enabled: true } : p)
+    }
+    persist()
+    return result
+  }
 
 function sessionsDir(): string {
   return join(app.getPath('userData'), 'sessions')
@@ -126,6 +142,7 @@ function defaultModelFor(engine: EngineId): string | undefined {
 
 function restoreSession(ws: Workspace, pane: PaneState): void {
   if (!pane.engine) return
+  if (engineBusy()) return
   let seed = ''
   try {
     const f = sessionLogPath(ws.id, pane.id)
@@ -747,62 +764,9 @@ function registerIpc(): void {
     persist()
   })
 
-  ipcMain.handle('engines:install', async (_e, id: EngineId) => {
-    const spec = specById(id)
-    // narrow to plain strings first — `spec.pipPackage` stays optional inside the closures
-    const pipPackage = spec.pipPackage
-    const npmPackage = spec.npmPackage
-    if (!pipPackage && !npmPackage) {
-      return { ok: false, message: `brak pakietu instalacyjnego dla ${spec.name}` }
-    }
-    const npmCmd = () => join(homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
-    try {
-      if (pipPackage) {
-        const r = await new Promise<{ ok: boolean; text: string }>((resolve) => {
-          execFile(
-            'python',
-            ['-m', 'pip', 'install', '-U', pipPackage],
-            {
-              windowsHide: true,
-              timeout: 240000,
-              maxBuffer: 4_000_000,
-              cwd: homedir(),
-              env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: '1' }
-            },
-            (err, stdout, stderr) => {
-              const text = `${stdout || ''}\n${stderr || ''}`.trim()
-              resolve({ ok: !err, text })
-            }
-          )
-        })
-        if (!r.ok) return { ok: false, message: r.text || 'pip install failed' }
-      } else if (npmPackage) {
-        const r = await new Promise<{ ok: boolean; text: string }>((resolve) => {
-          execFile(
-            npmCmd(),
-            ['install', '-g', npmPackage],
-            {
-              windowsHide: true,
-              timeout: 240000,
-              maxBuffer: 4_000_000,
-              cwd: homedir(),
-              env: { ...process.env, npm_config_update_notifier: 'false', npm_config_fund: 'false' }
-            },
-            (err, stdout, stderr) => {
-              const text = `${stdout || ''}\n${stderr || ''}`.trim()
-              resolve({ ok: !err, text })
-            }
-          )
-        })
-        if (!r.ok) return { ok: false, message: r.text || 'npm install failed' }
-      }
-      state.providers = scanProviders(state.user?.email, state.providers)
-      persist()
-      return { ok: true, message: `${spec.name} zainstalowany` }
-    } catch (err) {
-      return { ok: false, message: err instanceof Error ? err.message : String(err) }
-    }
-  })
+  ipcMain.handle('engines:install', (_e, id: EngineId) => manageEngine(id, 'install'))
+  ipcMain.handle('engines:uninstall', (_e, id: EngineId) => manageEngine(id, 'uninstall'))
+  ipcMain.handle('engines:busy', () => engineBusy())
 
   ipcMain.handle('workspaces:pickFolder', async () => {
     const res = await dialog.showOpenDialog(mainWindow!, {
@@ -973,11 +937,13 @@ function registerIpc(): void {
         rows?: number
       }
     ) => {
+      if (engineBusy()) throw new Error('Trwa operacja CLI. Poczekaj na jej zakończenie.')
       const ws = state.workspaces.find((w) => w.id === input.workspaceId)
       if (!ws) throw new Error('brak workspace')
       const spec = specById(input.engine)
       const provider = state.providers.find((p) => p.id === input.engine)
       const paneInWs = ws.panes.find((p) => p.id === input.paneId)
+      if (!paneInWs) throw new Error('Pane nie należy do workspace.')
       const model = input.model ?? paneInWs?.model ?? defaultModelFor(input.engine)
 
       const existing = ptys.describe(input.paneId)

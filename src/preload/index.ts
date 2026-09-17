@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from './host'
 import type {
   AppSnapshot,
   EngineId,
+  EngineResult,
   GoogleOAuthConfig,
   LayoutId,
   ProviderInfo,
@@ -146,7 +147,9 @@ const pq = {
       invoke('panes:fill', input) as Promise<number[]>
   },
   engines: {
-    install: (id: EngineId) => invoke('engines:install', id) as Promise<{ ok: boolean; message: string }>
+    install: (id: EngineId) => invoke('engines:install', id) as Promise<EngineResult>,
+    uninstall: (id: EngineId) => invoke('engines:uninstall', id) as Promise<EngineResult>,
+    busy: () => invoke('engines:busy') as Promise<boolean>
   },
   terminals: {
     spawn: (input: {

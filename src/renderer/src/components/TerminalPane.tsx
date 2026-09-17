@@ -16,6 +16,7 @@ import {
 import { areaStyle } from '../../../shared/grid'
 import { formatDroppedPaths, pathShellForPane, quotePath } from '../lib/dropPaths'
 import EngineMark from './EngineMark'
+import EngineActions, { EngineFeedback, useEngineActions } from './EngineActions'
 
 function resetLeft(ms?: number): string {
   if (!ms) return ''
@@ -90,8 +91,7 @@ function TerminalPane({
   const lineBuf = useRef('')
   const [dragOver, setDragOver] = useState(false)
   const [dropStatus, setDropStatus] = useState<string | null>(null)
-  const [installing, setInstalling] = useState<Set<string>>(new Set())
-  const [installError, setInstallError] = useState<string | null>(null)
+  const engineActions = useEngineActions()
   const inputRef = useRef<HTMLInputElement>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(pane.title)
@@ -211,7 +211,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
               engine: intent.engine || (pane.engine as string),
               prompt: intent.prompt,
               skipPaneId: pane.id
-            })
+            }).catch(engineActions.report)
           }
         } else if (ch === '\b' || ch === '\x7f') {
           lineBuf.current = lineBuf.current.slice(0, -1)
@@ -261,7 +261,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
       spawned.current = true
     }
     requestAnimationFrame(() => {
-      void start()
+      void start().catch(engineActions.report)
     })
 
     return () => {
@@ -375,8 +375,6 @@ if (pane.engine && !isRawShell(pane.engine)) {
     return true
   }
 
-  const enabled = providers.filter((p) => p.enabled && !isRawShell(p.id))
-  const rawShells = providers.filter((p) => isRawShell(p.id))
 
   function tileName(p: ProviderInfo): string {
     return p.id === 'shell' ? 'PowerShell' : p.name
@@ -384,50 +382,20 @@ if (pane.engine && !isRawShell(pane.engine)) {
 
   // All tiles (CLIs + raw shell) sorted alphabetically so the grid reads
   // the same in every pane size.
-  const tiles = [...enabled, ...rawShells]
+  const tiles = [...providers]
   tiles.sort((a, b) => tileName(a).localeCompare(tileName(b), 'en', { sensitivity: 'base' }))
 
-  async function launch(engine: EngineId, allIdle = false) {
-    if (allIdle) {
-      await window.pq.panes.fill({ engine })
-      return
-    }
-    setInstallError(null)
-    const p = providers.find((x) => x.id === engine)
-    if (p && !p.installed) {
-      setInstalling((prev) => new Set(prev).add(engine))
-      try {
-        const res = await window.pq.engines.install(engine)
-        if (res.ok) {
-          setInstalling((prev) => {
-            const next = new Set(prev)
-            next.delete(engine)
-            return next
-          })
-          window.setTimeout(() => setInstallError(null), 1000)
-        } else {
-          setInstallError(res.message)
-          setInstalling((prev) => {
-            const next = new Set(prev)
-            next.delete(engine)
-            return next
-          })
-          return
-        }
-      } catch (err) {
-        setInstallError(err instanceof Error ? err.message : String(err))
-        setInstalling((prev) => {
-          const next = new Set(prev)
-          next.delete(engine)
-          return next
+  async function launch(p: ProviderInfo, allIdle = false) {
+    await engineActions.run(p, !isRawShell(p.id) && !p.installed ? 'install' : undefined, async () => {
+      if (allIdle) {
+        await window.pq.panes.fill({ engine: p.id })
+      } else {
+        await window.pq.workspaces.setPane(workspaceId, pane.id, {
+          engine: p.id,
+          title: p.name,
+          titleLocked: false
         })
-        return
       }
-    }
-    await window.pq.workspaces.setPane(workspaceId, pane.id, {
-      engine,
-      title: p?.name ?? engine,
-      titleLocked: false
     })
   }
 
@@ -588,6 +556,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
           </button>
         ) : null}
       </div>
+      <EngineFeedback actions={engineActions} />
       {pane.engine ? (
         <>
           <div
@@ -610,37 +579,27 @@ if (pane.engine && !isRawShell(pane.engine)) {
         <div className="picker">
           <div className="picker-inner">
           <h3>SPAWN ENGINE</h3>
-          {installError && (
-            <div className="hint" style={{ marginTop: -8, color: '#ff387b' }}>
-              {installError}
-            </div>
-          )}
           <div className="hint" style={{ marginTop: -8 }}>
             shift+klik = wszystkie puste okna
           </div>
           <div className="engines">
             {tiles.map((p) => {
               const isShell = isRawShell(p.id)
-              const isInstalling = installing.has(p.id)
+              const unavailable = !isShell && !p.installed && !p.cli?.install
               const name = tileName(p)
               const vendor = isShell ? 'Windows' : p.vendor
               const status = isShell
                 ? 'raw shell'
-                : isInstalling
-                  ? 'installing…'
-                  : p.installed
-                    ? p.detectedAuth
-                      ? 'detected'
-                      : 'installed'
-                    : 'click to install'
+                : p.installed
+                  ? p.detectedAuth ? 'detected' : 'installed'
+                  : p.cli?.install ? 'install & launch' : 'install unsupported'
               return (
+                <div key={p.id} className="engine-card">
                 <button
-                  key={p.id}
-                  className={`eng${!p.installed ? ' disabled-visual' : ''}`}
-                  style={!p.installed ? { opacity: 0.35, filter: 'grayscale(1)' } : undefined}
-                  disabled={isInstalling}
-                  title={`${name} · ${vendor}`}
-                  onClick={(e) => launch(p.id, e.shiftKey)}
+                  className="eng"
+                  disabled={!!engineActions.pending || unavailable}
+                  title={`${name} · ${vendor}${unavailable ? ` · ${p.cli?.reason ?? 'CLI management unavailable'}` : ''}`}
+                  onClick={(e) => void launch(p, e.shiftKey)}
                 >
                   <EngineMark
                     id={p.id}
@@ -659,6 +618,8 @@ if (pane.engine && !isRawShell(pane.engine)) {
                   <span className="st">{status}</span>
                   </span>
                 </button>
+                {!isShell && <EngineActions provider={p} actions={engineActions} />}
+                </div>
               )
             })}
           </div>

@@ -5,6 +5,7 @@ import type { ProviderInfo } from '../shared/types'
 import { isRawShell } from '../shared/types'
 import { defaultProvider, ENGINE_SPECS, type EngineSpec } from './engines'
 import { knownLaunch } from './resolve-launch'
+import { cliCapabilities, managedCommand } from './engine-manager'
 
 function expand(p: string): string {
   return p
@@ -203,6 +204,7 @@ export function scanProviders(userEmail?: string, previous?: ProviderInfo[]): Pr
 
   return ENGINE_SPECS.map((spec) => {
     const resolved =
+      managedCommand(spec.id) ??
       spec.binaries.map((b) => which(b, spec.extraPathDirs)).find((x): x is string => Boolean(x)) ??
       knownLaunch(spec.id, [])?.spawnFile ??
       null
@@ -215,6 +217,7 @@ export function scanProviders(userEmail?: string, previous?: ProviderInfo[]): Pr
     const old = prev.get(spec.id)
     const base = defaultProvider(spec, {
       installed,
+      cli: cliCapabilities(spec),
       detectedAuth,
       matchedEmail: matched,
       resolvedPath: resolved ?? undefined,
