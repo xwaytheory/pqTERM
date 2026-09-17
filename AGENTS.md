@@ -46,6 +46,26 @@ and the upgrade path — `// ponytail: <ceiling>, <when to upgrade>` — instead
 vague TODO, so `ponytail-debt` can harvest it into a ledger. (This closes the
 2026-09-15 audit finding that the repo had no in-code debt markers at all.)
 
+## i-have-adhd (communication) — active by default
+
+The user explicitly enabled `i-have-adhd` for this project. At session start,
+read `.agents/skills/i-have-adhd/SKILL.md` and apply it alongside Ponytail:
+Ponytail governs implementation; i-have-adhd governs response presentation.
+This standing opt-in activates the style even though the unmodified upstream
+skill has `disable-model-invocation: true` (no automatic skill selection).
+
+Lead with the answer or action, number multi-step instructions, show concrete
+progress, suppress tangents, and name one next action only when work remains.
+Never omit required evidence, safety checks, or requested detail for brevity;
+do not invent time estimates or infer a medical diagnosis from this preference.
+Higher-priority harness instructions and the user's current request win.
+`stop adhd mode` or `normal mode` disables this style for the current session;
+an explicit request enables it again. No global CLI configuration is changed.
+
+Source: https://github.com/ayghri/i-have-adhd (MIT). Project install:
+`npx skills add ayghri/i-have-adhd --skill i-have-adhd --agent codex --yes`.
+Agents without automatic `.agents/skills` discovery use the file path above.
+
 ## Promoting changes (dev → test → main)
 
 Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:

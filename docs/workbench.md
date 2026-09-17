@@ -1,5 +1,12 @@
 # pq workbench (gauntlet live board)
 
+## i-have-adhd — project communication standard (2026-09-17)
+
+- Explicit user opt-in: installed unmodified `ayghri/i-have-adhd` at `.agents/skills/i-have-adhd/` using `npx skills add ayghri/i-have-adhd --skill i-have-adhd --agent codex --yes`; provenance/hash in `skills-lock.json`, MIT notice in `.agents/skills/THIRD-PARTY.md`.
+- `AGENTS.md` activates the communication style alongside Ponytail despite upstream's on-demand discovery flag. Answer/action first, bounded numbered steps, concrete progress, no tangents; safety, completeness, harness rules and explicit user requests win. No diagnosis inferred; session opt-out: `stop adhd mode` / `normal mode`.
+- Scope: project instructions and portable skill files only; no global CLI configuration, runtime hooks, npm dependencies, app UI changes or version bump. CLI tools must load the project instructions; installation is not proof that every CLI automatically applies the style.
+- Verification on dev: `npx skills list` discovers `i-have-adhd` alongside all six Ponytail skills; `scripts/verify-night.cmd` ALL OK (100 Node tests, both TS projects, Rust workspace tests, Tauri check, version check); `npm run build` PASS. No temporary verification files created.
+
 ## CLI install window and Kimi logo — deployment 2026-09-17
 
 - Approved release `3b8569d` was pushed to `origin/main` and `origin/test`; official host and bundles rebuilt. Installation remains the minimal visible cmd/PowerShell window; no managed uninstall subsystem.
