@@ -1,9 +1,9 @@
 import { app } from './host'
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
 import type { AppSnapshot, PaneState, ProviderInfo, Workspace } from '../shared/types'
-import { looksLikePathTitle } from '../shared/types'
+import { DEFAULT_NOTIFICATIONS, looksLikePathTitle } from '../shared/types'
 import { defaultProvider, ENGINE_SPECS } from './engines'
 import { runningDev } from './env'
 
@@ -48,7 +48,8 @@ function empty(): AppSnapshot {
     workspaces: [],
     activeWorkspaceId: null,
     providers: ENGINE_SPECS.map((s) => defaultProvider(s)),
-    sidebarOpen: true
+    sidebarOpen: true,
+    notifications: { ...DEFAULT_NOTIFICATIONS }
   }
 }
 
@@ -97,6 +98,12 @@ export function loadState(): AppSnapshot {
       ...empty(),
       ...parsed,
       google: parsed.google ?? { clientId: '', clientSecret: '' },
+      notifications: {
+        enabled: typeof parsed.notifications?.enabled === 'boolean'
+          ? parsed.notifications.enabled : DEFAULT_NOTIFICATIONS.enabled,
+        sound: typeof parsed.notifications?.sound === 'boolean'
+          ? parsed.notifications.sound : DEFAULT_NOTIFICATIONS.sound
+      },
       providers: mergeProviders(parsed.providers),
       workspaces
     }
@@ -108,14 +115,13 @@ export function loadState(): AppSnapshot {
 export function saveState(state: AppSnapshot): void {
   const file = saveFile()
   mkdirSync(dirname(file), { recursive: true })
-  const persist: AppSnapshot = {
-    ...state,
-    providers: state.providers.map((p) => ({
-      ...p,
-      // keep detection flags; they get refreshed on boot anyway
-    }))
+  const temporary = `${file}.tmp`
+  try {
+    writeFileSync(temporary, JSON.stringify(state, null, 2), { encoding: 'utf8', flush: true })
+    renameSync(temporary, file)
+  } finally {
+    rmSync(temporary, { force: true })
   }
-  writeFileSync(file, JSON.stringify(persist, null, 2), 'utf8')
 }
 
 export function existsState(): boolean {

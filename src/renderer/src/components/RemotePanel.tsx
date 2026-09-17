@@ -12,8 +12,7 @@ export default function RemotePanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     void refresh()
-    const t = setInterval(() => void refresh(), 1500)
-    return () => clearInterval(t)
+    return window.pq.remote.onChange(setInfo)
   }, [])
 
   async function copy(text: string) {
@@ -46,7 +45,7 @@ export default function RemotePanel({ onClose }: { onClose: () => void }) {
                 ) : info.tunnel === 'starting' ? (
                   'stawiam…'
                 ) : info.tunnel === 'error' ? (
-                  <span style={{ color: '#ff5c7a' }}>{info.tunnelError || 'padł'}</span>
+                  <span style={{ color: 'var(--red)' }}>{info.tunnelError || 'padł'}</span>
                 ) : (
                   'wyłączony'
                 )}

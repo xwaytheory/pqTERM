@@ -4,6 +4,8 @@ import type {
   EngineId,
   GoogleOAuthConfig,
   LayoutId,
+  NotificationSettings,
+  PaneActivity,
   ProviderInfo,
   SyncEvent,
   BoardSnapshot,
@@ -14,6 +16,7 @@ import type {
   UserSession,
   Workspace
 } from '../shared/types'
+import type { ResizeEdge } from '../shared/grid'
 
 function scrub(e: unknown): Error {
   const m = e instanceof Error ? e.message : String(e)
@@ -50,7 +53,14 @@ const pq = {
     info: () => invoke('remote:info') as Promise<RemoteInfo>,
     start: () => invoke('remote:start') as Promise<RemoteInfo>,
     stop: () => invoke('remote:stop') as Promise<RemoteInfo>,
-    regenPin: () => invoke('remote:regenPin') as Promise<RemoteInfo>
+    regenPin: () => invoke('remote:regenPin') as Promise<RemoteInfo>,
+    onChange: (cb: (info: RemoteInfo) => void) => {
+      const fn = (_: unknown, info: RemoteInfo) => cb(info)
+      ipcRenderer.on('remote:changed', fn)
+      return () => {
+        ipcRenderer.removeListener('remote:changed', fn)
+      }
+    }
   },
   sync: {
     start: () => invoke('sync:start') as Promise<void>,
@@ -68,6 +78,24 @@ const pq = {
       ipcRenderer.on('usage:changed', fn)
       return () => ipcRenderer.removeListener('usage:changed', fn)
     }
+  },
+  activity: {
+    get: () => invoke('activity:get') as Promise<Record<string, PaneActivity>>,
+    focus: (workspaceId: string | null, paneId: string | null) =>
+      invoke('activity:focus', workspaceId, paneId) as Promise<void>,
+    onChange: (cb: (paneId: string, activity: PaneActivity | null) => void) => {
+      const fn = (_: unknown, paneId: string, activity: PaneActivity | null) => cb(paneId, activity)
+      ipcRenderer.on('activity:changed', fn)
+      return () => ipcRenderer.removeListener('activity:changed', fn)
+    },
+    onFocus: (cb: (workspaceId: string, paneId: string) => void) => {
+      const fn = (_: unknown, workspaceId: string, paneId: string) => cb(workspaceId, paneId)
+      ipcRenderer.on('activity:focus', fn)
+      return () => ipcRenderer.removeListener('activity:focus', fn)
+    }
+  },
+  notifications: {
+    set: (settings: NotificationSettings) => invoke('notifications:set', settings) as Promise<void>
   },
   board: {
     get: () => invoke('board:get') as Promise<BoardSnapshot | null>,
@@ -108,12 +136,15 @@ const pq = {
     remove: (id: string) => invoke('workspaces:remove', id) as Promise<void>,
     select: (id: string | null) => invoke('workspaces:select', id) as Promise<void>,
     pickFolder: () => invoke('workspaces:pickFolder') as Promise<string | null>,
+    openFolder: (id: string) => invoke('workspaces:openFolder', id) as Promise<void>,
     setLayout: (id: string, layout: LayoutId) =>
       invoke('workspaces:setLayout', id, layout) as Promise<void>,
     setPane: (workspaceId: string, paneId: string, patch: PanePatch) =>
       invoke('workspaces:setPane', workspaceId, paneId, patch) as Promise<void>,
     swapPanes: (workspaceId: string, aId: string, bId: string) =>
       invoke('workspaces:swapPanes', workspaceId, aId, bId) as Promise<void>,
+    resizePane: (workspaceId: string, paneId: string, edge: ResizeEdge, dx: number, dy: number) =>
+      invoke('workspaces:resizePane', workspaceId, paneId, edge, dx, dy) as Promise<void>,
     snapPane: (workspaceId: string, paneId: string, zone: SnapZone) =>
       invoke('workspaces:snapPane', workspaceId, paneId, zone) as Promise<void>
   },

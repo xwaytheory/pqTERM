@@ -93,8 +93,9 @@ export class PtyManager {
     private getWin: () => BrowserWindow | null,
     private hooks?: {
       extraEnv?: (paneId: string) => NodeJS.ProcessEnv
+      onStart?: (paneId: string) => void
       onOutput?: (paneId: string, data: string) => void
-      onExit?: (paneId: string) => void
+      onExit?: (paneId: string, exitCode: number, intentional: boolean) => void
       /** CLI set its own window title via OSC — expose it so a pane can adopt it */
       onTitle?: (paneId: string, title: string) => void
     }
@@ -152,6 +153,8 @@ export class PtyManager {
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
+      this.hooks?.onStart?.(opts.paneId)
+      this.hooks?.onExit?.(opts.paneId, 1, false)
       win0?.webContents.send(
         'term:data',
         opts.paneId,
@@ -175,6 +178,7 @@ export class PtyManager {
     }
     this.sessions.set(opts.paneId, session)
     this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
+    this.hooks?.onStart?.(opts.paneId)
 
     proc.onData((data) => {
       if (!session.alive) return
@@ -198,7 +202,7 @@ export class PtyManager {
       this.sessions.delete(opts.paneId)
       this.oscTail.delete(opts.paneId)
       this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
-      this.hooks?.onExit?.(opts.paneId)
+      this.hooks?.onExit?.(opts.paneId, exitCode ?? 0, false)
       this.getWin()?.webContents.send('term:exit', opts.paneId, exitCode ?? 0)
     })
   }
@@ -218,7 +222,6 @@ export class PtyManager {
     if (!s?.alive || exitedInternally(s.proc)) {
       if (s) {
         s.alive = false
-        this.sessions.delete(paneId)
       }
       return
     }
@@ -226,17 +229,20 @@ export class PtyManager {
       s.proc.resize(Math.max(20, cols), Math.max(8, rows))
     } catch {
       s.alive = false
-      this.sessions.delete(paneId)
     }
   }
 
   kill(paneId: string): void {
     const s = this.sessions.get(paneId)
-    if (!s) return
+    if (!s) {
+      this.hooks?.onExit?.(paneId, 0, true)
+      return
+    }
     s.alive = false
     this.sessions.delete(paneId)
+    this.oscTail.delete(paneId)
     this.lastBuf.set(paneId, { data: s.buf, seq: s.seq })
-    this.hooks?.onExit?.(paneId)
+    this.hooks?.onExit?.(paneId, 0, true)
     try {
       s.proc.kill()
     } catch {

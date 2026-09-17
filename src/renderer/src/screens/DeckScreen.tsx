@@ -1,19 +1,23 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import type { AppSnapshot, EngineId, LayoutId, PaneArea, SnapZone, UsageMap } from '../../../shared/types'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import type { AppSnapshot, EngineId, LayoutId, PaneActivity, PaneArea, SnapZone, UsageMap } from '../../../shared/types'
 import { isRawShell, LAYOUTS } from '../../../shared/types'
 import {
   FULL,
   resolveAreas,
+  resizePanes,
+  RESIZE_EDGES,
   snapAreas,
   swapAreasById,
   zoneNear,
-  zoneRect
+  zoneRect,
+  type ResizeEdge
 } from '../../../shared/grid'
 import Titlebar from '../components/Titlebar'
 import Sidebar from '../components/Sidebar'
 import TerminalPane from '../components/TerminalPane'
 import NewWorkspaceModal from '../components/NewWorkspaceModal'
 import ProvidersModal from '../components/ProvidersModal'
+import NotificationsModal from '../components/NotificationsModal'
 import RemotePanel from '../components/RemotePanel'
 
 interface Hover {
@@ -22,6 +26,21 @@ interface Hover {
   paneId: string | null
   haloStyle: { left: number; top: number; width: number; height: number } | null
   preview: { id: string; self: boolean; style: { left: number; top: number; width: number; height: number } }[] | null
+}
+
+interface PaneResize {
+  workspaceId: string
+  paneId: string
+  edge: ResizeEdge
+  layoutKey: string
+  areas: { id: string; area: PaneArea }[]
+  cleanup: () => void
+}
+
+const RESIZE_LABEL: Record<ResizeEdge, string> = {
+  n: 'górna krawędź', s: 'dolna krawędź', e: 'prawa krawędź', w: 'lewa krawędź',
+  ne: 'prawy górny narożnik', nw: 'lewy górny narożnik',
+  se: 'prawy dolny narożnik', sw: 'lewy dolny narożnik'
 }
 
 const ZONE_LABEL: Record<SnapZone | 'none', string> = {
@@ -52,14 +71,30 @@ const FRAME_SNAP_PX = 28
 const NO_HOVER: Hover = { zone: null, zoneStyle: null, paneId: null, haloStyle: null, preview: null }
 
 export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
-  const [modal, setModal] = useState<'new' | 'providers' | 'remote' | null>(null)
+  const [modal, setModal] = useState<'new' | 'providers' | 'remote' | 'notifications' | null>(null)
   const [focus, setFocus] = useState<string | null>(null)
   const [renameNonce, setRenameNonce] = useState(0)
   const [usage, setUsage] = useState<UsageMap>({})
+  const [activity, setActivity] = useState<Record<string, PaneActivity>>({})
+  const [activityError, setActivityError] = useState('')
+  const [focusRequest, setFocusRequest] = useState<{ workspaceId: string; paneId: string; nonce: number } | null>(null)
+  const focusContext = useRef({ snap, modal })
+  focusContext.current = { snap, modal }
+  const reportedFocus = useRef<string | undefined>(undefined)
   const [cast, setCast] = useState('')
   const [drag, setDrag] = useState<{ paneId: string; x: number; y: number } | null>(null)
   const [hover, setHover] = useState<Hover>(NO_HOVER)
+  const [resizePreview, setResizePreview] = useState<Pick<PaneResize, 'workspaceId' | 'layoutKey' | 'areas'> | null>(null)
+  const [resizeError, setResizeError] = useState('')
+  const resizeRef = useRef<PaneResize | null>(null)
   const ws = snap.workspaces.find((w) => w.id === snap.activeWorkspaceId) ?? null
+  const visitedWorkspaces = useRef(new Set<string>())
+  useLayoutEffect(() => {
+    if (ws) visitedWorkspaces.current.add(ws.id)
+    for (const id of visitedWorkspaces.current) {
+      if (!snap.workspaces.some((w) => w.id === id)) visitedWorkspaces.current.delete(id)
+    }
+  }, [ws, snap.workspaces])
   const detected = snap.providers.filter((p) => p.installed && !isRawShell(p.id)).length
   const authed = snap.providers.filter((p) => p.detectedAuth && !isRawShell(p.id)).length
   const zoomedId = ws?.zoomedPaneId ?? null
@@ -73,10 +108,11 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
   const panes = ws?.panes ?? []
   // Window-level drag handlers outlive a render and memoized panes can hold a handler prop from
   // an earlier one, so anything they read goes through here rather than the render closure.
-  const liveRef = useRef({ ws, panes, zoomedId })
-  liveRef.current = { ws, panes, zoomedId }
   const areas = useMemo(() => resolveAreas(panes), [panes])
-  const areaById = useMemo(() => new Map(areas.map((a) => [a.id, a.area])), [areas])
+  // Geometry only: terminal-generated titles must not cancel a pointer gesture.
+  const layoutKey = JSON.stringify([ws?.id, ws?.layout, zoomedId, areas])
+  const liveRef = useRef({ ws, panes, zoomedId, layoutKey })
+  liveRef.current = { ws, panes, zoomedId, layoutKey }
   const draggedTitle = drag ? panes.find((p) => p.id === drag.paneId)?.title ?? '' : ''
 
   const center = useMemo(() => {
@@ -97,9 +133,92 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
     )
   }, [ws, zoomedPane])
 
+  function requestPaneFocus(workspaceId: string, paneId: string): void {
+    setFocus(paneId)
+    setFocusRequest((previous) => ({ workspaceId, paneId, nonce: (previous?.nonce ?? 0) + 1 }))
+  }
+
+  function reportTerminalFocus(): void {
+    const current = focusContext.current
+    const activeWorkspace = current.snap.workspaces.find((w) => w.id === current.snap.activeWorkspaceId)
+    const element = document.activeElement
+    const paneId = element instanceof HTMLElement && element.closest('.xterm-host')
+      ? element.closest<HTMLElement>('[data-pane-id]')?.dataset.paneId
+      : undefined
+    const pane = activeWorkspace?.panes.find((p) => p.id === paneId && p.engine)
+    const visible = document.hasFocus() && document.visibilityState === 'visible' && !current.modal &&
+      pane && (!activeWorkspace?.zoomedPaneId || activeWorkspace.zoomedPaneId === pane.id)
+    const workspaceId = visible ? activeWorkspace!.id : null
+    const focusedPaneId = visible ? pane.id : null
+    const key = JSON.stringify([workspaceId, focusedPaneId])
+    if (reportedFocus.current === key) return
+    reportedFocus.current = key
+    if (focusedPaneId) setFocus(focusedPaneId)
+    void window.pq.activity.focus(workspaceId, focusedPaneId).catch((error) => {
+      console.error('[pqTERM] activity focus failed', error)
+      setActivityError('Nie udało się zgłosić fokusu terminala.')
+    })
+  }
+
+  useEffect(() => {
+    let disposed = false
+    // Events received during get() win, including removals; untouched panes come from the snapshot.
+    let pending: Map<string, PaneActivity | null> | null = new Map()
+    const off = window.pq.activity.onChange((paneId, next) => {
+      pending?.set(paneId, next)
+      setActivity((previous) => {
+        const updated = { ...previous }
+        if (next) updated[paneId] = next
+        else delete updated[paneId]
+        return updated
+      })
+    })
+    void window.pq.activity.get().then((initial) => {
+      if (disposed) return
+      const merged = { ...initial }
+      for (const [paneId, next] of pending!) {
+        if (next) merged[paneId] = next
+        else delete merged[paneId]
+      }
+      pending = null
+      setActivity(merged)
+    }).catch((error) => {
+      pending = null
+      if (disposed) return
+      console.error('[pqTERM] activity snapshot failed', error)
+      setActivityError('Nie udało się wczytać statusów terminali.')
+    })
+    const offFocus = window.pq.activity.onFocus((workspaceId, paneId) => {
+      setModal(null)
+      requestPaneFocus(workspaceId, paneId)
+    })
+    const onFocusOut = () => queueMicrotask(() => { if (!disposed) reportTerminalFocus() })
+    document.addEventListener('focusin', reportTerminalFocus)
+    document.addEventListener('focusout', onFocusOut)
+    document.addEventListener('visibilitychange', reportTerminalFocus)
+    window.addEventListener('focus', reportTerminalFocus)
+    window.addEventListener('blur', reportTerminalFocus)
+    reportTerminalFocus()
+    return () => {
+      disposed = true
+      off()
+      offFocus()
+      document.removeEventListener('focusin', reportTerminalFocus)
+      document.removeEventListener('focusout', onFocusOut)
+      document.removeEventListener('visibilitychange', reportTerminalFocus)
+      window.removeEventListener('focus', reportTerminalFocus)
+      window.removeEventListener('blur', reportTerminalFocus)
+      void window.pq.activity.focus(null, null).catch((error) => console.error('[pqTERM] activity focus cleanup failed', error))
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    reportTerminalFocus()
+  }, [snap.activeWorkspaceId, ws?.panes, zoomedId, modal])
+
   function setZoomFor(wId: string, paneId: string | null): void {
     void window.pq.workspaces.update(wId, { zoomedPaneId: paneId })
-    if (paneId) setFocus(paneId)
+    if (paneId) requestPaneFocus(wId, paneId)
   }
 
   function toggleZoomFor(
@@ -128,6 +247,153 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
     return () => off?.()
   }, [])
 
+  function cancelResize(): void {
+    resizeRef.current?.cleanup()
+    resizeRef.current = null
+    setResizePreview(null)
+  }
+
+  useLayoutEffect(() => {
+    if (resizeRef.current && resizeRef.current.layoutKey !== layoutKey) cancelResize()
+  }, [layoutKey])
+
+  useEffect(() => () => {
+    resizeRef.current?.cleanup()
+    resizeRef.current = null
+  }, [])
+
+  function commitResize(session: PaneResize, dx: number, dy: number): void {
+    if (resizeRef.current !== session) return
+    session.cleanup()
+    if (liveRef.current.layoutKey !== session.layoutKey) {
+      cancelResize()
+      return
+    }
+    const next = resizePanes(session.areas, session.paneId, session.edge, dx, dy)
+    if (JSON.stringify(next) === JSON.stringify(session.areas)) {
+      cancelResize()
+      return
+    }
+    setResizePreview({ ...session, areas: next })
+    void window.pq.workspaces.resizePane(session.workspaceId, session.paneId, session.edge, dx, dy)
+      .then(() => {
+        if (resizeRef.current !== session) return
+        // Main broadcasts before resolving. Keep the final preview through the
+        // next frame so React can apply that snapshot without snapping back.
+        // Compose with the gesture cleanup — the layoutKey effect may cancel
+        // first when the broadcast render lands before this frame.
+        const prev = session.cleanup
+        const frame = requestAnimationFrame(() => {
+          if (resizeRef.current === session) cancelResize()
+        })
+        session.cleanup = () => {
+          prev()
+          cancelAnimationFrame(frame)
+        }
+      })
+      .catch(() => {
+        if (resizeRef.current !== session) return
+        cancelResize()
+        setResizeError('Nie udało się zmienić rozmiaru okien. Spróbuj ponownie.')
+      })
+  }
+
+  function startResize(paneId: string, edge: ResizeEdge): PaneResize | null {
+    const live = liveRef.current
+    // A pointerdown always means the previous gesture is over — never let a
+    // session that lost its async cleanup race block a new one.
+    if (resizeRef.current) {
+      resizeRef.current.cleanup()
+      resizeRef.current = null
+      setResizePreview(null)
+    }
+    if (dragRef.current || !live.ws || live.zoomedId || live.panes.length < 2) return null
+    const session: PaneResize = {
+      workspaceId: live.ws.id, paneId, edge, layoutKey: live.layoutKey,
+      areas: resolveAreas(live.panes), cleanup: () => {}
+    }
+    resizeRef.current = session
+    setResizeError('')
+    return session
+  }
+
+  function beginResize(paneId: string, edge: ResizeEdge, e: ReactPointerEvent<HTMLButtonElement>): void {
+    if (e.button !== 0 || !e.isPrimary) return
+    const rect = gridRef.current?.getBoundingClientRect()
+    if (!rect?.width || !rect.height) return
+    const session = startResize(paneId, edge)
+    if (!session) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.currentTarget.focus()
+    const pointerId = e.pointerId
+    const startX = e.clientX
+    const startY = e.clientY
+    let dx = 0
+    let dy = 0
+    let frame = 0
+    const preview = () => {
+      frame = 0
+      if (resizeRef.current !== session) return
+      if (liveRef.current.layoutKey !== session.layoutKey) {
+        cancelResize()
+        return
+      }
+      setResizePreview({ ...session, areas: resizePanes(session.areas, paneId, edge, dx, dy) })
+    }
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return
+      ev.preventDefault()
+      dx = (ev.clientX - startX) / rect.width
+      dy = (ev.clientY - startY) / rect.height
+      if (!frame) frame = requestAnimationFrame(preview)
+    }
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return
+      // The release can arrive before the last move's animation frame.
+      commitResize(session, (ev.clientX - startX) / rect.width, (ev.clientY - startY) / rect.height)
+    }
+    const cancel = (ev: PointerEvent) => {
+      if (ev.pointerId === pointerId) cancelResize()
+    }
+    const escape = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return
+      ev.preventDefault()
+      ev.stopPropagation()
+      cancelResize()
+    }
+    const blur = () => cancelResize()
+    session.cleanup = () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
+      window.removeEventListener('keydown', escape, true)
+      window.removeEventListener('blur', blur)
+      document.body.classList.remove('pane-resizing')
+      document.body.style.removeProperty('--pane-resize-cursor')
+    }
+    document.body.classList.add('pane-resizing')
+    document.body.style.setProperty('--pane-resize-cursor', edge.length === 2 ? (edge === 'ne' || edge === 'sw' ? 'nesw-resize' : 'nwse-resize') : (edge === 'e' || edge === 'w' ? 'ew-resize' : 'ns-resize'))
+    setResizePreview({ ...session })
+    window.addEventListener('pointermove', move, { passive: false })
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
+    window.addEventListener('keydown', escape, true)
+    window.addEventListener('blur', blur)
+  }
+
+  function keyResize(paneId: string, edge: ResizeEdge, e: ReactKeyboardEvent<HTMLButtonElement>): void {
+    if (e.altKey || e.ctrlKey || e.metaKey) return
+    const step = e.shiftKey ? 0.05 : 0.01
+    const dx = /[ew]/.test(edge) ? (e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0) : 0
+    const dy = /[ns]/.test(edge) ? (e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0) : 0
+    if (!dx && !dy) return
+    e.preventDefault()
+    e.stopPropagation()
+    const session = startResize(paneId, edge)
+    if (session) commitResize(session, dx, dy)
+  }
   function pushHover(h: Hover): void {
     hoverRef.current = h
     setHover(h)
@@ -152,7 +418,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
   )
 
   function beginDrag(paneId: string, e: ReactPointerEvent<HTMLElement>): void {
-    if (liveRef.current.zoomedId) return
+    if (liveRef.current.zoomedId || resizeRef.current) return
     e.preventDefault()
     cleanupDrag()
     dragRef.current = { paneId, x: e.clientX, y: e.clientY, started: false }
@@ -335,6 +601,9 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           <button className="dockbtn" title="providers" onClick={() => setModal('providers')}>
             ⚙
           </button>
+          <button className="dockbtn" title="powiadomienia" aria-label="Ustawienia powiadomień" onClick={() => setModal('notifications')}>
+            !
+          </button>
           <button className="dockbtn" title="sync engines" onClick={() => window.pq.sync.start()}>
             ↻
           </button>
@@ -355,12 +624,16 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
         </nav>
         <Sidebar
           snap={snap}
+          activity={activity}
           onNew={() => setModal('new')}
           focusPane={(wId, paneId) => {
-            setFocus(paneId)
+            requestPaneFocus(wId, paneId)
             const target = snap.workspaces.find((w) => w.id === wId)
             if (target?.zoomedPaneId) {
-              void window.pq.workspaces.update(wId, { zoomedPaneId: paneId })
+              void window.pq.workspaces.update(wId, { zoomedPaneId: paneId }).catch((error) => {
+                console.error('[pqTERM] pane focus routing failed', error)
+                setActivityError('Nie udało się pokazać wybranego terminala.')
+              })
             }
           }}
         />
@@ -457,9 +730,6 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                     </>
                   )
                 })()}
-                <button className="ghost" onClick={() => window.pq.workspaces.remove(ws.id)}>
-                  delete ws
-                </button>
               </div>
               {drag ? (
                 <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 14 }}>
@@ -485,32 +755,71 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                   style={p.style}
                 />
               ))}
-              {/* Only the active workspace keeps terminals mounted: the others used to hold a live
-                  xterm + PTY per pane in the background. The PTY itself lives in main and is not
-                  killed here, so switching back re-spawns the view and the replay buffer refills
-                  it — same path a renderer reload already used. */}
-              <div key={ws.id} className="ws-grid active">
-                <div ref={gridRef} className={`grid${zoomedId ? ' zoomed' : ''}`}>
-                  {ws.panes.map((p, i) => (
-                    <TerminalPane
-                      key={p.id}
-                      pane={p}
-                      workspaceId={ws.id}
-                      cwd={ws.cwd}
-                      providers={snap.providers}
-                      focused={focus === p.id}
-                      zoomed={zoomedId === p.id}
-                      renameNonce={focus === p.id ? renameNonce : 0}
-                      usage={p.engine ? usage[p.engine] : undefined}
-                      index={i + 1}
-                      area={zoomedId === p.id ? FULL : areaById.get(p.id)}
-                      onDragStart={beginDrag}
-                      onFocus={() => setFocus(p.id)}
-                      onZoom={() => toggleZoomFor(ws.id, zoomedId, p.id)}
-                    />
-                  ))}
-                </div>
-              </div>
+              {/* Keep visited terminal views alive, but do not start unvisited workspaces. */}
+              {snap.workspaces.map((w) => {
+                const active = w.id === ws?.id
+                if (!active && !visitedWorkspaces.current.has(w.id)) return null
+                const wZoomed = w.zoomedPaneId ?? null
+                const preview = active && resizePreview?.workspaceId === w.id && resizePreview.layoutKey === layoutKey ? resizePreview : null
+                const wAreas = preview?.areas ?? resolveAreas(w.panes)
+                const wAreaById = new Map(wAreas.map((a) => [a.id, a.area]))
+                return (
+                  <div key={w.id} className={`ws-grid${active ? ' active' : ''}`}>
+                    <div ref={active ? gridRef : undefined} className={`grid${wZoomed ? ' zoomed' : ''}${preview ? ' resizing' : ''}`}>
+                      {w.panes.map((p, i) => (
+                        <TerminalPane
+                          key={p.id}
+                          pane={p}
+                          workspaceId={w.id}
+                          cwd={w.cwd}
+                          providers={snap.providers}
+                          focused={active && focus === p.id}
+                          zoomed={wZoomed === p.id}
+                          renameNonce={active && focus === p.id ? renameNonce : 0}
+                          usage={p.engine ? usage[p.engine] : undefined}
+                          activity={activity[p.id]}
+                          focusRequest={active && !modal && (!wZoomed || wZoomed === p.id) && focusRequest?.workspaceId === w.id && focusRequest.paneId === p.id ? focusRequest.nonce : 0}
+                          index={i + 1}
+                          area={wZoomed === p.id ? FULL : wAreaById.get(p.id)}
+                          onDragStart={beginDrag}
+                          onFocus={() => setFocus(p.id)}
+                          onZoom={() => toggleZoomFor(w.id, wZoomed, p.id)}
+                        />
+                      ))}
+                      {active && !wZoomed && w.panes.length > 1 ? wAreas.flatMap(({ id, area }) => {
+                        const internal = {
+                          n: area.y > 1e-5, s: area.y + area.h < 1 - 1e-5,
+                          w: area.x > 1e-5, e: area.x + area.w < 1 - 1e-5
+                        }
+                        return RESIZE_EDGES.filter((edge) => [...edge].every((side) => internal[side as keyof typeof internal])).map((edge) => {
+                          const horizontal = edge === 'n' || edge === 's'
+                          const vertical = edge === 'e' || edge === 'w'
+                          const x = edge.includes('e') ? area.x + area.w : area.x
+                          const y = edge.includes('s') ? area.y + area.h : area.y
+                          const label = `Zmień rozmiar okna ${w.panes.findIndex((p) => p.id === id) + 1}: ${RESIZE_LABEL[edge]}. Strzałki: 1%, Shift: 5%.`
+                          return (
+                            <button
+                              key={`${id}-${edge}`}
+                              type="button"
+                              className={`pane-resize-handle resize-${edge}`}
+                              aria-label={label}
+                              title={label}
+                              style={{
+                                left: horizontal ? `calc(${area.x * 100}% + 6px)` : `calc(${x * 100}% - 4px)`,
+                                top: vertical ? `calc(${area.y * 100}% + 6px)` : `calc(${y * 100}% - 4px)`,
+                                width: horizontal ? `calc(${area.w * 100}% - 12px)` : '8px',
+                                height: vertical ? `calc(${area.h * 100}% - 12px)` : '8px'
+                              }}
+                              onPointerDown={(e) => beginResize(id, edge, e)}
+                              onKeyDown={(e) => keyResize(id, edge, e)}
+                            />
+                          )
+                        })
+                      }) : null}
+                    </div>
+                  </div>
+                )
+              })}
             </>
           ) : (
             <div className="blank">
@@ -537,6 +846,8 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
             : 'idle'}
         </span>
         <span className="hint-keys">upuść na okno = zamień · upuść na ramkę = przytnij · ctrl+shift+[b panel / f zoom]</span>
+        {resizeError ? <span role="status">{resizeError}</span> : null}
+        {activityError ? <span role="status">{activityError}</span> : null}
       </footer>
       {modal === 'new' ? (
         <NewWorkspaceModal providers={snap.providers} onClose={() => setModal(null)} />
@@ -549,6 +860,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
         />
       ) : null}
       {modal === 'remote' ? <RemotePanel onClose={() => setModal(null)} /> : null}
+      {modal === 'notifications' ? <NotificationsModal settings={snap.notifications} onClose={() => setModal(null)} /> : null}
     </>
   )
 }

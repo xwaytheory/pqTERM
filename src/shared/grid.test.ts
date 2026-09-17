@@ -6,6 +6,8 @@ import {
   area,
   areaStyle,
   defaultAreas,
+  RESIZE_EDGES,
+  resizePanes,
   resolveAreas,
   snapAreas,
   splitInto,
@@ -175,4 +177,132 @@ test('zoneRect maps every zone to a valid unit-space rect', () => {
     assert.ok(r.x >= -EPS && r.y >= -EPS && r.x + r.w <= 1 + EPS && r.y + r.h <= 1 + EPS)
   }
   assert.deepEqual(zoneRect('full'), { x: 0, y: 0, w: 1, h: 1 })
+})
+
+test('resizePanes resizes both sides without translating or mutating the frame', () => {
+  const panes = [
+    { id: 'a', area: { x: 0, y: 0, w: 0.5, h: 1 } },
+    { id: 'b', area: { x: 0.5, y: 0, w: 0.5, h: 1 } }
+  ]
+  const before = structuredClone(panes)
+  for (const delta of [-0.125, 0.125]) {
+    const expected = [
+      { id: 'a', area: { x: 0, y: 0, w: 0.5 + delta, h: 1 } },
+      { id: 'b', area: { x: 0.5 + delta, y: 0, w: 0.5 - delta, h: 1 } }
+    ]
+    assert.deepEqual(resizePanes(panes, 'a', 'e', delta, 0.25), expected)
+    assert.deepEqual(resizePanes(panes, 'b', 'w', delta, -0.25), expected)
+  }
+  assert.deepEqual(panes, before)
+})
+
+test('resizePanes north and south use dy, not dx or an inverted sign', () => {
+  const panes = [
+    { id: 'a', area: { x: 0, y: 0, w: 1, h: 0.5 } },
+    { id: 'b', area: { x: 0, y: 0.5, w: 1, h: 0.5 } }
+  ]
+  for (const delta of [-0.125, 0.125]) {
+    const expected = [
+      { id: 'a', area: { x: 0, y: 0, w: 1, h: 0.5 + delta } },
+      { id: 'b', area: { x: 0, y: 0.5 + delta, w: 1, h: 0.5 - delta } }
+    ]
+    assert.deepEqual(resizePanes(panes, 'a', 's', 0.25, delta), expected)
+    assert.deepEqual(resizePanes(panes, 'b', 'n', -0.25, delta), expected)
+  }
+})
+
+test('resizePanes propagates through every T-junction branch and clamps against the smallest neighbour', () => {
+  const panes = [
+    { id: 'a', area: { x: 0, y: 0, w: 0.5, h: 0.5 } },
+    { id: 'b', area: { x: 0, y: 0.5, w: 0.5, h: 0.5 } },
+    { id: 'c', area: { x: 0.5, y: 0, w: 0.25, h: 1 } },
+    { id: 'd', area: { x: 0.75, y: 0, w: 0.25, h: 1 } }
+  ]
+  const out = resizePanes(panes, 'a', 'e', 1, 0, 0.125)
+  assert.deepEqual(out.map((p) => p.area), [
+    { x: 0, y: 0, w: 0.625, h: 0.5 },
+    { x: 0, y: 0.5, w: 0.625, h: 0.5 },
+    { x: 0.625, y: 0, w: 0.125, h: 1 },
+    panes[3].area
+  ])
+  const left = resizePanes(panes, 'c', 'w', -1, 0, 0.125)
+  assert.equal(left[0].area.w, 0.125)
+  assert.equal(left[1].area.w, 0.125)
+  assert.equal(left[2].area.x, 0.125)
+  assert.ok(coversUnit(out.map((p) => p.area)))
+  assert.ok(coversUnit(left.map((p) => p.area)))
+})
+
+test('resizePanes moves touching aligned edges but not disconnected collinear edges', () => {
+  const panes = [
+    { id: 'a', area: { x: 0, y: 0, w: 0.5, h: 0.25 } },
+    { id: 'b', area: { x: 0.5, y: 0, w: 0.5, h: 0.25 } },
+    { id: 'c', area: { x: 0, y: 0.25, w: 0.5, h: 0.25 } },
+    { id: 'd', area: { x: 0.5, y: 0.25, w: 0.5, h: 0.25 } },
+    { id: 'e', area: { x: 0, y: 0.5, w: 1, h: 0.25 } },
+    { id: 'f', area: { x: 0, y: 0.75, w: 0.5, h: 0.25 } },
+    { id: 'g', area: { x: 0.5, y: 0.75, w: 0.5, h: 0.25 } }
+  ]
+  const out = resizePanes(panes, 'a', 'e', 0.125, 0)
+  assert.equal(out[0].area.w, 0.625)
+  assert.equal(out[2].area.w, 0.625)
+  assert.equal(out[3].area.x, 0.625)
+  assert.deepEqual(out.slice(4), panes.slice(4))
+  assert.ok(coversUnit(out.map((p) => p.area)))
+})
+
+test('resizePanes keeps outer and incompletely shared edges fixed', () => {
+  const full = [{ id: 'a', area: { x: 0, y: 0, w: 1, h: 1 } }]
+  for (const edge of RESIZE_EDGES) assert.strictEqual(resizePanes(full, 'a', edge, 0.25, -0.25), full)
+  const partial = [
+    { id: 'a', area: { x: 0, y: 0, w: 0.5, h: 1 } },
+    { id: 'b', area: { x: 0.5, y: 0, w: 0.5, h: 0.5 } }
+  ]
+  assert.strictEqual(resizePanes(partial, 'a', 'e', 0.125, 0), partial)
+  const isolated = partial.slice(0, 1)
+  assert.strictEqual(resizePanes(isolated, 'a', 'e', 0.125, 0), isolated)
+})
+
+test('resizePanes applies corners to the updated layout with independent axis minima', () => {
+  const panes = [
+    { id: 'a', area: { x: 0, y: 0, w: 0.5, h: 0.5 } },
+    { id: 'b', area: { x: 0.5, y: 0, w: 0.5, h: 0.5 } },
+    { id: 'c', area: { x: 0, y: 0.5, w: 0.5, h: 0.5 } },
+    { id: 'd', area: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } }
+  ]
+  for (const [id, edge] of [['a', 'se'], ['b', 'sw'], ['c', 'ne'], ['d', 'nw']] as const) {
+    for (const sign of [-1, 1]) {
+      const out = resizePanes(panes, id, edge, sign, -sign, 0.125, 0.25)
+      const x = sign > 0 ? 0.875 : 0.125
+      const y = sign > 0 ? 0.25 : 0.75
+      assert.deepEqual(out.map((p) => p.area), [
+        { x: 0, y: 0, w: x, h: y },
+        { x, y: 0, w: 1 - x, h: y },
+        { x: 0, y, w: x, h: 1 - y },
+        { x, y, w: 1 - x, h: 1 - y }
+      ])
+      assert.ok(coversUnit(out.map((p) => p.area)))
+    }
+  }
+  const outerCorner = resizePanes(panes, 'a', 'ne', 0.125, -0.25)
+  assert.equal(outerCorner[0].area.w, 0.625)
+  assert.equal(outerCorner[0].area.y, 0)
+  assert.equal(outerCorner[0].area.h, 0.5)
+})
+
+test('resizePanes preserves a partition through repeated signed edge and corner moves', () => {
+  for (const count of [3, 5, 6, 9]) {
+    let panes = defaultAreas(count).map((c, i) => ({ id: String(i), area: c }))
+    for (const delta of [-0.2, 0.35, -1, 1, -0.05]) {
+      for (const id of panes.map((p) => p.id)) {
+        for (const edge of RESIZE_EDGES) {
+          panes = resizePanes(panes, id, edge, delta, -delta)
+          assert.ok(coversUnit(panes.map((p) => p.area)), `${count}/${id}/${edge}/${delta}`)
+          for (const p of panes) {
+            assert.ok(p.area.w >= 0.08 - EPS && p.area.h >= 0.08 - EPS, `min size ${p.id}`)
+          }
+        }
+      }
+    }
+  }
 })

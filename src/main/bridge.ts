@@ -2,8 +2,18 @@ import { createServer, type Server } from 'http'
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
-import { randomBytes } from 'crypto'
+import { randomBytes, timingSafeEqual } from 'crypto'
 import { runningDev } from './env'
+
+/** Bridge bodies are tiny JSON commands — anything bigger is junk (or a local DoS). */
+const BRIDGE_MAX_BODY = 65536
+
+/** Timing-safe token check, mirrors RemoteHub.safeEqual. */
+function safeEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a)
+  const bb = Buffer.from(b)
+  return ba.length === bb.length && timingSafeEqual(ba, bb)
+}
 
 export const PQ_HINT =
   'You are inside pqTERM, a Windows terminal grid. Sibling panes are NOT Windows Terminal. Control them with the pqterm command (on PATH): `pqterm list` · `pqterm fill grok` · `pqterm spawn 2 grok` · `pqterm send 2 Siemanko`. Never run wt, conhost, or start to open extra terminals.'
@@ -161,27 +171,47 @@ export class PaneBridge {
   }
 
   start(): void {
+    if (this.server) return
     this.install()
-    this.server = createServer((req, res) => {
-      void this.handle(req, res)
+    const server = createServer((req, res) => {
+      if (this.server !== server) {
+        res.writeHead(503)
+        res.end()
+        return
+      }
+      void this.handle(req, res).catch(() => {
+        if (res.destroyed || res.writableEnded) return
+        if (res.headersSent) return res.destroy()
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'invalid request' }))
+      })
     })
-    this.server.listen(0, '127.0.0.1', () => {
-      const addr = this.server?.address()
-      const port = addr && typeof addr === 'object' ? addr.port : 0
-      this.origin = `http://127.0.0.1:${port}`
-      const dir = binDir()
-      mkdirSync(dir, { recursive: true })
-      writeFileSync(
-        join(dir, 'bridge.json'),
-        JSON.stringify({ origin: this.origin, token: this.token }, null, 2),
-        'utf8'
-      )
+    this.server = server
+    server.on('error', (err) => {
+      console.error('pqTERM bridge:', err)
+      if (this.server === server) this.stop()
+    })
+    server.listen(0, '127.0.0.1', () => {
+      if (this.server !== server) { server.close(); return }
+      const addr = server.address()
+      if (!addr || typeof addr !== 'object') return
+      this.origin = `http://127.0.0.1:${addr.port}`
+      try {
+        const dir = binDir()
+        mkdirSync(dir, { recursive: true })
+        writeFileSync(join(dir, 'bridge.json'),
+          JSON.stringify({ origin: this.origin, token: this.token }, null, 2), 'utf8')
+      } catch (err) {
+        console.error('pqTERM bridge:', err)
+        this.stop()
+      }
     })
   }
 
   stop(): void {
     this.server?.close()
     this.server = null
+    this.origin = ''
   }
 
   envFor(paneId: string, slot: number): NodeJS.ProcessEnv {
@@ -197,22 +227,42 @@ export class PaneBridge {
     req: import('http').IncomingMessage,
     res: import('http').ServerResponse
   ): Promise<void> {
+    const server = this.server
     const send = (code: number, body: unknown) => {
+      if (res.destroyed || res.writableEnded) return
       res.writeHead(code, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(body))
     }
     const token = String(req.headers['x-pq-token'] || '')
-    if (token !== this.token) return send(401, { error: 'bad token' })
+    if (!safeEqual(token, this.token)) return send(401, { error: 'bad token' })
     const url = new URL(req.url || '/', 'http://127.0.0.1')
     const bufs: Buffer[] = []
-    for await (const c of req) bufs.push(c as Buffer)
+    let size = 0
+    for await (const c of req) {
+      size += (c as Buffer).length
+      if (size > BRIDGE_MAX_BODY) {
+        send(413, { error: 'body too large' })
+        req.destroy()
+        return
+      }
+      bufs.push(c as Buffer)
+    }
+    if (!server || this.server !== server) return send(503, { error: 'bridge stopped' })
     let body: Record<string, unknown> = {}
     if (bufs.length) {
       try {
-        body = JSON.parse(Buffer.concat(bufs).toString('utf8')) as Record<string, unknown>
+        const parsed: unknown = JSON.parse(Buffer.concat(bufs).toString('utf8'))
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          return send(400, { error: 'expected object' })
+        }
+        body = parsed as Record<string, unknown>
       } catch {
-        body = {}
+        return send(400, { error: 'invalid JSON' })
       }
+    }
+    if (req.method === 'POST' && !bufs.length) return send(400, { error: 'expected JSON body' })
+    if (body.engine !== undefined && (typeof body.engine !== 'string' || !body.engine.trim())) {
+      return send(400, { error: 'invalid engine' })
     }
     try {
       if (req.method === 'GET' && url.pathname === '/v1/panes') {
@@ -220,19 +270,30 @@ export class PaneBridge {
       }
       const spawnM = url.pathname.match(/^\/v1\/panes\/(\d+)\/spawn$/)
       if (req.method === 'POST' && spawnM) {
-        const paneId = await this.hooks.spawn(Number(spawnM[1]), String(body.engine || 'grok'))
+        const slot = Number(spawnM[1])
+        if (!Number.isSafeInteger(slot) || slot < 1) return send(400, { error: 'invalid slot' })
+        const paneId = await this.hooks.spawn(slot, (body.engine as string | undefined) ?? 'grok')
         return send(paneId ? 200 : 404, paneId ? { ok: true, paneId } : { error: 'no slot' })
       }
       const writeM = url.pathname.match(/^\/v1\/panes\/(\d+)\/write$/)
       if (req.method === 'POST' && writeM) {
-        const ok = await this.hooks.write(Number(writeM[1]), String(body.text || ''))
+        const slot = Number(writeM[1])
+        if (!Number.isSafeInteger(slot) || slot < 1 || typeof body.text !== 'string') {
+          return send(400, { error: 'invalid slot or text' })
+        }
+        const ok = await this.hooks.write(slot, body.text)
         return send(ok ? 200 : 404, { ok })
       }
       if (req.method === 'POST' && url.pathname === '/v1/fill') {
+        if ((body.prompt !== undefined && typeof body.prompt !== 'string') ||
+            (body.skipSlot !== undefined && (typeof body.skipSlot !== 'number' ||
+              !Number.isSafeInteger(body.skipSlot) || body.skipSlot < 0))) {
+          return send(400, { error: 'invalid prompt or skipSlot' })
+        }
         const spawned = await this.hooks.fill(
-          String(body.engine || 'grok'),
-          String(body.prompt || ''),
-          Number(body.skipSlot || 0)
+          (body.engine as string | undefined) ?? 'grok',
+          (body.prompt as string | undefined) ?? '',
+          (body.skipSlot as number | undefined) ?? 0
         )
         return send(200, { ok: true, spawned })
       }
