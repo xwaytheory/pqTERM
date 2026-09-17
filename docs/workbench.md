@@ -1,5 +1,12 @@
 # pq workbench (gauntlet live board)
 
+## CLI install window and Kimi logo — deployment 2026-09-17
+
+- Approved release `3b8569d` was pushed to `origin/main` and `origin/test`; official host and bundles rebuilt. Installation remains the minimal visible cmd/PowerShell window; no managed uninstall subsystem.
+- Kimi uses bundled `kimi.png` instead of the dead remote URL. Runtime check in official Electron: `file:///C:/Users/pq/pqTERM/out/renderer/assets/kimi-BYrmPowr.png`, `complete=true`, natural size 640×640. No installer or CLI was clicked during this runtime check.
+- Integrated pinned `3b8569d` into development without promoting concurrent test changes. Merge preserves Notification/IPC imports and all unit suites. Development verification: 100/100 unit tests, both TS projects, check:version (existing 1.1.9), production build PASS.
+- Full install → second-click launch UI flow was not exercised in this check. Existing profile isolation was not confirmed, so verification was read-only; the verification process was stopped.
+
 Last update: **2026-09-16** (Europe/Warsaw) — UI: karty silników w NEW WORKSPACE w jednym rzędzie (logo po lewej, nazwa po prawej, jak w SPAWN ENGINE); `styles.css` `.chip` +4 linie (inline-flex, nowrap). Weryfikacja: `verify-night` ALL OK + `npm run build` OK (dev, `c5e0a5c` + change) + niezależny critic PASS. — deep audit gauntlet-loop @ `1a2d7ac` i domknięcie backlogu: 2. fala (P0 lock + 6 błędów `src-tauri`, single-instance, guard wersji, bramka typechecku main), 3. fala (hardening `remote.ts`, wydajność: debounce OSC + coalescing board + `live={active}` + `React.memo`; kontrakt `cmd.rs`↔`lib.rs` w testach; wyrównane docs) oraz **4. fala: scalenie niezacommitowanego WIP z `pqTERM-dev` (poller tytułów z bazy opencode) z naprawą zepsutego testu** — `verify-night` + `npm run build` + `cargo test` = zielone end-to-end
 Product HEAD (`test` = `dev` = `main` = `origin/*`): **`85c7ecf`** · `chore(release): 1.1.8` · wersja produktu **1.1.8**
 **Wypchnięte na `origin`**: `350b60f..85c7ecf` na `dev`, `main` i `test` (fast-forward, bez sily). Repo nie używa tagów, więc release nie ma taga — świadomie, nie przez przeoczenie.

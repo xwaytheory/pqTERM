@@ -409,36 +409,32 @@ if (pane.engine && !isRawShell(pane.engine)) {
       return
     }
     setInstallError(null)
-    const p = providers.find((x) => x.id === engine)
+    let p = providers.find((x) => x.id === engine)
+    if (p && !p.installed) {
+      // Re-scan first so a finished external install (cmd window) turns the
+      // NEXT click into a launch instead of re-opening the installer.
+      try {
+        p = (await window.pq.providers.scan()).find((x) => x.id === engine)
+      } catch {
+        /* stale p is fine */
+      }
+    }
     if (p && !p.installed) {
       setInstalling((prev) => new Set(prev).add(engine))
       try {
         const res = await window.pq.engines.install(engine)
-        if (res.ok) {
-          setInstalling((prev) => {
-            const next = new Set(prev)
-            next.delete(engine)
-            return next
-          })
-          window.setTimeout(() => setInstallError(null), 1000)
-        } else {
-          setInstallError(res.message)
-          setInstalling((prev) => {
-            const next = new Set(prev)
-            next.delete(engine)
-            return next
-          })
-          return
-        }
+        if (!res.ok) setInstallError(res.message)
       } catch (err) {
         setInstallError(err instanceof Error ? err.message : String(err))
+      } finally {
         setInstalling((prev) => {
           const next = new Set(prev)
           next.delete(engine)
           return next
         })
-        return
       }
+      // pane launches on the next click, once the scan actually detects the CLI
+      return
     }
     await window.pq.workspaces.setPane(workspaceId, pane.id, {
       engine,
