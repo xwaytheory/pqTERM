@@ -7,6 +7,15 @@ Trzy commity tej sesji: `b3330b7` (fale 1–4 + ponytail), `5fcb55a` (board), `8
 Working tree: **czyste** we wszystkich czterech worktree (`test`/`dev`/`main`/`pq-work` — status 0) · 3 stashe bezpieczeństwa (cudze WIP) · build zrobiony w `test` i w oficjalnym `pqTERM` (`stamp-host.cjs` + `out/`)
 Critic mode: **ta sama sesja** (brak niezależnego Krytyka) → werdykt najwyżej **WARUNKOWO OK**
 
+## Powiadomienia — odzyskany kontekst i regresja BEL (2026-09-17)
+
+- Sesja OpenCode: `gentle-forest`, `ses_f54bb2844ffeZq0ip6urIY5PRm`, utworzona 2026-09-16 o 19:30 (Europe/Warsaw). Użytkownik zatwierdził status panelu, natywne alerty Windows z opcjonalnym dźwiękiem i kliknięciem przechodzącym do panelu. Cisza nie oznacza ukończenia zadania; gotowość i oczekiwanie wymagają zdarzeń agentów.
+- Stan odzyskany: `PaneActivityTracker` i typy współdzielone istnieją, ale tracker nie jest podłączony do PTY/main/preload/UI; brak natywnych powiadomień i ustawień. Nie jest to działająca funkcja end-to-end.
+- Naprawa `pane-activity.ts`: usunięto warunek `lastBellAt === 0`, który blokował wszystkie kolejne BEL; wartość początkowa `-Infinity` pozwala na pierwszy alert także przy zegarze 0. Konstruktor zapisuje pola jawnie, zgodnie z uruchamianiem testów przez Node strip-types.
+- Nowe `pane-activity.test.ts` włączone do `test:unit`: pierwszy BEL, niezależność paneli, tłumienie serii, granica 4999/5000 ms oraz BEL kończący OSC rozdzielony między porcje danych. Przed poprawką: 1 FAIL / 1 PASS; po: 2 PASS. Bezpośredni smoke rzeczywistego trackera również PASS (ponowny alert po 5000 ms i tłumienie natychmiastowego duplikatu).
+- Bramki po poprawce: `npm run test:unit` 95 PASS wraz z oboma typecheckami; `npm run check:version` PASS; `scripts/verify-night.cmd` ALL OK; `npm run build` PASS. Nie testowano powiadomień Windows ani interakcji UI; brak promocji do test/main.
+- Punkt kontynuacji: domknąć integrację PTY → tracker → status panelu / alert Windows, odróżniając naturalne zakończenie procesu od ręcznego zamknięcia. Dodatkowo odtworzono istniejący problem: nowe wyjście nie przywraca `quiet` do `running`; nie naprawiano go w zmianie dotyczącej BEL.
+
 ## Stage / progress
 
 - **Stage:** produkt = Electron 1.1.7 + fala OSC pane-titles (adopcja tytułów z OSC CLaków) na `test`/`dev`; `main` jeszcze 1.1.6-era

@@ -203,6 +203,29 @@ export interface GoogleOAuthConfig {
   clientSecret: string
 }
 
+export type PaneActivityKind = 'running' | 'quiet' | 'ready' | 'waiting' | 'attention' | 'exited' | 'error'
+
+export interface PaneActivity {
+  kind: PaneActivityKind
+  at: number
+  unread: boolean
+}
+
+export interface NotificationSettings {
+  enabled: boolean
+  sound: boolean
+}
+
+export const ACTIVITY_LABELS: Record<PaneActivityKind, string> = {
+  running: 'aktywność CLI',
+  quiet: 'brak nowego wyjścia',
+  ready: 'odpowiedź gotowa',
+  waiting: 'czeka na Ciebie',
+  attention: 'CLI wymaga uwagi',
+  exited: 'proces zakończony',
+  error: 'błąd sesji'
+}
+
 export interface AppSnapshot {
   user: UserSession | null
   google: GoogleOAuthConfig
