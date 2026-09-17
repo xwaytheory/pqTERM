@@ -1,19 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AppSnapshot, BoardSnapshot, Workspace } from '../../../shared/types'
+import { ACTIVITY_LABELS, type AppSnapshot, type BoardSnapshot, type PaneActivity, type Workspace } from '../../../shared/types'
 import EngineMark from './EngineMark'
 
 export default function Sidebar({
   snap,
+  activity,
   onNew,
   focusPane
 }: {
   snap: AppSnapshot
+  activity: Record<string, PaneActivity>
   onNew: () => void
   focusPane: (workspaceId: string, paneId: string) => void
 }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [board, setBoard] = useState<BoardSnapshot | null>(null)
+  const [selectError, setSelectError] = useState('')
+  const [folderError, setFolderError] = useState('')
 
   useEffect(() => {
     let off: (() => void) | undefined
@@ -36,9 +40,26 @@ export default function Sidebar({
     return snap.providers.find((p) => p.id === engine)
   }
 
-  async function select(w: Workspace) {
-    await window.pq.workspaces.select(w.id)
-    setOpen((o) => ({ ...o, [w.id]: true }))
+  async function select(w: Workspace, paneId?: string) {
+    try {
+      await window.pq.workspaces.select(w.id)
+      setOpen((o) => ({ ...o, [w.id]: true }))
+      setSelectError('')
+      if (paneId) focusPane(w.id, paneId)
+    } catch (error) {
+      console.error('[pqTERM] workspace selection failed', error)
+      setSelectError('Nie udało się otworzyć workspace.')
+    }
+  }
+
+  async function openFolder(w: Workspace) {
+    setFolderError('')
+    try {
+      await window.pq.workspaces.openFolder(w.id)
+    } catch (error) {
+      console.error('[pqTERM] workspace folder failed', error)
+      setFolderError(`Nie udało się otworzyć folderu projektu „${w.title}”. Sprawdź, czy katalog istnieje i jest dostępny.`)
+    }
   }
 
   return (
@@ -66,6 +87,7 @@ export default function Sidebar({
           list.map((w) => {
             const expanded = open[w.id] ?? w.id === snap.activeWorkspaceId
             const live = w.panes.filter((p) => p.engine).length
+            const unread = w.panes.filter((p) => activity[p.id]?.unread).length
             return (
               <div key={w.id} className={w.id === snap.activeWorkspaceId ? 'ws active' : 'ws'}>
                 <div className="row" onClick={() => select(w)}>
@@ -79,12 +101,39 @@ export default function Sidebar({
                     {expanded ? '▾' : '▸'}
                   </span>
                   <span className="name">{w.title}</span>
+                  {unread ? <span className="activity-count" title={`${unread} nieprzeczytanych statusów`} aria-label={`${unread} nieprzeczytanych statusów`}>{unread}</span> : null}
                   <span className="meta">
                     {live}/{w.layout}
                   </span>
+                  <button
+                    className="iconx side-remove"
+                    title={`usuń projekt ${w.title}`}
+                    aria-label={`usuń projekt ${w.title}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (window.confirm(`Usunąć projekt „${w.title}” z pqTERM i zamknąć wszystkie jego sesje CLI? Pliki na dysku pozostaną bez zmian.`)) {
+                        void window.pq.workspaces.remove(w.id)
+                      }
+                    }}
+                  >
+                    ×
+                  </button>
                 </div>
-                <div className="cwd" title={w.cwd}>
-                  {w.cwd}
+                <div className="cwd">
+                  <button
+                    className="iconx folder-open"
+                    title={`Otwórz folder projektu: ${w.cwd}`}
+                    aria-label={`Otwórz folder projektu ${w.title}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void openFolder(w)
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" />
+                    </svg>
+                  </button>
+                  <span title={w.cwd}>{w.cwd}</span>
                 </div>
                 {expanded &&
                   w.panes.map((p) => (
@@ -92,10 +141,14 @@ export default function Sidebar({
                       key={p.id}
                       className={`${p.engine ? 'pane-link' : 'pane-link idle'}${
                         w.zoomedPaneId === p.id ? ' zoomed' : ''
-                      }`}
-                      onClick={() => {
-                        select(w)
-                        focusPane(w.id, p.id)
+                      }${activity[p.id]?.unread ? ' unread' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => void select(w, p.id)}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
+                        e.preventDefault()
+                        void select(w, p.id)
                       }}
                     >
                       {(() => {
@@ -112,10 +165,32 @@ export default function Sidebar({
                           />
                         )
                       })()}
-                      <span>
+                      <span className="pane-label">
                         {p.engine ? p.title : 'idle'}
                         {p.model ? ` · ${p.model}` : ''}
+                      {activity[p.id] ? (
+                        <span
+                          className={`activity-badge activity-${activity[p.id].kind}${activity[p.id].unread ? ' unread' : ''}`}
+                          title={`${ACTIVITY_LABELS[activity[p.id].kind]}${activity[p.id].unread ? ' · nieprzeczytane' : ''}`}
+                          aria-label={`${ACTIVITY_LABELS[activity[p.id].kind]}${activity[p.id].unread ? ' · nieprzeczytane' : ''}`}
+                        >
+                          {ACTIVITY_LABELS[activity[p.id].kind]}
+                        </span>
+                      ) : null}
                       </span>
+                      {p.engine ? (
+                        <button
+                          className="iconx side-remove"
+                          title={`zamknij sesję ${p.title}`}
+                          aria-label={`zamknij sesję ${p.title}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void window.pq.terminals.clearPane(w.id, p.id)
+                          }}
+                        >
+                          ×
+                        </button>
+                      ) : null}
                     </div>
                   ))}
               </div>
@@ -123,6 +198,8 @@ export default function Sidebar({
           })
         )}
       </div>
+      {selectError ? <div className="empty-side" role="status">{selectError}</div> : null}
+      {folderError ? <div className="empty-side" role="alert">{folderError}</div> : null}
       {board && board.notes.length ? (
         <div className="coord">
           <div className="side-head">

@@ -7,6 +7,22 @@ Trzy commity tej sesji: `b3330b7` (fale 1–4 + ponytail), `5fcb55a` (board), `8
 Working tree: **czyste** we wszystkich czterech worktree (`test`/`dev`/`main`/`pq-work` — status 0) · 3 stashe bezpieczeństwa (cudze WIP) · build zrobiony w `test` i w oficjalnym `pqTERM` (`stamp-host.cjs` + `out/`)
 Critic mode: **ta sama sesja** (brak niezależnego Krytyka) → werdykt najwyżej **WARUNKOWO OK**
 
+## Sidebar — ikona folderu i poprawka ściskania tytułów (2026-09-17)
+
+- `pqTERM-test` (ISOLATED, zgodnie z zasadą użytkownika): mała szara ikona folderu przy ścieżce projektu otwiera katalog natywnie przez `shell.openPath` (`workspaces:openFolder`, walidacja nadawcy + `statSync` + obsługa błędu; Sidebar: `folderError` z `role=alert`). Bez nowych zależności.
+- Regresja „rozjechanych” tytułów: pełny tekst `aktywność CLI` w wierszu sesji zabierał szerokość tytułowi. Fix w `styles.css` (test): `.activity-badge` = kropka 8 px (font-size 0), `.pane-label { flex:1; overflow-wrap:anywhere }`, `folder-open` 24 px + hover/focus. Statusowy tekst pozostaje w `title`/`aria-label` (dostępny dla czytników).
+- Smoke Chromium 285×700 (fixture folder-check.tsx): tytuł 167 px przy badge 8 px, brak overflow; klik → tylko `open` (bez `select`), Enter na fokusie, alert błędu — PASS. Dev nie był restartowany; na dev została wcześniejsza wersja tego fixa (identyczna reguła).
+- `npm run test:unit` (test): 80 PASS + oba typechecki; `npm run build` (test): PASS. Folder-check.tsx i procesy preview usunięte/stopowane po smoke.
+
+## Czarny ekran na starcie — domknięcie integracji activity/notifications (2026-09-17)
+
+- Symptom: `pqTERM-dev` startował do czarnego okna. CDP: `DeckScreen` `reportTerminalFocus` → `undefined.focus` oraz efekt montażu → `undefined.onChange`; React czyścił `#root` (tło `#07080a` = czarny ekran).
+- Przyczyna: niedokończony cutover „statusy paneli + powiadomienia” — renderer/preload typy były, ale `window.pq.activity` i `window.pq.notifications` nie istniały w preload, a main nie miał IPC ani podłączonego trackera.
+- Naprawa: preload expose `activity.{get,focus,onChange,onFocus}` + `notifications.set`; main (`index.ts`, `pty-manager.ts`, `store.ts`) podpięło `PaneActivityTracker` (start/output/naturalny kod wyjścia vs świadome zamknięcie), walidowane IPC (`requireRenderer`, booleans), natywne alerty Windows z kliknięciem do pane, normalizację `notifications` w stanie (dane użytkownika nietknięte).
+- Weryfikacja: `npm run test:unit` 97 PASS (oba typechecki); `npm run check:version` PASS; `cargo test --workspace` 106 PASS; `npm run build` PASS; żywa instancja dev (CDP 9333): reload bez pageerror/console error, `activity.get()` zwraca 4 pane `running`, modal POWIADOMIENIA otwarty kliknięciem w UI, zapis/odczyt/przywrócenie ustawień OK, niepoprawny payload odrzucony. Nie ćwiczone na żywo: dostarczenie kliknięcia natywnego alertu OS.
+- **Żywa weryfikacja alertów (2026-09-17, Electron 33, CDP 9334)**: rzeczywisty BEL z PowerShell (`[Console]::Write([char]7)`) → tracker `attention` + `unread:true` + badge „CLI wymaga uwagi”; natywne `Notification` Windows z emitowanym zdarzeniem `show` (treść „pq · PowerShell / CLI wymaga uwagi”, `silent` wg ustawień). `emit('click')` na rzeczywistej instancji → przeniesienie do właściwego workspace/pane (`activity:focus`), `unread:false`. Naturalne `exit 0` → alert „proces zakończony”. Intencjonalne zamknięcie (`term:clearPane`) → brak alertu i brak stanu tracker. Silnik obserwacji (`Notification.prototype.show`) wyłącznie w pamięci tego uruchomienia; kod produktu bez zmian od debugera.
+- Poprawki cyklu życia trackera (pane-activity.ts): cisza ≥30 s → `quiet` (bez alertu); nowe wyjście → z powrotem `running`; naturalny koniec ignoruje późniejsze output/signal (jednorazowy alert); kontrolne ciągi DCS/SOS/PM/APC ignorują BEL do ST (także rozdzielone między porcje). Sidebar: status w nowej linii pod tytułem sesji (brak ściskania tytułów). Testy: 4 w `pane-activity.test.ts`.
+
 ## Powiadomienia — odzyskany kontekst i regresja BEL (2026-09-17)
 
 - Sesja OpenCode: `gentle-forest`, `ses_f54bb2844ffeZq0ip6urIY5PRm`, utworzona 2026-09-16 o 19:30 (Europe/Warsaw). Użytkownik zatwierdził status panelu, natywne alerty Windows z opcjonalnym dźwiękiem i kliknięciem przechodzącym do panelu. Cisza nie oznacza ukończenia zadania; gotowość i oczekiwanie wymagają zdarzeń agentów.
@@ -15,6 +31,15 @@ Critic mode: **ta sama sesja** (brak niezależnego Krytyka) → werdykt najwyże
 - Nowe `pane-activity.test.ts` włączone do `test:unit`: pierwszy BEL, niezależność paneli, tłumienie serii, granica 4999/5000 ms oraz BEL kończący OSC rozdzielony między porcje danych. Przed poprawką: 1 FAIL / 1 PASS; po: 2 PASS. Bezpośredni smoke rzeczywistego trackera również PASS (ponowny alert po 5000 ms i tłumienie natychmiastowego duplikatu).
 - Bramki po poprawce: `npm run test:unit` 95 PASS wraz z oboma typecheckami; `npm run check:version` PASS; `scripts/verify-night.cmd` ALL OK; `npm run build` PASS. Nie testowano powiadomień Windows ani interakcji UI; brak promocji do test/main.
 - Punkt kontynuacji: domknąć integrację PTY → tracker → status panelu / alert Windows, odróżniając naturalne zakończenie procesu od ręcznego zamknięcia. Dodatkowo odtworzono istniejący problem: nowe wyjście nie przywraca `quiet` do `running`; nie naprawiano go w zmianie dotyczącej BEL.
+
+## Sidebar — usuwanie sesji i projektu (2026-09-17)
+
+- `Sidebar.tsx`: × przy sesji CLI wywołuje istniejące `terminals.clearPane` (zamyka sesję, pozostawia slot idle); × przy projekcie wywołuje `workspaces.remove` po potwierdzeniu zamknięcia wszystkich sesji. Folder projektu pozostaje na dysku. Usunięto `delete ws` z `DeckScreen.tsx`.
+- `styles.css`: stały rozmiar przycisków, widoczny fokus klawiatury, zawijanie długich tytułów bez wypychania przycisku.
+- Smoke Chromium, 328×889: rzeczywisty komponent Sidebar z izolowanym mostkiem i danymi testowymi; zamknięcie jednej sesji, anulowanie usunięcia, usunięcie nieaktywnego projektu, Enter na przycisku, brak propagacji do wyboru projektu i brak poziomego overflow — PASS. Nie zamykano rzeczywistych sesji użytkownika ani nie testowano IPC end-to-end.
+- `npm run build` — PASS. `verify-night.cmd`: wersje, 106 testów Rust i `cargo check` — PASS; `npm run test:unit` zatrzymany przez typecheck: brak typu `Seg` w niezmienianym `src/shared/grid.ts` (linie 194–270). Pełna bramka pozostaje czerwona; bez promocji do test/main.
+- Bezpośrednie uruchomienie zestawu testów Node (poza zablokowanym typecheckiem): 79 PASS / 4 FAIL — wyłącznie istniejące scenariusze `resizePanes` w `src/shared/grid.test.ts` (181, 191, 210, 221); ten zakres nie był zmieniany.
+- Niezależny reviewer potwierdził obecność obu akcji; zgłoszenie o `sidebar { width: 100% }` odrzucone jako niezgodne z kodem: istniejąca reguła używa `width: var(--sidebar)` i nie została zmieniona. Referencja 328 px obejmuje także dock, nie definiuje nowej szerokości sidebaru.
 
 ## Stage / progress
 
