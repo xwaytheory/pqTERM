@@ -3,20 +3,23 @@
 pqTERM is a Windows-first Electron terminal grid for AI coding agents
 (React 18 + xterm.js + node-pty, TypeScript strict, Electron 33).
 
-## Three worktrees (mandatory layout)
+## Worktrees (mandatory layout)
 
-Single git hub = bare repo at `C:\Users\pq\pq` (no working files).
-Three linked worktrees, one per branch — ALWAYS work in the right one:
+Single git hub = bare repo at `C:\Users\pq\pqTERM\repo.git` (no working files).
+Stable stays at `C:\Users\pq\pqTERM`; all other worktrees live under `instances\` — ALWAYS work in the right one:
 
 | Worktree | Branch | What it is |
 |---|---|---|
 | `C:\Users\pq\pqTERM`      | `main`   | Official/stable release for the client. `host\pqterm.exe` + `out\` present. Launch: `START-pr.cmd`. |
-| `C:\Users\pq\pqTERM-dev`  | `dev`    | Where you develop daily. Launch: `START-dev.cmd` (npm run dev). |
-| `C:\Users\pq\pqTERM-test` | `test`   | Pre-release verification; contains fixes from `dev` pending approval. Launch: `START-dev.cmd`. |
+| `C:\Users\pq\pqTERM\instances\dev` | `dev` | Where you develop daily. Launch: `START-dev.cmd` (npm run dev). |
+| `C:\Users\pq\pqTERM\instances\test` | `test` | Pre-release verification; contains fixes from `dev` pending approval. Launch: `START-dev.cmd`. |
+| `C:\Users\pq\pqTERM\instances\wip` | `main` | Existing unfinished work; preserve its staged index. |
+| `C:\Users\pq\pqTERM\instances\feat\engine-lifecycle` | `feat/engine-lifecycle` | Isolated feature worktree. |
 
 Each worktree keeps its own `node_modules/` (not shared by default).
 `host\` and `out\` are gitignored build artifact copies (binary, electron-hub
 host) — they live in the worktrees, NOT in git.
+New task branches use `C:\Users\pq\pqTERM\instances\<branch>` (slashes in branch names create subdirectories).
 
 ## Ponytail (minimalism) — active by default
 
@@ -68,11 +71,11 @@ Agents without automatic `.agents/skills` discovery use the file path above.
 
 ## Promoting changes (dev → test → main)
 
-Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:
+Work in `C:\Users\pq\pqTERM\instances\dev` (branch `dev`). When a fix is ready for verification:
 
-1. Commit it on `dev` (in `pqTERM-dev`).
+1. Commit it on `dev` (in `instances\dev`).
 2. Merge into test for verification:
-   `git -C C:\Users\pq\pqTERM-test merge dev`  (resolve on `test`)
+   `git -C C:\Users\pq\pqTERM\instances\test merge dev`  (resolve on `test`)
    Run the unit tests + typecheck there before declaring it good.
 3. When approved by a human, promote to official:
    `git -C C:\Users\pq\pqTERM merge test`
@@ -81,7 +84,7 @@ Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:
 4. Never skip `test` → read only `dev` → `main`; only a human pushes/publishes.
    **Every change lands on `test` FIRST, no exceptions.** Writing code only in
    `dev` is not enough — any implemented fix/feature MUST be committed on `dev`
-   and merged into `pqTERM-test` (with its checks run there) before it counts
+   and merged into `instances\test` (with its checks run there) before it counts
    as delivered. `dev`-only work is work in progress, not a rollout.
 
 ## Golden commands (run from repo root)
@@ -99,7 +102,7 @@ Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:
 - `*.test.ts` / `*.smoke.ts` are excluded from both TS projects on purpose: they
   run under `node --experimental-strip-types`, which requires explicit `.ts`
   imports — do NOT "fix" those imports away
-- `node scripts/new-work.cjs create <branch>` — isolated worktree per task
+- `node scripts/new-work.cjs create <branch>` — isolated worktree at `C:\Users\pq\pqTERM\instances\<branch>`
 
 ## Architecture in 30 seconds
 
@@ -117,9 +120,9 @@ Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:
 
 ## Workflow (mandatory, daily)
 
-1. Daily dev happens in `C:\Users\pq\pqTERM-dev` on branch `dev`
+1. Daily dev happens in `C:\Users\pq\pqTERM\instances\dev` on branch `dev`
    (NOT on `main`). Commit there, run unit tests + tsc + build.
-2. For a fix ready to verify: merge `dev` → `test` (in `pqTERM-test`),
+2. For a fix ready to verify: merge `dev` → `test` (in `instances\test`),
    run the checks there, get the fix approved.
 3. Only promote to official after approval: merge `test` → `main`
    in `C:\Users\pq\pqTERM`, then rebuild official artifacts

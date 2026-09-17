@@ -18,7 +18,7 @@ Kliknij pqTERM-pr. Koniec. Nic się nie zmieniło.
 ## Scenariusz B: chcesz coś zmienić w pq (krok po kroku)
 
 **Krok 1 — otwórz czarne okienko z komendami:**
-Otwórz folder `C:\Users\pq\pq`, kliknij pasek adresu u góry,
+Otwórz folder `C:\Users\pq\pqTERM` (stabilna kopia, nie `repo.git`), kliknij pasek adresu u góry,
 wpisz `powershell`, naciśnij Enter.
 
 **Krok 2 — zrób osobny pokoik (wklej to i Enter):**
@@ -29,8 +29,9 @@ node scripts/new-work.cjs create moj-pomysl
 
 **Krok 3 — otwórz ten pokoik w pq:**
 W pqTERM-pr kliknij domek ⌂ (lewy pasek) → `+ new` →
-TYTUŁ: `moj-pomysl`, KATALOG: `C:\Users\pq\pq-trees\moj-pomysl` → `create`.
+TYTUŁ: `moj-pomysl`, KATALOG: `C:\Users\pq\pqTERM\instances\moj-pomysl` → `create`.
 Masz workspace. W pustym okienku odpal agenta (np. OpenCode).
+Nowe pokoiki powstają w `C:\Users\pq\pqTERM\instances\<branch>`; np. gałąź `feat/engine-lifecycle` ma katalog `instances\feat\engine-lifecycle`.
 
 **Krok 4 — powiedz agentowi, co ma zrobić** — normalnymi słowami,
 np. „dodaj przycisk, który robi X". Agent grzebie TYLKO w pokoiku.
@@ -45,7 +46,7 @@ rozumieć, co dzieje się pod spodem.
 ## Scenariusz C: coś się zepsuło / pogubiłeś się
 
 1. Zamknij pqTERM-dev. Twoje biurko (pqTERM-pr) jest całe.
-2. Nieudany pokoik usuń komendą:
+2. Nieudany pokoik usuń komendą uruchomioną w `C:\Users\pq\pqTERM` (usuwa też niezapisane zmiany w tym pokoiku):
    ```
    node scripts/new-work.cjs remove moj-pomysl
    ```
@@ -60,4 +61,4 @@ rozumieć, co dzieje się pod spodem.
 ## Czego NIGDY nie klikaj sam
 
 - `npm run dist` (robi instalator — tylko na wyraźną prośbę),
-- nie kasuj ręcznie folderów w `C:\Users\pq\pq` ani w `%AppData%`.
+- nie kasuj ręcznie folderów w `C:\Users\pq\pqTERM\repo.git`, `C:\Users\pq\pqTERM\instances` ani w `%AppData%`.

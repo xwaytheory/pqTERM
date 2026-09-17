@@ -1,5 +1,12 @@
 # pq workbench (gauntlet live board)
 
+## Relokacja drzewa roboczego (2026-09-17)
+
+- Stabilna kopia pozostaje w `C:/Users/pq/pqTERM`; hub: `repo.git`; pozostałe kopie: `instances/dev`, `instances/test`, `instances/wip`, `instances/feat/engine-lifecycle` (ścieżki względem stabilnej kopii).
+- Podczas przenosin zachowano referencje worktree, stashe i staged index WIP; nie odtwarzano drzew z czystego checkoutu.
+- Smoke tworzenia i usunięcia worktree `test-fix` przeszedł; potwierdzono także zagnieżdżone ścieżki nowych gałęzi pod `instances/<branch>`.
+- Starsze ścieżki w zapisach poniżej pozostają dowodami historycznymi; aktywne instrukcje wskazują nowe lokalizacje.
+
 ## i-have-adhd — project communication standard (2026-09-17)
 
 - Explicit user opt-in: installed unmodified `ayghri/i-have-adhd` at `.agents/skills/i-have-adhd/` using `npx skills add ayghri/i-have-adhd --skill i-have-adhd --agent codex --yes`; provenance/hash in `skills-lock.json`, MIT notice in `.agents/skills/THIRD-PARTY.md`.
@@ -268,6 +275,8 @@ Cudza niezacommitowana praca **nie zginęła** — jest w stashach (wspólny sto
 
 Podgląd/powrót: `git -C <worktree> stash show -p stash@{N}` → `git stash pop stash@{N}` **w tym samym worktree, z którego pochodzi**. Pułapka: `stash@{0}` i `{1}` zawierają też moje `AGENTS.md`/`.gitignore`/`.agents/` z chwili pakowania — po kaskadzie te pliki są w gicie, więc `pop` może się zderzyć; bezpieczniej obejrzeć `stash show -p` i wyłuskać tylko potrzebne pliki.
 
+Notka historyczna (2026-09-15): nazwa `pq-work` poniżej oznacza obecną lokalizację `C:\Users\pq\pqTERM\instances\wip`; liczby i stan opisują tamtą sesję.
+
 ## ⚠️ Ryzyko w `pq-work`: staged zmiany **kasują** OSC pane-titles
 
 `pq-work` (branch `main`) trzyma **zacommitowane do indeksu** zmiany z innej sesji: 40 plików, **+130/−488** — w tym **usunięcie `src/main/osc-title.ts` (80 linii) i `osc-title.test.ts` (95 linii)**, czyli dokładnie tej fali, która jest produktem na `test`/`dev` (`1a2d7ac`).
@@ -275,14 +284,16 @@ Podgląd/powrót: `git -C <worktree> stash show -p stash@{N}` → `git stash pop
 To nie jest praca do „dokończenia”: to gałąź stanu **sprzed** fali OSC. Jeśli ktoś w `pq-work` zrobi `git commit` bez czytania `git status`, funkcja adopcji tytułów zniknie z `main` przy najbliższym mergu, a bramka tego nie złapie (usunięcie pliku to nie błąd typów).
 
 - **Nie ruszałem** tego (cudza niezacommitowana praca).
-- Przed jakimkolwiek mergem `test`→`main`: `git -C C:\Users\pq\pq-work diff --cached --stat` i decyzja człowieka — `git restore --staged .` albo świadomy commit.
+- Przed jakimkolwiek mergem `test`→`main`: `git -C C:\Users\pq\pqTERM\instances\wip diff --cached --stat` i decyzja człowieka — `git restore --staged .` albo świadomy commit.
 - To samo dotyczy `C:\Users\pq\pqTERM`, gdzie `src/main/resume.ts` jest **całkowicie rozjechany** z `HEAD` (201 vs 189 linii) — inna, niezacommitowana wersja pliku.
 
 ## Korekta: „martwa kopia” to **katalog metadanych gita** (nie śmieć)
 
+Ścieżki w poniższym dowodzie są historyczne (sprzed relokacji z 2026-09-17); obecny hub to `C:/Users/pq/pqTERM/repo.git`, a worktree testowe to `C:/Users/pq/pqTERM/instances/test`.
+
 `C:/Users/pq/pq/worktrees/pqTERM-test` to **katalog metadanych worktree `test`**: plik `gitdir` w środku wskazuje `C:/Users/pq/pqTERM-test/.git`, a obok leżą `HEAD`, `index`, `commondir`, `ORIG_HEAD` i `logs/`. **Skasowanie tego katalogu zepsułoby `git status` w `test`** — wcześniejsza rekomendacja („usunąć martwą kopię”) była błędna i została wycofana **przed** wykonaniem, po sprawdzeniu zawartości.
 
-Po co ta notka: ścieżki **relatywne** w tym środowisku trafiają właśnie tam, przez co czytanie `worktrees/pqTERM-test/...` zwraca **stary snapshot z 2026-09-14 18:21** (bez `osc-title.ts`, jeszcze z `src/main/updater.ts`). Każda sesja pracująca tu powinna używać ścieżek **absolutnych** `C:/Users/pq/pqTERM-test/...`.
+Po co ta notka: w opisanej sesji ścieżki **relatywne** trafiały właśnie tam, przez co czytanie `worktrees/pqTERM-test/...` zwracało **stary snapshot z 2026-09-14 18:21** (bez `osc-title.ts`, jeszcze z `src/main/updater.ts`). Obecnie każda sesja pracująca na test powinna używać ścieżek **absolutnych** `C:/Users/pq/pqTERM/instances/test/...`.
 
 - Nietknięte: cała ta kopia drzewa z 2026-09-14 (`AGENTS.md`, `README.md`, `android/`, `crates/`, `docs/*`, `host/`, `src/` …) — nie moja, **do decyzji człowieka**.
 - Usunięte: wyłącznie **mój** plik zapisany tam przez pomyłkę (porzucony szkic `docs/workbench.md`, 12 716 B, 18:07). Prawdziwy board = ten plik (24 kB+).
