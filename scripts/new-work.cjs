@@ -1,14 +1,14 @@
 // new-work.cjs — one task = one worktree = one branch.
 // Usage:
-//   node scripts/new-work.cjs create <branch>   create C:\Users\pq\pq-trees\<branch> on new branch
+//   node scripts/new-work.cjs create <branch>   create instances/<branch> beside repo.git
 //   node scripts/new-work.cjs list              list active worktrees
 //   node scripts/new-work.cjs remove <branch>   remove the worktree (keeps the branch)
 const { spawnSync } = require('child_process')
 const { existsSync } = require('fs')
-const { join, resolve } = require('path')
+const { dirname, join, resolve } = require('path')
 
 const root = join(__dirname, '..')
-const trees = join(root, '..', 'pq-trees')
+const trees = join(dirname(resolve(root, git('rev-parse', '--git-common-dir'))), 'instances')
 
 function git(...args) {
   const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
