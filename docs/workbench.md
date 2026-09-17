@@ -6,6 +6,9 @@
 - `AGENTS.md` activates the communication style alongside Ponytail despite upstream's on-demand discovery flag. Answer/action first, bounded numbered steps, concrete progress, no tangents; safety, completeness, harness rules and explicit user requests win. No diagnosis inferred; session opt-out: `stop adhd mode` / `normal mode`.
 - Scope: project instructions and portable skill files only; no global CLI configuration, runtime hooks, npm dependencies, app UI changes or version bump. CLI tools must load the project instructions; installation is not proof that every CLI automatically applies the style.
 - Verification on dev: `npx skills list` discovers `i-have-adhd` alongside all six Ponytail skills; `scripts/verify-night.cmd` ALL OK (100 Node tests, both TS projects, Rust workspace tests, Tauri check, version check); `npm run build` PASS. No temporary verification files created.
+- Release 1.2.0 (`2e66c00`): version synced 1.1.9 → 1.2.0 across package.json, package-lock, crates/, src-tauri/ (incl. locks via cargo), stamp-host.cjs, README. `check:version` caught `scopeguard@1.2.0` (genuine crates.io version colliding with the product bump); static allowlist entry added with a ponytail ceiling note (drop after product moves past 1.2.0).
+- Gates: `verify-night.cmd` ALL OK on dev AND test (96 Rust + 1 + 9 Rust tests, Tauri check, 100 Node tests, both typechecks); `npm run build` PASS on dev; official `pqTERM`: `stamp-host.cjs` + `npm run build` PASS, `host\pqterm.exe` ProductVersion = 1.2.0 (FileVersion stays 1.1.7 by stamp design).
+- Promotion: dev → test → main fast-forwards at `2e66c00`; pushed `f346a20..2e66c00` to `origin/dev`, `origin/test`, `origin/main` (user-requested). i-have-adhd adoption included in the same release train.
 
 ## CLI install window and Kimi logo — deployment 2026-09-17
 
