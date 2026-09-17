@@ -15,6 +15,7 @@ import { networkInterfaces } from 'os'
 import { execFile, spawn, type ChildProcess } from 'child_process'
 import { randomBytes, randomInt, timingSafeEqual } from 'crypto'
 import https from 'https'
+import { pipeline } from 'stream/promises'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { TermCoalescer } from './ws-coalesce'
 import type { AppSnapshot, RemoteInfo } from '../shared/types'
@@ -71,9 +72,9 @@ function lanIps(): string[] {
   return [...new Set(out)]
 }
 
-function tailscaleIp(): Promise<string | null> {
+function tailscaleIp(signal: AbortSignal): Promise<string | null> {
   return new Promise((resolve) => {
-    execFile('tailscale', ['ip', '-4'], { windowsHide: true, timeout: 2500 }, (err, stdout) => {
+    execFile('tailscale', ['ip', '-4'], { signal, windowsHide: true, timeout: 2500 }, (err, stdout) => {
       if (err) return resolve(null)
       const ip = String(stdout || '')
         .trim()
@@ -83,34 +84,26 @@ function tailscaleIp(): Promise<string | null> {
   })
 }
 
-function downloadHttps(url: string, dest: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const go = (u: string, hops: number) => {
-      if (hops > 6) return reject(new Error('za dużo przekierowań'))
-      https
-        .get(u, { headers: { 'User-Agent': 'pq-remote' } }, (res) => {
-          const code = res.statusCode || 0
-          const loc = res.headers.location
-          if (code >= 300 && code < 400 && loc) {
-            res.resume()
-            go(loc, hops + 1)
-            return
-          }
-          if (code !== 200) {
-            res.resume()
-            reject(new Error(`pobieranie tunelu HTTP ${code}`))
-            return
-          }
-          mkdirSync(dirname(dest), { recursive: true })
-          const out = createWriteStream(dest)
-          res.pipe(out)
-          out.on('finish', () => out.close((err) => (err ? reject(err) : resolve())))
-          out.on('error', reject)
-        })
-        .on('error', reject)
+async function downloadHttps(url: string, dest: string, signal: AbortSignal): Promise<void> {
+  for (let hops = 0; hops <= 6; hops++) {
+    signal.throwIfAborted()
+    const res = await new Promise<IncomingMessage>((resolve, reject) => {
+      https.get(url, { signal, headers: { 'User-Agent': 'pq-remote' } }, resolve).on('error', reject)
+    })
+    const code = res.statusCode || 0
+    if (code >= 300 && code < 400 && res.headers.location) {
+      res.resume()
+      url = new URL(res.headers.location, url).href
+      continue
     }
-    go(url, 0)
-  })
+    if (code !== 200) {
+      res.resume()
+      throw new Error(`pobieranie tunelu HTTP ${code}`)
+    }
+    await pipeline(res, createWriteStream(dest), { signal })
+    return
+  }
+  throw new Error('za dużo przekierowań')
 }
 
 export type RemoteCommand = {
@@ -137,9 +130,17 @@ export class RemoteHub {
   private persistEnabled = false
   private pairFails = 0
   private pairBlockedUntil = 0
-  private restartingTunnel = false
-  private stopping = false
+  private lifecycle = 0
+  private startPending: Promise<RemoteInfo> | null = null
+  private startAbort: AbortController | null = null
+  private tunnelPending: Promise<void> | null = null
+  private tunnelAbort: AbortController | null = null
+  private tunnelCleanup: (() => void) | null = null
+  private restartTimer: NodeJS.Timeout | null = null
+  private cancelListen: (() => void) | null = null
   private deviceId = ''
+  /** renderer subscribers pushed on every info() mutation (IPC 'remote:changed') */
+  private listeners = new Set<(info: RemoteInfo) => void>()
 
   constructor(
     private opts: {
@@ -172,6 +173,17 @@ export class RemoteHub {
     }
   }
 
+  onChange(cb: (info: RemoteInfo) => void): () => void {
+    this.listeners.add(cb)
+    return () => this.listeners.delete(cb)
+  }
+
+  private notify(): void {
+    if (!this.listeners.size) return
+    const next = this.info()
+    for (const cb of this.listeners) cb(next)
+  }
+
   pushState(): void {
     const snap = this.publicSnapshot()
     this.broadcast({ e: 'state', snapshot: snap })
@@ -191,33 +203,60 @@ export class RemoteHub {
     return this.start()
   }
 
-  async start(): Promise<RemoteInfo> {
-    this.stopping = false
+  start(): Promise<RemoteInfo> {
+    if (this.startPending) return this.startPending
     if (this.enabled && this.http) {
-      if (!this.wanUrl && this.tunnelStatus !== 'starting') void this.ensureTunnel()
-      return this.info()
+      if (!this.wanUrl && !this.tunnel && !this.restartTimer) void this.ensureTunnel()
+      return Promise.resolve(this.info())
     }
+    const generation = ++this.lifecycle
+    const pending = this.startHub(generation)
+    this.startPending = pending
+    void pending.finally(() => {
+      if (this.startPending === pending) this.startPending = null
+    }).catch(() => undefined)
+    return pending
+  }
+
+  private async startHub(generation: number): Promise<RemoteInfo> {
+    const controller = new AbortController()
+    this.startAbort = controller
     this.loadPersist()
     if (!this.token) this.token = randomBytes(24).toString('hex')
     if (!this.pin) this.pin = String(randomInt(100000, 999999))
-    await this.listen()
-    const ts = await tailscaleIp()
-    this.extraUrls = ts ? [ts] : []
-    this.enabled = true
-    this.persistEnabled = true
-    this.savePersist()
-    this.openFirewall()
-    await this.ensureTunnel()
-    return this.info()
+    try {
+      await this.listen()
+      if (generation !== this.lifecycle) return this.info()
+      const ts = await tailscaleIp(controller.signal)
+      if (generation !== this.lifecycle) return this.info()
+      this.extraUrls = ts ? [ts] : []
+      this.enabled = true
+      this.persistEnabled = true
+      this.savePersist()
+      this.openFirewall()
+      await this.ensureTunnel()
+      if (generation === this.lifecycle) this.notify()
+      return this.info()
+    } catch (err) {
+      if (generation !== this.lifecycle) return this.info()
+      this.stop()
+      throw err
+    } finally {
+      if (this.startAbort === controller) this.startAbort = null
+    }
   }
 
   stop(forget = false): RemoteInfo {
-    this.stopping = true
+    ++this.lifecycle
+    this.startPending = null
+    this.startAbort?.abort()
+    this.startAbort = null
+    this.cancelListen?.()
     this.enabled = false
     this.killTunnel()
     for (const s of this.sockets) {
       try {
-        s.close()
+        s.terminate()
       } catch {
         /* ignore */
       }
@@ -235,7 +274,7 @@ export class RemoteHub {
     this.tunnelError = ''
     if (forget) this.persistEnabled = false
     this.savePersist()
-    this.stopping = false
+    this.notify()
     return this.info()
   }
 
@@ -243,6 +282,7 @@ export class RemoteHub {
     this.pin = String(randomInt(100000, 999999))
     this.pairFails = 0
     this.savePersist()
+    this.notify()
     return this.info()
   }
 
@@ -314,146 +354,132 @@ export class RemoteHub {
     return join(this.opts.binDir, process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared')
   }
 
-  private async ensureBinary(): Promise<string> {
+  private async ensureBinary(signal: AbortSignal): Promise<string> {
     const dest = this.cloudflaredPath()
     if (existsSync(dest) && statSync(dest).size > 1_000_000) return dest
     mkdirSync(this.opts.binDir, { recursive: true })
-    const tmp = dest + '.tmp'
-    await downloadHttps(CLOUDFLARED_URL, tmp)
+    const tmp = dest + '.' + randomBytes(8).toString('hex') + '.tmp'
     try {
-      if (existsSync(dest)) unlinkSync(dest)
-    } catch {
-      /* ignore */
+      await downloadHttps(CLOUDFLARED_URL, tmp, signal)
+      signal.throwIfAborted()
+      renameSync(tmp, dest)
+      return dest
+    } finally {
+      try { unlinkSync(tmp) } catch { /* already renamed or absent */ }
     }
-    renameSync(tmp, dest)
-    return dest
   }
 
-  private async ensureTunnel(): Promise<void> {
-    if (this.wanUrl && this.tunnel && !this.tunnel.killed) {
-      this.tunnelStatus = 'up'
-      return
-    }
+  private ensureTunnel(): Promise<void> {
+    if (!this.enabled || this.tunnel) return Promise.resolve()
+    if (this.tunnelPending) return this.tunnelPending
+    const controller = new AbortController()
+    this.tunnelAbort = controller
     this.tunnelStatus = 'starting'
     this.tunnelError = ''
     this.wanUrl = null
-    this.log('tunnel starting')
-    try {
-      const bin = await this.ensureBinary()
-      this.log(`cloudflared ${bin}`)
-      await this.spawnTunnel(bin)
-    } catch (err) {
-      this.tunnelStatus = 'error'
-      this.tunnelError = err instanceof Error ? err.message : String(err)
-      this.log(`tunnel error ${this.tunnelError}`)
-    }
+    this.notify()
+    const pending = (async () => {
+      try {
+        const bin = await this.ensureBinary(controller.signal)
+        if (this.tunnelAbort !== controller || controller.signal.aborted || !this.enabled) return
+        await this.spawnTunnel(bin)
+      } catch (err) {
+        if (this.tunnelAbort !== controller || controller.signal.aborted || !this.enabled) return
+        this.tunnelStatus = 'error'
+        this.tunnelError = err instanceof Error ? err.message : String(err)
+        this.log(`tunnel error ${this.tunnelError}`)
+        this.notify()
+      }
+    })()
+    this.tunnelPending = pending
+    void pending.finally(() => {
+      if (this.tunnelPending === pending) this.tunnelPending = null
+    }).catch(() => undefined)
+    return pending
   }
 
   private spawnTunnel(bin: string): Promise<void> {
-    this.killTunnel(false)
-    return new Promise((resolve) => {
-      let settled = false
-      const done = () => {
-        if (settled) return
-        settled = true
+    return new Promise<void>((resolve) => {
+    const generation = this.lifecycle
+    const cfLog = join(this.opts.binDir, `cloudflared-${randomBytes(8).toString('hex')}.log`)
+    const child = spawn(bin, [
+      'tunnel', '--url', `http://127.0.0.1:${this.port}`, '--no-autoupdate',
+      '--protocol', 'http2', '--logfile', cfLog
+    ], { windowsHide: true, stdio: 'ignore' })
+    child.on('close', () => {
+      try { unlinkSync(cfLog) } catch { /* absent or still held by the OS */ }
+    })
+    this.tunnel = child
+    const current = () => this.enabled && this.lifecycle === generation && this.tunnel === child
+    let poll: NodeJS.Timeout | undefined
+    let timeout: NodeJS.Timeout | undefined
+    const cleanup = () => {
+      clearInterval(poll)
+      clearTimeout(timeout)
+      if (this.tunnelCleanup === cleanup) this.tunnelCleanup = null
+      resolve()
+    }
+    this.tunnelCleanup = cleanup
+    const grabUrl = (): boolean => {
+      if (!current()) return false
+      try {
+        const match = readFileSync(cfLog, 'utf8').match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i)
+        if (!match) return false
+        this.wanUrl = match[0].toLowerCase()
+        this.tunnelStatus = 'up'
+        this.tunnelError = ''
+        this.savePersist()
+        this.notify()
+        cleanup()
+        return true
+      } catch {
+        return false
+      }
+    }
+    poll = setInterval(grabUrl, 400)
+    timeout = setTimeout(() => {
+      if (!current()) return cleanup()
+      if (!grabUrl()) {
+        this.tunnelError = 'tunel jeszcze wstaje — zostaw włączone'
+        this.notify()
         resolve()
       }
-      const cfLog = join(this.opts.binDir, 'cloudflared.log')
-      try {
-        writeFileSync(cfLog, '')
-      } catch {
-        /* ignore */
-      }
-      const grabUrl = (): boolean => {
-        try {
-          const s = readFileSync(cfLog, 'utf8')
-          const m = s.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i)
-          if (!m) return false
-          this.wanUrl = m[0].toLowerCase()
-          this.tunnelStatus = 'up'
-          this.tunnelError = ''
-          this.savePersist()
-          this.log(`wan ${this.wanUrl}`)
-          return true
-        } catch {
-          return false
-        }
-      }
-      let child: ChildProcess
-      try {
-        child = spawn(
-          bin,
-          [
-            'tunnel',
-            '--url',
-            `http://127.0.0.1:${this.port}`,
-            '--no-autoupdate',
-            '--protocol',
-            'http2',
-            '--logfile',
-            cfLog
-          ],
-          { windowsHide: true, stdio: 'ignore' }
-        )
-      } catch (err) {
-        this.tunnelStatus = 'error'
-        this.tunnelError = err instanceof Error ? err.message : String(err)
-        this.log(`spawn fail ${this.tunnelError}`)
-        done()
-        return
-      }
-      this.tunnel = child
-      this.log(`cloudflared pid=${child.pid || '?'}`)
-      const poll = setInterval(() => {
-        if (grabUrl()) {
-          clearInterval(poll)
-          done()
-        }
-      }, 400)
-      child.on('error', (err) => {
-        clearInterval(poll)
-        this.tunnelStatus = 'error'
-        this.tunnelError = err.message
-        this.log(`child error ${err.message}`)
-        done()
-      })
-      child.on('exit', (code) => {
-        clearInterval(poll)
-        if (this.tunnel === child) this.tunnel = null
-        this.log(`child exit ${code}`)
-        this.wanUrl = null
-        this.tunnelStatus = 'starting'
-        if (this.enabled && !this.stopping && !this.restartingTunnel) {
-          this.restartingTunnel = true
-          setTimeout(() => {
-            this.restartingTunnel = false
-            if (this.enabled) void this.ensureTunnel()
-          }, 2500)
-        }
-        if (!settled) {
-          this.tunnelError = `tunel padł (${code ?? '?'})`
-          done()
-        }
-      })
-      setTimeout(() => {
-        if (grabUrl()) {
-          clearInterval(poll)
-        } else if (!this.wanUrl) {
-          this.tunnelError = this.tunnelError || 'tunel jeszcze wstaje — zostaw włączone'
-          this.log('tunnel waiting for public url')
-        }
-        done()
-      }, 40000)
+    }, 40000)
+    child.on('error', (err) => {
+      if (!current()) return
+      this.killTunnel()
+      this.tunnelStatus = 'error'
+      this.tunnelError = err.message
+      this.wanUrl = null
+      this.notify()
+    })
+    child.on('exit', (code) => {
+      if (!current()) return
+      cleanup()
+      this.tunnel = null
+      this.wanUrl = null
+      this.tunnelStatus = 'starting'
+      this.tunnelError = `tunel padł (${code ?? '?'})`
+      this.notify()
+      this.restartTimer = setTimeout(() => {
+        this.restartTimer = null
+        if (this.enabled && this.lifecycle === generation) void this.ensureTunnel()
+      }, 2500)
+    })
     })
   }
 
-  private killTunnel(clear = true): void {
+  private killTunnel(): void {
+    this.tunnelAbort?.abort()
+    this.tunnelAbort = null
+    this.tunnelPending = null
+    this.tunnelCleanup?.()
+    clearTimeout(this.restartTimer ?? undefined)
+    this.restartTimer = null
     const t = this.tunnel
     this.tunnel = null
-    if (clear) {
-      this.wanUrl = null
-      this.tunnelStatus = 'off'
-    }
+    this.wanUrl = null
+    this.tunnelStatus = 'off'
     if (!t) return
     try {
       t.kill()
@@ -505,35 +531,59 @@ export class RemoteHub {
   }
 
   private listen(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.http = createServer((req, res) => {
-        void this.serveHttp(req, res)
+    return new Promise<void>((resolve, reject) => {
+    const server = createServer((req, res) => {
+      if (this.http !== server) {
+        res.writeHead(503)
+        res.end()
+        return
+      }
+      void this.serveHttp(req, res).catch(() => {
+        if (res.destroyed || res.writableEnded) return
+        if (res.headersSent) return res.destroy()
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'invalid request' }))
       })
-      this.wss = new WebSocketServer({ noServer: true })
-      this.http.on('upgrade', (req, socket, head) => {
+    })
+    const wss = new WebSocketServer({ noServer: true })
+    this.http = server
+    this.wss = wss
+    const done = () => {
+      if (this.cancelListen === done) this.cancelListen = null
+      resolve()
+    }
+    this.cancelListen = done
+    server.on('upgrade', (req, socket, head) => {
+      try {
         const url = new URL(req.url || '/', 'http://127.0.0.1')
-        if (url.pathname !== '/ws') {
+        if (this.http !== server || !this.enabled || url.pathname !== '/ws' ||
+            !this.safeEqual(url.searchParams.get('token') || '', this.token)) {
           socket.destroy()
           return
         }
-        const token = url.searchParams.get('token') || ''
-        if (!this.safeEqual(token, this.token)) {
-          socket.destroy()
-          return
-        }
-        this.wss?.handleUpgrade(req, socket, head, (ws) => {
-          this.wss?.emit('connection', ws, req)
-        })
-      })
-      this.wss.on('connection', (ws) => this.onSocket(ws))
-      this.http.on('error', reject)
-      this.http.listen(this.port, '0.0.0.0', () => resolve())
+        wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req))
+      } catch {
+        socket.destroy()
+      }
+    })
+    wss.on('connection', (ws) => {
+      if (this.http !== server || !this.enabled) return ws.terminate()
+      try { this.onSocket(ws) } catch { ws.terminate() }
+    })
+    server.on('error', (err) => {
+      if (this.cancelListen === done) this.cancelListen = null
+      reject(err)
+    })
+    server.listen(this.port, '0.0.0.0', () => {
+      if (this.http !== server) server.close()
+      done()
+    })
     })
   }
 
   private onSocket(ws: WebSocket): void {
     this.sockets.add(ws)
-    ws.send(JSON.stringify({ e: 'hello', snapshot: this.publicSnapshot(), token: this.token }))
+    this.notify()
     const beat = setInterval(() => {
       if (ws.readyState !== ws.OPEN) return
       try {
@@ -548,39 +598,54 @@ export class RemoteHub {
       }
     }, 20000)
     ws.on('message', (buf) => {
-      void this.onMessage(ws, buf.toString())
+      void this.onMessage(ws, buf.toString()).catch(() => ws.terminate())
     })
     const gone = () => {
       clearInterval(beat)
       this.sockets.delete(ws)
       this.coalescers.get(ws)?.dispose()
       this.coalescers.delete(ws)
+      this.notify()
     }
     ws.on('close', gone)
     ws.on('error', gone)
+    ws.send(JSON.stringify({ e: 'hello', snapshot: this.publicSnapshot(), token: this.token }))
   }
 
   private async onMessage(ws: WebSocket, raw: string): Promise<void> {
-    let cmd: RemoteCommand
+    let value: unknown
     try {
-      cmd = JSON.parse(raw) as RemoteCommand
+      value = JSON.parse(raw)
     } catch {
+      ws.close(1008, 'invalid command')
+      return
+    }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      ws.close(1008, 'invalid command')
+      return
+    }
+    const cmd = value as RemoteCommand
+    const reply = (body: unknown): void => {
+      if (!cmd.id || ws.readyState !== ws.OPEN) return
+      try {
+        ws.send(JSON.stringify(body))
+      } catch {
+        ws.terminate()
+      }
+    }
+    if (typeof cmd.m !== 'string' || !cmd.m ||
+        (cmd.id !== undefined && (typeof cmd.id !== 'string' || !cmd.id)) ||
+        (cmd.a !== undefined && !Array.isArray(cmd.a))) {
+      ws.close(1008, 'invalid command')
       return
     }
     if (cmd.m === 'ping') return
+    if (!this.enabled || !this.sockets.has(ws)) return
     try {
       const r = await this.opts.dispatch(cmd)
-      if (cmd.id) ws.send(JSON.stringify({ id: cmd.id, ok: true, r }))
+      reply({ id: cmd.id, ok: true, r })
     } catch (err) {
-      if (cmd.id) {
-        ws.send(
-          JSON.stringify({
-            id: cmd.id,
-            ok: false,
-            error: err instanceof Error ? err.message : String(err)
-          })
-        )
-      }
+      reply({ id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) })
     }
   }
 
@@ -599,11 +664,13 @@ export class RemoteHub {
   }
 
   private async serveHttp(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const generation = this.lifecycle
     const url = new URL(req.url || '/', 'http://127.0.0.1')
     if (req.method === 'POST' && url.pathname === '/pair') {
       const chunks: Buffer[] = []
       let size = 0
       for await (const c of req) {
+        if (generation !== this.lifecycle) { res.writeHead(503); res.end(); return }
         const buf = c as Buffer
         size += buf.length
         if (size > PAIR_MAX_BODY) {
@@ -615,6 +682,7 @@ export class RemoteHub {
         }
         chunks.push(buf)
       }
+      if (generation !== this.lifecycle) { res.writeHead(503); res.end(); return }
       let pin = ''
       try {
         pin = String((JSON.parse(Buffer.concat(chunks).toString('utf8')) as { pin?: string }).pin || '')

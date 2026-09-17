@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -18,57 +18,56 @@ export default function App() {
   const [paneId, setPaneId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [line, setLine] = useState('')
+  const [connected, setConnected] = useState(false)
+  const pairing = useRef<AbortController | null>(null)
 
   useEffect(() => {
     let alive = true
-    ;(async () => {
-      try {
-        const s = await client.connect()
-        if (!alive) return
-        setSnap(s)
-        setWsId(s.activeWorkspaceId)
-        setPhase('app')
-      } catch {
-        if (alive) setPhase('pin')
-      }
-    })()
     client.onEvent = (msg) => {
-      if (msg.e === 'state' && msg.snapshot) setSnap(msg.snapshot as AppSnapshot)
-    }
-    return () => {
-      alive = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (phase !== 'app') return
-    const onTerm = (msg: Record<string, unknown>) => {
+      if (msg.e === 'connection') setConnected(msg.ready === true)
+      if (msg.e === 'state' && msg.snapshot) {
+        setSnap(msg.snapshot as AppSnapshot)
+        setPhase('app')
+      }
       if (msg.e === 'term') {
         const id = String(msg.paneId || '')
         const data = String(msg.data || '')
         window.dispatchEvent(new CustomEvent('pq-term', { detail: { id, data } }))
       }
     }
-    const prev = client.onEvent
-    client.onEvent = (msg) => {
-      prev?.(msg)
-      onTerm(msg)
-    }
+    void client.connect().then((s) => {
+      if (!alive) return
+      setSnap(s)
+      setWsId(s.activeWorkspaceId)
+      setPhase('app')
+    }).catch(() => {
+      if (alive) setPhase('pin')
+    })
     return () => {
-      client.onEvent = prev
+      alive = false
+      pairing.current?.abort()
+      client.onEvent = null
+      client.disconnect()
     }
-  }, [phase])
+  }, [])
 
   async function pair() {
+    if (pairing.current) return
+    const controller = new AbortController()
+    pairing.current = controller
     setErr('')
     try {
-      await client.pair(pin)
-      const s = await client.connect()
+      const token = await client.pair(pin, controller.signal)
+      if (controller.signal.aborted) return
+      const s = await client.connect(token)
+      if (controller.signal.aborted) return
       setSnap(s)
       setWsId(s.activeWorkspaceId)
       setPhase('app')
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
+      if (!controller.signal.aborted) setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      if (pairing.current === controller) pairing.current = null
     }
   }
 
@@ -128,6 +127,7 @@ export default function App() {
         pane={pane}
         line={line}
         setLine={setLine}
+        connected={connected}
         onBack={() => setPaneId(null)}
       />
     )
@@ -145,6 +145,8 @@ export default function App() {
             <div className="sub">{ws.cwd}</div>
           </div>
         </header>
+        {!connected ? <div role="status">offline — brak wysyłania</div> : null}
+        {err ? <div className="err" role="alert">{err}</div> : null}
         <div className="list">
           {ws.panes.map((p, i) => (
             <button
@@ -167,7 +169,8 @@ export default function App() {
               const eng =
                 ws.panes.find((p) => p.engine)?.engine ||
                 (snap.providers.find((p) => p.enabled && !isRawShell(p.id))?.id ?? 'grok')
-              void client.fill(eng)
+              setErr('')
+              void client.fill(ws.id, eng).catch((e: Error) => setErr(e.message))
             }}
           >
             fill rest
@@ -183,6 +186,8 @@ export default function App() {
         <div className="brand">pqTERM</div>
         <div className="sub">{snap.user?.email || 'laptop'}</div>
       </header>
+      {!connected ? <div role="status">offline — brak wysyłania</div> : null}
+      {err ? <div className="err" role="alert">{err}</div> : null}
       <div className="list">
         {snap.workspaces.length === 0 ? (
           <div className="empty">brak workspace na laptopie.</div>
@@ -193,7 +198,8 @@ export default function App() {
               className={w.id === snap.activeWorkspaceId ? 'card on' : 'card'}
               onClick={() => {
                 setWsId(w.id)
-                void client.select(w.id)
+                setErr('')
+                void client.select(w.id).catch((e: Error) => setErr(e.message))
               }}
             >
               <span className="n">{w.title}</span>
@@ -223,19 +229,22 @@ function PaneView({
   pane,
   line,
   setLine,
+  connected,
   onBack
 }: {
   snap: AppSnapshot
   ws: Workspace
   pane: PaneState
   line: string
-  setLine: (s: string) => void
+  setLine: Dispatch<SetStateAction<string>>
+  connected: boolean
   onBack: () => void
 }) {
   const host = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const [sttHint, setSttHint] = useState('')
   const [sttListening, setSttListening] = useState(false)
+  const [sendError, setSendError] = useState('')
   const nativeStt = isNativePqStt()
 
   // Mic → PqStt → same WS write path as typed compose (Android WebView only).
@@ -243,8 +252,12 @@ function PaneView({
     if (!pane.engine) return
     const dispose = attachPqSttGlue({
       sendCommand: (text) => {
-        client.write(pane.id, text.trim() + '\r')
-        setLine('')
+        if (!client.write(pane.id, text.trim() + '\r')) {
+          setLine((previous) => previous ? `${previous} ${text.trim()}` : text.trim())
+          setSendError('Nie wysłano — tekst zachowany. Po połączeniu naciśnij send.')
+        } else {
+          setSendError('')
+        }
         setSttListening(false)
         setSttHint('')
       },
@@ -281,7 +294,9 @@ function PaneView({
       /* ignore */
     }
     termRef.current = term
-    term.onData((d) => client.write(pane.id, d))
+    term.onData((d) => {
+      if (!client.write(pane.id, d)) setSendError('Offline — wpisuj w polu prompt, aby zachować tekst.')
+    })
     const onEv = (e: Event) => {
       const d = (e as CustomEvent).detail as { id: string; data: string }
       if (d.id === pane.id) term.write(d.data)
@@ -307,6 +322,8 @@ function PaneView({
           <div className="sub">{ws.title}</div>
         </div>
       </header>
+      {!connected ? <div role="status">offline — brak wysyłania</div> : null}
+      {sendError ? <div className="err" role="alert">{sendError}</div> : null}
       {pane.engine ? (
         <div className="term" ref={host} />
       ) : (
@@ -316,7 +333,11 @@ function PaneView({
               key={p.id}
               className="eng"
               disabled={!p.installed}
-              onClick={() => client.setPane(ws.id, pane.id, { engine: p.id, title: p.name })}
+              onClick={() => {
+                setSendError('')
+                void client.setPane(ws.id, pane.id, { engine: p.id, title: p.name })
+                  .catch((e: Error) => setSendError(e.message))
+              }}
             >
               <span style={{ color: p.color }}>{p.name}</span>
               <span className="meta">{p.vendor}</span>
@@ -329,8 +350,12 @@ function PaneView({
         onSubmit={(e) => {
           e.preventDefault()
           if (!line.trim() || !pane.engine) return
-          client.write(pane.id, line.trim() + '\r')
-          setLine('')
+          if (client.write(pane.id, line.trim() + '\r')) {
+            setLine('')
+            setSendError('')
+          } else {
+            setSendError('Nie wysłano — tekst zachowany. Po połączeniu naciśnij send.')
+          }
         }}
       >
         <input
@@ -378,6 +403,7 @@ function CreateView({
   const [cwd, setCwd] = useState(snap.workspaces[0]?.cwd || '')
   const [layout, setLayout] = useState<LayoutId>(2)
   const [engines, setEngines] = useState<EngineId[]>([])
+  const [error, setError] = useState('')
   const usable = snap.providers.filter((p) => p.enabled && !isRawShell(p.id) && p.installed)
 
   return (
@@ -426,17 +452,23 @@ function CreateView({
           className="go"
           onClick={async () => {
             if (!title.trim() || !cwd.trim()) return
-            const ws = (await client.create({
-              title: title.trim(),
-              cwd: cwd.trim(),
-              layout,
-              engines
-            })) as { id?: string }
-            onCreated(ws?.id || '')
+            setError('')
+            try {
+              const ws = (await client.create({
+                title: title.trim(),
+                cwd: cwd.trim(),
+                layout,
+                engines
+              })) as { id?: string }
+              onCreated(ws?.id || '')
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e))
+            }
           }}
         >
           utwórz na laptopie
         </button>
+        {error ? <div className="err" role="alert">{error}</div> : null}
       </div>
     </div>
   )

@@ -5,6 +5,7 @@ export {
   dialog,
   ipcMain,
   net,
+  Notification,
   session,
   shell
 } from 'electron'

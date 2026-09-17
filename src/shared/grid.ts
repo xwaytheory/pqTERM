@@ -181,6 +181,143 @@ export function snapAreas(count: number, snappedIndex: number, zone: SnapZone): 
   return areas
 }
 
+export type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+export const RESIZE_EDGES: readonly ResizeEdge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
+
+const ALIGN_EPS = 1e-5
+
+type Seg = { from: number; to: number; pane: number; side: 'start' | 'end' }
+
+function spansAt(
+  panes: { id: string; area: Rect }[],
+  vertical: boolean,
+  line: number,
+  axis: 'start' | 'end'
+): Seg[] {
+  const segs: Seg[] = []
+  for (let i = 0; i < panes.length; i++) {
+    const r = panes[i].area
+    const lo = vertical ? r.x : r.y
+    const hi = vertical ? r.x + r.w : r.y + r.h
+    const crossLo = vertical ? r.y : r.x
+    const crossHi = vertical ? r.y + r.h : r.x + r.w
+    const edge = axis === 'end' ? hi : lo
+    if (Math.abs(edge - line) > ALIGN_EPS) continue
+    if (crossHi - crossLo <= ALIGN_EPS) continue
+    segs.push({ from: crossLo, to: crossHi, pane: i, side: axis })
+  }
+  return segs
+}
+
+function componentsOf(segs: Seg[]): Seg[][] {
+  const sorted = [...segs].sort((a, b) => a.from - b.from || a.to - b.to)
+  const comps: Seg[][] = []
+  let cur: Seg[] = []
+  let reach = -Infinity
+  for (const s of sorted) {
+    if (cur.length && s.from > reach + ALIGN_EPS) {
+      comps.push(cur)
+      cur = []
+    }
+    cur.push(s)
+    reach = Math.max(reach, s.to)
+  }
+  if (cur.length) comps.push(cur)
+  return comps
+}
+
+function shiftEdge(
+  panes: { id: string; area: Rect }[],
+  id: string,
+  vertical: boolean,
+  side: 'start' | 'end',
+  delta: number,
+  minSize: number
+): { id: string; area: Rect }[] {
+  if (delta === 0) return panes
+  const index = panes.findIndex((p) => p.id === id)
+  if (index < 0) return panes
+  const self = panes[index].area
+  const lo = vertical ? self.x : self.y
+  const size = vertical ? self.w : self.h
+  const line = side === 'end' ? lo + size : lo
+  if (line <= ALIGN_EPS || line >= 1 - ALIGN_EPS) return panes
+  const comp = componentsOf([
+    ...spansAt(panes, vertical, line, 'start'),
+    ...spansAt(panes, vertical, line, 'end')
+  ]).find((c) => c.some((s) => s.pane === index && s.side === side))
+  if (!comp) return panes
+
+  // Every moved segment needs complete coverage on the other side, including
+  // all branches at a T junction. A partially shared edge cannot move alone.
+  for (const seg of comp) {
+    let reach = seg.from
+    for (const other of comp) {
+      if (other.side === seg.side || other.to <= reach) continue
+      if (other.from > reach + ALIGN_EPS) break
+      reach = other.to
+      if (reach >= seg.to - ALIGN_EPS) break
+    }
+    if (reach < seg.to - ALIGN_EPS) return panes
+  }
+
+  let lower = -line
+  let upper = 1 - line
+  for (const seg of comp) {
+    const r = panes[seg.pane].area
+    const room = Math.max(0, (vertical ? r.w : r.h) - minSize)
+    // An already undersized pane may grow, but must not shrink further.
+    if (seg.side === 'end') lower = Math.max(lower, -room)
+    else upper = Math.min(upper, room)
+  }
+  const applied = Math.max(lower, Math.min(upper, delta))
+  if (applied === 0) return panes
+  const out = panes.slice()
+  for (const seg of comp) {
+    const p = panes[seg.pane]
+    const r = p.area
+    const start = seg.side === 'start'
+    out[seg.pane] = {
+      ...p,
+      area: vertical
+        ? { ...r, x: r.x + (start ? applied : 0), w: r.w + (start ? -applied : applied) }
+        : { ...r, y: r.y + (start ? applied : 0), h: r.h + (start ? -applied : applied) }
+    }
+  }
+  return out
+}
+
+/**
+ * Drag-resize pane `id` by dragging its edge/corner. `dx`/`dy` are deltas from
+ * drag start in unit space. The dragged edge segment plus every neighbour
+ * segment connected to it on the shared line moves as one component; panes on
+ * the far side of that line give up / take the space so coverage stays exact.
+ * Clamped so no affected pane shrinks below its minimum; outer frame edges do
+ * not move. Returns the array unchanged when the move is impossible.
+ */
+export function resizePanes(
+  panes: { id: string; area: Rect }[],
+  id: string,
+  edge: ResizeEdge,
+  dx: number,
+  dy: number,
+  minWidth = 0.08,
+  minHeight = 0.08
+): { id: string; area: Rect }[] {
+  if (!Number.isFinite(minWidth) || !Number.isFinite(minHeight) || minWidth <= 0 || minHeight <= 0) return panes
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) return panes
+  let out = panes
+  const doX = edge.includes('e') || edge.includes('w')
+  const doY = edge.includes('n') || edge.includes('s')
+  if (doX) {
+    out = shiftEdge(out, id, true, edge.includes('e') ? 'end' : 'start', dx, minWidth)
+  }
+  if (doY) {
+    out = shiftEdge(out, id, false, edge.includes('s') ? 'end' : 'start', dy, minHeight)
+  }
+  return out
+}
+
 // ---------------------------------------------------------------------------
 // Zone detection from a normalized pointer position (0..1 within the grid).
 // ---------------------------------------------------------------------------

@@ -52,6 +52,7 @@ interface LivePane {
 
 export class BoardHub {
   private cwd = ''
+  private generation = 0
   private panes = new Map<string, LivePane>()
   private timer: ReturnType<typeof setInterval> | null = null
   private last: BoardSnapshot | null = null
@@ -66,6 +67,7 @@ export class BoardHub {
   }
 
   attach(cwd: string): void {
+    this.generation++
     this.cwd = cwd
     this.ensureDir()
     this.ensureGitignore()
@@ -80,6 +82,7 @@ export class BoardHub {
   }
 
   detach(): void {
+    this.generation++
     if (this.timer) {
       clearInterval(this.timer)
       this.timer = null
@@ -247,6 +250,8 @@ export class BoardHub {
 
   private async flushOnce(): Promise<void> {
     if (!this.cwd) return
+    const cwd = this.cwd
+    const generation = this.generation
     this.ensureDir()
     const now = Date.now()
     const stale = 120000
@@ -261,11 +266,12 @@ export class BoardHub {
         .map(([f]) => f)
         .slice(0, 10)
     }))
-    const git = await gitPorcelain(this.cwd)
+    const git = await gitPorcelain(cwd)
+    if (generation !== this.generation) return
     const notes = this.notes(panes)
     const snap: BoardSnapshot = {
-      cwd: this.cwd,
-      boardPath: this.boardPath(),
+      cwd,
+      boardPath: join(cwd, '.pq', 'BOARD.md'),
       updatedAt: now,
       panes,
       git,
@@ -305,11 +311,11 @@ export class BoardHub {
       }
     } else lines.push('_brak nachodzenia_')
     lines.push('')
-    writeFileSync(this.boardPath(), lines.join('\n'), 'utf8')
+    writeFileSync(s.boardPath, lines.join('\n'), 'utf8')
   }
 
   private writeJson(s: BoardSnapshot): void {
-    writeFileSync(join(this.dir(), 'board.json'), JSON.stringify(s, null, 2), 'utf8')
+    writeFileSync(join(s.cwd, '.pq', 'board.json'), JSON.stringify(s, null, 2), 'utf8')
   }
 
   private dropInstructions(): void {

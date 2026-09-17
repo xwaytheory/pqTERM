@@ -59,6 +59,10 @@ Work in `pqTERM-dev` (branch `dev`). When a fix is ready for verification:
    Rebuild official artifacts: `node scripts/stamp-host.cjs` then
    `npm run build` in `C:\Users\pq\pqTERM` (regenerate `host\pqterm.exe`, `out\`).
 4. Never skip `test` → read only `dev` → `main`; only a human pushes/publishes.
+   **Every change lands on `test` FIRST, no exceptions.** Writing code only in
+   `dev` is not enough — any implemented fix/feature MUST be committed on `dev`
+   and merged into `pqTERM-test` (with its checks run there) before it counts
+   as delivered. `dev`-only work is work in progress, not a rollout.
 
 ## Golden commands (run from repo root)
 

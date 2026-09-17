@@ -320,12 +320,34 @@ button {
   font-size: 10px;
 }
 .ws .cwd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--dim);
   font-size: 10px;
-  padding: 4px 0 2px 18px;
+  padding: 2px 0 0 18px;
+}
+.ws .cwd > span {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.ws .folder-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+.ws .folder-open:hover {
+  color: var(--text);
+}
+.ws .folder-open:focus-visible {
+  outline: 1px solid var(--green);
+  outline-offset: 1px;
 }
 .pane-link {
   display: flex;
@@ -335,6 +357,36 @@ button {
   color: var(--muted);
   border-radius: 4px;
   cursor: pointer;
+}
+.pane-link > .pane-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pane-label .activity-badge {
+  display: block;
+  font-size: 10px;
+  color: var(--dim);
+}
+.activity-badge.unread, .activity-count {
+  color: var(--amber);
+}
+.pane.activity-unread {
+  border-color: var(--amber);
+}
+.sidebar .side-remove {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.ws .row:hover .side-remove,
+.pane-link:hover .side-remove,
+.ws .row:focus-within .side-remove,
+.sidebar .side-remove:focus-visible {
+  opacity: 1;
 }
 .pane-link:hover {
   background: #161b22;
@@ -645,6 +697,37 @@ body.dragging {
   cursor: grabbing;
 }
 
+/* Handles live in the 12px gaps, outside pane text, scrollbars and title buttons. */
+.pane-resize-handle {
+  position: absolute;
+  z-index: 3;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  touch-action: none;
+}
+.pane-resize-handle:hover,
+.pane-resize-handle:focus-visible {
+  background: color-mix(in srgb, var(--green) 35%, transparent);
+}
+.pane-resize-handle:focus-visible {
+  outline: 1px solid var(--green);
+  outline-offset: -1px;
+}
+.resize-n, .resize-s { cursor: ns-resize; }
+.resize-e, .resize-w { cursor: ew-resize; }
+.resize-ne, .resize-sw { cursor: nesw-resize; z-index: 4; }
+.resize-nw, .resize-se { cursor: nwse-resize; z-index: 4; }
+.grid.resizing > .pane {
+  transition: none;
+}
+body.pane-resizing,
+body.pane-resizing * {
+  cursor: var(--pane-resize-cursor) !important;
+  user-select: none;
+}
+
 .pane {
   min-width: 0;
   min-height: 0;
@@ -765,6 +848,7 @@ body.dragging {
   border-color: var(--focus);
 }
 .xterm-host {
+  box-sizing: content-box;
   flex: 1;
   min-height: 0;
   padding: 4px 6px 6px;

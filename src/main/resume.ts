@@ -133,7 +133,7 @@ async function listSessions(engine: EngineId, cwd: string, target: string): Prom
 
 interface Slot {
   ref: SessionRef
-  claimed: boolean
+  paneId: string | null
 }
 
 const cache = new Map<string, Slot[]>()
@@ -154,7 +154,14 @@ export async function primeResume(workspaces: Workspace[], providers: ProviderIn
       const target = provider?.resolvedPath || engine
       jobs.push(
         listSessions(engine as EngineId, ws.cwd, target).then((list) => {
-          cache.set(keyOf(ws.id, engine as EngineId), list.map((ref) => ({ ref, claimed: false })))
+          cache.set(
+            keyOf(ws.id, engine as EngineId),
+            list.map((ref) => ({
+              ref,
+              paneId:
+                ws.panes.find((p) => p.engine === engine && p.sessionHandle === ref.handle)?.id ?? null
+            }))
+          )
         })
       )
     }
@@ -165,25 +172,28 @@ export async function primeResume(workspaces: Workspace[], providers: ProviderIn
 /**
  * Pick which stored agent conversation a pane should resume.
  * A handle persisted on the pane wins (stable across restarts); otherwise the
- * newest still-unclaimed session for that workspace/engine is assigned.
+ * newest still-unclaimed session for that workspace/engine is assigned to the pane.
  */
 export function pickResume(
   workspaceId: string,
   engine: EngineId,
+  paneId: string,
   sessionHandle?: string | null
 ): SessionRef | null {
   const slots = cache.get(keyOf(workspaceId, engine))
   if (!slots) return null
+  const owned = slots.find((s) => s.paneId === paneId)
+  if (owned) return owned.ref
   if (sessionHandle) {
     const prev = slots.find((s) => s.ref.handle === sessionHandle)
-    if (prev && !prev.claimed) {
-      prev.claimed = true
+    if (prev && prev.paneId === null) {
+      prev.paneId = paneId
       return prev.ref
     }
   }
   for (const s of slots) {
-    if (s.claimed) continue
-    s.claimed = true
+    if (s.paneId !== null) continue
+    s.paneId = paneId
     return s.ref
   }
   return null

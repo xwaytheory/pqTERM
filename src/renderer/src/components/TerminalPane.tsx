@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import {
+  ACTIVITY_LABELS,
   clipTitle,
   isDefaultPaneTitle,
   isRawShell,
@@ -10,6 +11,7 @@ import {
   type EngineId,
   type EngineUsage,
   type PaneArea,
+  type PaneActivity,
   type PaneState,
   type ProviderInfo
 } from '../../../shared/types'
@@ -63,6 +65,8 @@ function TerminalPane({
   zoomed,
   renameNonce,
   usage,
+  activity,
+  focusRequest,
   index,
   area,
   onFocus,
@@ -77,6 +81,8 @@ function TerminalPane({
   zoomed: boolean
   renameNonce: number
   usage?: EngineUsage
+  activity?: PaneActivity
+  focusRequest: number
   index: number
   area?: PaneArea
   onFocus: () => void
@@ -86,6 +92,7 @@ function TerminalPane({
   const host = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const appliedFocusRequest = useRef(0)
   const spawned = useRef(false)
   const lineBuf = useRef('')
   const [dragOver, setDragOver] = useState(false)
@@ -191,12 +198,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
     })
     const offExit = window.pq.terminals.onExit((id, code) => {
       if (id !== pane.id) return
-      if (pane.engine && !isRawShell(pane.engine)) {
-        // Agent TUIs: process ended → go back to the engine picker.
-        void window.pq.terminals.clearPane(workspaceId, pane.id)
-      } else {
-        term.write(`\r\n\x1b[90m[pqTERM] process exit ${code}\x1b[0m\r\n`)
-      }
+      term.write(`\r\n\x1b[90m[pqTERM] process exit ${code}\x1b[0m\r\n`)
     })
     term.onData((d) => {
       window.pq.terminals.write(pane.id, d)
@@ -225,6 +227,9 @@ if (pane.engine && !isRawShell(pane.engine)) {
     let resizeTimer: ReturnType<typeof setTimeout> | undefined
     const ro = new ResizeObserver(() => {
       try {
+        // hidden hosts report 0x0 — fitting them would shrink the PTY to the
+        // minimum and garble output; fit only when the host is actually laid out
+        if (!host.current || host.current.clientHeight < 10 || host.current.clientWidth < 10) return
         fit.fit()
         if (!spawned.current) return
         clearTimeout(resizeTimer)
@@ -279,6 +284,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
 
   useEffect(() => {
     try {
+      if (!host.current || host.current.clientHeight < 10) return
       fitRef.current?.fit()
       const term = termRef.current
       if (term && spawned.current) {
@@ -288,6 +294,16 @@ if (pane.engine && !isRawShell(pane.engine)) {
       /* ignore */
     }
   }, [zoomed, focused, pane.id])
+
+  useEffect(() => {
+    if (!focusRequest || appliedFocusRequest.current === focusRequest) return
+    const frame = requestAnimationFrame(() => {
+      if (!host.current?.clientHeight || !termRef.current) return
+      appliedFocusRequest.current = focusRequest
+      termRef.current.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusRequest, pane.engine])
 
   useEffect(() => {
     if (focused && renameNonce > 0) beginRename()
@@ -486,7 +502,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
 
   return (
     <section
-      className={`pane${focused ? ' focused' : ''}${zoomed ? ' zoomed-pane' : ''}${dragOver ? ' drop-target' : ''}`}
+      className={`pane${focused ? ' focused' : ''}${zoomed ? ' zoomed-pane' : ''}${dragOver ? ' drop-target' : ''}${activity?.unread ? ' activity-unread' : ''}`}
       data-pane-id={pane.id}
       style={areaStyle(area)}
       onMouseDown={onFocus}
@@ -561,6 +577,15 @@ if (pane.engine && !isRawShell(pane.engine)) {
           </button>
         ) : null}
         {pane.engine && usage ? <UsageChip usage={usage} /> : null}
+        {activity ? (
+          <span
+            className={`activity-badge activity-${activity.kind}${activity.unread ? ' unread' : ''}`}
+            title={`${ACTIVITY_LABELS[activity.kind]}${activity.unread ? ' · nieprzeczytane' : ''}`}
+            aria-label={`${ACTIVITY_LABELS[activity.kind]}${activity.unread ? ' · nieprzeczytane' : ''}`}
+          >
+            {ACTIVITY_LABELS[activity.kind]}
+          </span>
+        ) : null}
         <button
           className="iconx zoom"
           title={zoomed ? 'wróć do siatki (ctrl+shift+g)' : 'powiększ na całą siatkę (ctrl+shift+f)'}
@@ -666,9 +691,8 @@ if (pane.engine && !isRawShell(pane.engine)) {
 }
 
 /**
- * Panes only mount for the active workspace (see DeckScreen), so the xterm view and its PTY
- * have different lifetimes on purpose: the PTY lives in the main process, survives the unmount
- * and the replay buffer re-seeds the fresh terminal on the way back.
+ * Visited workspaces retain their xterm views; PTYs live independently in main.
+ * When a view does remount, the replay buffer restores its terminal output.
  *
  * The handler props are deliberately left out of the comparison — DeckScreen rebuilds them on
  * every render, but each one reads live state through refs, so an older closure still acts on
@@ -683,6 +707,8 @@ export default memo(TerminalPane, (a, b) =>
   a.zoomed === b.zoomed &&
   a.renameNonce === b.renameNonce &&
   a.usage === b.usage &&
+  a.activity === b.activity &&
+  a.focusRequest === b.focusRequest &&
   a.index === b.index &&
   a.area === b.area
 )

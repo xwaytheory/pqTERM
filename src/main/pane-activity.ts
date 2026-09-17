@@ -5,19 +5,14 @@ const BEL_COOLDOWN_MS = 5_000
 
 interface Entry {
   activity: PaneActivity
-  gen: number
-  bell: boolean
-  osc: boolean
-  dcs: boolean
+  ended: boolean
+  control: 'osc' | 'string' | null
+  escape: boolean
   lastOutputAt: number
   lastBellAt: number
   lastSemantic: PaneActivityKind | null
 }
 
-/** True when the byte should suppress streaming detection until the sequence ends. */
-function opensEscape(s: string): boolean {
-  return s.includes('\x1bP') || s.includes('\x1bX') || s.includes('\x1b^') || s.includes('\x1b_')
-}
 
 /**
  * Pure pane-activity state: which panes are running, quiet (silence — NOT
@@ -26,7 +21,6 @@ function opensEscape(s: string): boolean {
  */
 export class PaneActivityTracker {
   private entries = new Map<string, Entry>()
-  private gen = 0
   private onChange: (paneId: string, activity: PaneActivity | null) => void
   private onAlert: (paneId: string, kind: PaneActivityKind) => void
   private now: () => number
@@ -42,14 +36,12 @@ export class PaneActivityTracker {
   }
 
   private fresh(kind: PaneActivityKind): Entry {
-    this.gen += 1
     const at = this.now()
     return {
       activity: { kind, at, unread: false },
-      gen: this.gen,
-      bell: false,
-      osc: false,
-      dcs: false,
+      ended: false,
+      control: null,
+      escape: false,
       lastOutputAt: at,
       lastBellAt: -Infinity,
       lastSemantic: null
@@ -65,28 +57,27 @@ export class PaneActivityTracker {
   /** Terminal output: BEL = attention (with cooldown); OSC/DCS BELs are not bells. */
   output(paneId: string, data: string): void {
     const e = this.entries.get(paneId)
-    if (!e) return
+    if (!e || e.ended || !data) return
     e.lastOutputAt = this.now()
+    if (e.activity.kind === 'quiet') this.set(paneId, e, 'running', false)
     let bell = false
     for (const ch of data) {
-      if (e.osc) {
-        if (ch === '\x07' || (ch === '\\' && e.dcs)) e.osc = false
-        e.dcs = ch === '\x1b'
+      if (e.control) {
+        if ((e.control === 'osc' && ch === '\x07') || (e.escape && ch === '\\')) {
+          e.control = null
+        }
+        e.escape = ch === '\x1b'
         continue
       }
       if (ch === '\x1b') {
-        e.dcs = true
+        e.escape = true
         continue
       }
-      if (e.dcs) {
-        e.dcs = false
-        if (ch === ']' || ch === 'P' || ch === 'X' || ch === '^') {
-          e.osc = true
-          e.dcs = opensEscape('\x1b' + ch)
-          continue
-        }
-        if (ch === '[' || ch === '(' || ch === ')') e.dcs = false
-        continue
+      if (e.escape) {
+        e.escape = false
+        if (ch === ']') e.control = 'osc'
+        else if (ch === 'P' || ch === 'X' || ch === '^' || ch === '_') e.control = 'string'
+        if (e.control) continue
       }
       if (ch === '\x07') bell = true
     }
@@ -100,7 +91,7 @@ export class PaneActivityTracker {
   /** Semantic event from the agent/hook layer: ready | waiting | attention | error | running. */
   signal(paneId: string, kind: PaneActivityKind): void {
     const e = this.entries.get(paneId)
-    if (!e) return
+    if (!e || e.ended) return
     if (e.lastSemantic === kind) return
     e.lastSemantic = kind
     this.set(paneId, e, kind, kind !== 'running')
@@ -114,7 +105,8 @@ export class PaneActivityTracker {
       return
     }
     const e = this.entries.get(paneId)
-    if (!e) return
+    if (!e || e.ended) return
+    e.ended = true
     this.set(paneId, e, code === 0 ? 'exited' : 'error', true)
     this.onAlert(paneId, code === 0 ? 'exited' : 'error')
   }
@@ -132,7 +124,6 @@ export class PaneActivityTracker {
     for (const [id, e] of this.entries) {
       if (
         e.activity.kind === 'running' &&
-        e.lastOutputAt > 0 &&
         t - e.lastOutputAt >= IDLE_MS
       ) {
         this.set(id, e, 'quiet', false)
