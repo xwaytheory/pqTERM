@@ -1,6 +1,7 @@
 // ponytail: lifecycle invariants are covered by throwaway smokes, not the unit gate —
 // node --test (strip-types) needs explicit .ts relative imports; add engine-manager.test.ts
 // when src/main adopts them.
+import { spawn } from 'child_process'
 import { once } from 'events'
 import { existsSync, lstatSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
