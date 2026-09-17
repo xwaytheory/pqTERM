@@ -290,7 +290,6 @@ export const ENGINE_SPECS: EngineSpec[] = [
     name: 'Kimi Code',
     vendor: 'Moonshot AI',
     color: '#e85d75',
-    logo: 'https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/dark/kimi-color.png',
     binaries: ['kimi', 'kimi.cmd'],
     args: [],
     hint: 'Kimi Code — Moonshot AI coding agent',
