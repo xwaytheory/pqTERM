@@ -14,6 +14,7 @@ export default function Sidebar({
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [board, setBoard] = useState<BoardSnapshot | null>(null)
+  const [folderError, setFolderError] = useState<string | null>(null)
 
   useEffect(() => {
     let off: (() => void) | undefined
@@ -41,6 +42,15 @@ export default function Sidebar({
     setOpen((o) => ({ ...o, [w.id]: true }))
   }
 
+  async function openFolder(w: Workspace) {
+    setFolderError(null)
+    try {
+      await window.pq.workspaces.openFolder(w.id)
+    } catch (error) {
+      setFolderError(`Nie można otworzyć folderu „${w.title}”: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
   return (
     <aside className={snap.sidebarOpen ? 'sidebar' : 'sidebar collapsed'}>
       <div className="side-head">
@@ -55,6 +65,7 @@ export default function Sidebar({
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
+      {folderError && <div role="alert">{folderError}</div>}
       <div className="ws-list">
         {list.length === 0 ? (
           <div className="empty-side">
@@ -84,7 +95,21 @@ export default function Sidebar({
                   </span>
                 </div>
                 <div className="cwd" title={w.cwd}>
-                  {w.cwd}
+                  <button
+                    type="button"
+                    className="iconx folder-open"
+                    aria-label={`Otwórz folder workspace „${w.title}” w Eksploratorze plików`}
+                    title="Otwórz folder w Eksploratorze plików"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void openFolder(w)
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                      <path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" />
+                    </svg>
+                  </button>
+                  <span>{w.cwd}</span>
                 </div>
                 {expanded &&
                   w.panes.map((p) => (
@@ -112,7 +137,7 @@ export default function Sidebar({
                           />
                         )
                       })()}
-                      <span>
+                      <span className="pane-label">
                         {p.engine ? p.title : 'idle'}
                         {p.model ? ` · ${p.model}` : ''}
                       </span>

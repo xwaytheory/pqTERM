@@ -320,12 +320,34 @@ button {
   font-size: 10px;
 }
 .ws .cwd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--dim);
   font-size: 10px;
-  padding: 4px 0 2px 18px;
+  padding: 2px 0 0 18px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.ws .cwd > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws .folder-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+.ws .folder-open:hover { color: var(--text); }
+.ws .folder-open:focus-visible {
+  outline: 1px solid var(--green);
+  outline-offset: 1px;
 }
 .pane-link {
   display: flex;
@@ -335,6 +357,24 @@ button {
   color: var(--muted);
   border-radius: 4px;
   cursor: pointer;
+}
+.sidebar .pane-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sidebar .activity-badge {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  overflow: hidden;
+  font-size: 0;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.sidebar .activity-badge.unread {
+  outline: 1px solid var(--green);
+  outline-offset: 2px;
 }
 .pane-link:hover {
   background: #161b22;

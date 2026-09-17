@@ -108,6 +108,7 @@ const pq = {
     remove: (id: string) => invoke('workspaces:remove', id) as Promise<void>,
     select: (id: string | null) => invoke('workspaces:select', id) as Promise<void>,
     pickFolder: () => invoke('workspaces:pickFolder') as Promise<string | null>,
+    openFolder: (id: string) => invoke('workspaces:openFolder', id) as Promise<void>,
     setLayout: (id: string, layout: LayoutId) =>
       invoke('workspaces:setLayout', id, layout) as Promise<void>,
     setPane: (workspaceId: string, paneId: string, patch: PanePatch) =>

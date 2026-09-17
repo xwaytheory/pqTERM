@@ -7,6 +7,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  statSync,
   unlinkSync,
   writeFileSync,
   chmodSync
@@ -778,6 +779,23 @@ function registerIpc(): void {
       properties: ['openDirectory', 'createDirectory']
     })
     return res.canceled ? null : res.filePaths[0]
+  })
+
+  ipcMain.handle('workspaces:openFolder', async (event, id: string) => {
+    if (
+      !mainWindow ||
+      mainWindow.isDestroyed() ||
+      event.sender !== mainWindow.webContents ||
+      event.senderFrame !== mainWindow.webContents.mainFrame
+    ) {
+      throw new Error('Niedozwolony nadawca żądania')
+    }
+    if (typeof id !== 'string') throw new Error('Nieprawidłowy identyfikator workspace')
+    const ws = state.workspaces.find((w) => w.id === id)
+    if (!ws) throw new Error('Nie znaleziono workspace')
+    if (!statSync(ws.cwd).isDirectory()) throw new Error('Ścieżka workspace nie jest folderem')
+    const error = await shell.openPath(ws.cwd)
+    if (error) throw new Error(error)
   })
 
   ipcMain.handle(
