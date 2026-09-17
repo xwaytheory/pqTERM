@@ -295,7 +295,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     args: [],
     hint: 'Kimi Code — Moonshot AI coding agent',
     extraPathDirs: ['%APPDATA%\\npm'],
-    npmPackage: 'kimi-code',
+    npmPackage: '@moonshot-ai/kimi-code',
     models: []
   },
   {
@@ -306,9 +306,8 @@ export const ENGINE_SPECS: EngineSpec[] = [
     mark: 'Cu',
     binaries: ['cursor', 'cursor.exe'],
     args: ['--yolo'],
-    hint: 'Cursor CLI — agenci w terminalu. Instalacja: curl https://cursor.com/install -fsS | bash',
-    extraPathDirs: ['%LOCALAPPDATA%\\Cursor\\resources\\app\\bin', '%APPDATA%\\npm'],
-    npmPackage: '@cursor/cursor',
+    hint: 'Cursor Agent CLI — instalacja: oficjalny instalator https://cursor.com/install (Windows PowerShell).',
+    extraPathDirs: ['%LOCALAPPDATA%\\cursor-agent', '%LOCALAPPDATA%\\Cursor\\resources\\app\\bin', '%APPDATA%\\npm'],
     modelFlag: (id) => ['--model', id],
     models: [
       { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },

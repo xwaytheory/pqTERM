@@ -1,4 +1,4 @@
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, session, shell } from './host'
 import { join, relative } from 'path'
 import { homedir } from 'os'
@@ -40,6 +40,7 @@ import { signInWithGoogle, openGoogleConsole } from './auth'
 import { PtyManager } from './pty-manager'
 import { ENGINE_SPECS, specById } from './engines'
 import { EngineSync } from './sync'
+import { installCommand } from './install-scripts'
 import { BoardHub } from './board'
 import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
@@ -747,60 +748,27 @@ function registerIpc(): void {
     persist()
   })
 
+  // One click on an undetected CLI → the official install command in a visible
+  // cmd/PowerShell window. pqTERM installs nothing itself; rescan on next click.
   ipcMain.handle('engines:install', async (_e, id: EngineId) => {
     const spec = specById(id)
-    // narrow to plain strings first — `spec.pipPackage` stays optional inside the closures
-    const pipPackage = spec.pipPackage
-    const npmPackage = spec.npmPackage
-    if (!pipPackage && !npmPackage) {
-      return { ok: false, message: `brak pakietu instalacyjnego dla ${spec.name}` }
-    }
-    const npmCmd = () => join(homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
-    try {
-      if (pipPackage) {
-        const r = await new Promise<{ ok: boolean; text: string }>((resolve) => {
-          execFile(
-            'python',
-            ['-m', 'pip', 'install', '-U', pipPackage],
-            {
-              windowsHide: true,
-              timeout: 240000,
-              maxBuffer: 4_000_000,
-              cwd: homedir(),
-              env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: '1' }
-            },
-            (err, stdout, stderr) => {
-              const text = `${stdout || ''}\n${stderr || ''}`.trim()
-              resolve({ ok: !err, text })
-            }
-          )
-        })
-        if (!r.ok) return { ok: false, message: r.text || 'pip install failed' }
-      } else if (npmPackage) {
-        const r = await new Promise<{ ok: boolean; text: string }>((resolve) => {
-          execFile(
-            npmCmd(),
-            ['install', '-g', npmPackage],
-            {
-              windowsHide: true,
-              timeout: 240000,
-              maxBuffer: 4_000_000,
-              cwd: homedir(),
-              env: { ...process.env, npm_config_update_notifier: 'false', npm_config_fund: 'false' }
-            },
-            (err, stdout, stderr) => {
-              const text = `${stdout || ''}\n${stderr || ''}`.trim()
-              resolve({ ok: !err, text })
-            }
-          )
-        })
-        if (!r.ok) return { ok: false, message: r.text || 'npm install failed' }
+    const install = installCommand(id)
+    if (!install) {
+      return {
+        ok: false,
+        message: `${spec.name}: brak skryptu — użyj oficjalnego instalatora. ${spec.hint}`
       }
-      state.providers = scanProviders(state.user?.email, state.providers)
-      persist()
-      return { ok: true, message: `${spec.name} zainstalowany` }
-    } catch (err) {
-      return { ok: false, message: err instanceof Error ? err.message : String(err) }
+    }
+    const win = spawn(install.exe, install.args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false,
+      cwd: homedir()
+    })
+    win.unref()
+    return {
+      ok: true,
+      message: `${spec.name}: instalacja w osobnym oknie — po zakończeniu kliknij ponownie, aby odpalić.`
     }
   })
 
