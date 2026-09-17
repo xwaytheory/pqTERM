@@ -1,6 +1,6 @@
 {
   "name": "pqterm",
-  "version": "1.1.9",
+  "version": "1.2.0",
   "description": "pqTERM — nerd terminal grid for AI coding agents",
   "main": "./out/main/index.js",
   "author": "pq",

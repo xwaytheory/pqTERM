@@ -23,12 +23,18 @@ const { join } = require('path')
 
 const root = join(__dirname, '..')
 const LOCAL_CRATES = new Set(['pq', 'pq-core', 'pq-work', 'pq-voice'])
-const allowed = new Set(
-  String(process.env.PQ_VERSION_ALLOW || '')
+// Registry deps that genuinely sit on the product version (checksums verified
+// against crates.io via cargo itself). ponytail: while product == 1.2.0,
+// scopeguard 1.2.0 trips the replace-heuristic; drop this entry once product
+// moves past 1.2.0. PQ_VERSION_ALLOW stays for ad-hoc cases.
+const STATIC_ALLOWED = ['scopeguard@1.2.0']
+const allowed = new Set([
+  ...STATIC_ALLOWED,
+  ...String(process.env.PQ_VERSION_ALLOW || '')
     .split(',')
     .map((s) => s.trim())
-    .filter(Boolean)
-)
+    .filter(Boolean),
+])
 
 const problems = []
 const skipped = []
