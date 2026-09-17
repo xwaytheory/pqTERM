@@ -48,11 +48,11 @@ vague TODO, so `ponytail-debt` can harvest it into a ledger. (This closes the
 
 ## i-have-adhd (communication) — active by default
 
-The user explicitly enabled `i-have-adhd` for this project. At session start,
-read `.agents/skills/i-have-adhd/SKILL.md` and apply it alongside Ponytail:
-Ponytail governs implementation; i-have-adhd governs response presentation.
-This standing opt-in activates the style even though the unmodified upstream
-skill has `disable-model-invocation: true` (no automatic skill selection).
+At session start, open `.agents/skills/i-have-adhd/SKILL.md` in this repo and
+apply it alongside Ponytail: Ponytail governs implementation; i-have-adhd
+governs response presentation. This standing opt-in activates the style even
+though the unmodified upstream skill carries `disable-model-invocation: true`,
+which only stops auto-selection, not this documented instruction.
 
 Lead with the answer or action, number multi-step instructions, show concrete
 progress, suppress tangents, and name one next action only when work remains.
