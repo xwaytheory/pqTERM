@@ -19,7 +19,7 @@
     "new-work": "node scripts/new-work.cjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "check:version": "node scripts/check-version-sync.cjs",
-    "test:unit": "npm run typecheck && node --experimental-strip-types --test src-tauri/commands.test.ts src/main/osc-title.test.ts src/main/pane-activity.test.ts src/main/ws-coalesce.test.ts src/main/db-title.test.ts src/main/install-scripts.test.ts src/main/resume.test.ts src/main/board.test.ts src/main/trust.test.ts src/renderer/src/lib/dropPaths.test.ts src/renderer/src/lib/engineMarkLetter.test.ts src/renderer/src/components/engineLogoMeta.test.ts src/phone/src/originsMatch.test.ts src/phone/src/client.test.ts src/shared/grid.test.ts src/shared/order.test.ts"
+    "test:unit": "npm run typecheck && node --experimental-strip-types --test src-tauri/commands.test.ts src/main/osc-title.test.ts src/main/pane-activity.test.ts src/main/ws-coalesce.test.ts src/main/db-title.test.ts src/main/install-scripts.test.ts src/main/resume.test.ts src/main/board.test.ts src/main/trust.test.ts src/renderer/src/lib/dropPaths.test.ts src/renderer/src/lib/engineMarkLetter.test.ts src/renderer/src/components/engineLogoMeta.test.ts src/phone/src/originsMatch.test.ts src/phone/src/client.test.ts src/shared/grid.test.ts src/shared/order.test.ts src/shared/httpUrl.test.ts"
   },
   "build": {
     "appId": "com.pqterm.app",

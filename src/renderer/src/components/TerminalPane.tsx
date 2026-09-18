@@ -148,7 +148,11 @@ function TerminalPane({
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
-    term.loadAddon(new WebLinksAddon())
+    const openLink = (_ev: MouseEvent, uri: string) => {
+      void window.pq.app.openUrl(uri)
+    }
+    term.options.linkHandler = { activate: openLink, allowNonHttpProtocols: false }
+    term.loadAddon(new WebLinksAddon(openLink))
     // Clipboard: Electron has no context menu and the browser paste never
     // reaches the pty reliably — handle it explicitly via main-process
     // clipboard (no permission prompts) + xterm paste (bracketed-paste aware).

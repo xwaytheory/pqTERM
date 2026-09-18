@@ -43,6 +43,7 @@ import {
   snapAreas
 } from '../shared/grid'
 import { reorderByIds } from '../shared/order'
+import { isHttpUrl } from '../shared/httpUrl'
 import { loadState, saveState, touchWorkspace } from './store'
 import { trustWorkspace } from './trust'
 import { applyEmailMatch, scanProviders } from './providers'
@@ -770,9 +771,10 @@ function createWindow(): void {
   })
   setTimeout(reveal, 2500)
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (isHttpUrl(details.url)) void shell.openExternal(details.url)
     return { action: 'deny' }
   })
+
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -814,6 +816,12 @@ function registerIpc(): void {
     state.sidebarOpen = !state.sidebarOpen
     persist()
   })
+  ipcMain.handle('app:openUrl', (event, url: unknown) => {
+    requireRenderer(event)
+    if (!isHttpUrl(url)) return
+    return shell.openExternal(url)
+  })
+
   ipcMain.handle('state:load', () => state)
 
   ipcMain.handle('activity:get', (event) => {
