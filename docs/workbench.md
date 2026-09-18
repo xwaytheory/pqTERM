@@ -12,6 +12,11 @@
 - `trustWorkspace` (każdy spawn CLI) i `workspaces:create` dopisują blok `<!-- pq:defaults -->` do `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`, `.github/copilot-instructions.md`. Idempotentne. Pomija homedir / Windows / Program Files.
 - Bez kopiowania `.agents/skills`. Inline standing orders dla omp/grok/claude/gemini/codex/opencode/copilot/aider.
 
+## Release 1.3.0 — CLI defaults everywhere (2026-09-18)
+
+- Product 1.2.1 → 1.3.0. Seed ponytail + i-have-adhd into every workspace CLI instruction file. FileVersion stays 1.1.7.
+
+
 
 
 ## Release 1.2.1 — drag-reorder workspaces (2026-09-18)
