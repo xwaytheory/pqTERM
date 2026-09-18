@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ACTIVITY_LABELS, type AppSnapshot, type BoardSnapshot, type PaneActivity, type Workspace } from '../../../shared/types'
+import { moveId } from '../../../shared/order'
 import EngineMark from './EngineMark'
 
 export default function Sidebar({
@@ -18,6 +19,10 @@ export default function Sidebar({
   const [board, setBoard] = useState<BoardSnapshot | null>(null)
   const [selectError, setSelectError] = useState('')
   const [folderError, setFolderError] = useState('')
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [drop, setDrop] = useState<{ id: string; place: 'before' | 'after' } | null>(null)
+  const draggedRef = useRef(false)
+  const searching = q.trim().length > 0
 
   useEffect(() => {
     let off: (() => void) | undefined
@@ -41,6 +46,7 @@ export default function Sidebar({
   }
 
   async function select(w: Workspace, paneId?: string) {
+    if (draggedRef.current) return
     try {
       await window.pq.workspaces.select(w.id)
       setOpen((o) => ({ ...o, [w.id]: true }))
@@ -76,7 +82,7 @@ export default function Sidebar({
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
-      <div className="ws-list">
+      <div className="ws-list" title={searching ? undefined : 'przeciągnij, żeby zamienić kolejność'}>
         {list.length === 0 ? (
           <div className="empty-side">
             brak workspace.
@@ -88,8 +94,51 @@ export default function Sidebar({
             const expanded = open[w.id] ?? w.id === snap.activeWorkspaceId
             const live = w.panes.filter((p) => p.engine).length
             const unread = w.panes.filter((p) => activity[p.id]?.unread).length
+            const dropClass = drop && drop.id === w.id ? ` drop-${drop.place}` : ''
             return (
-              <div key={w.id} className={w.id === snap.activeWorkspaceId ? 'ws active' : 'ws'}>
+              <div
+                key={w.id}
+                className={`${w.id === snap.activeWorkspaceId ? 'ws active' : 'ws'}${
+                  draggingId === w.id ? ' dragging' : ''
+                }${!searching ? ' movable' : ''}${dropClass}`}
+                draggable={!searching}
+                onDragStart={(e) => {
+                  if (searching || (e.target as HTMLElement).closest('button')) {
+                    e.preventDefault()
+                    return
+                  }
+                  draggedRef.current = true
+                  e.dataTransfer.setData('text/plain', `pq-ws:${w.id}`)
+                  e.dataTransfer.effectAllowed = 'move'
+                  setDraggingId(w.id)
+                }}
+                onDragEnd={() => {
+                  setDraggingId(null)
+                  setDrop(null)
+                  queueMicrotask(() => { draggedRef.current = false })
+                }}
+                onDragOver={(e) => {
+                  if (!draggedRef.current || searching) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const place = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+                  if (drop?.id !== w.id || drop.place !== place) setDrop({ id: w.id, place })
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const raw = e.dataTransfer.getData('text/plain')
+                  const fromId = raw.startsWith('pq-ws:') ? raw.slice(6) : ''
+                  const place = drop?.id === w.id ? drop.place : 'before'
+                  setDraggingId(null)
+                  setDrop(null)
+                  if (!fromId || searching) return
+                  const next = moveId(snap.workspaces.map((item) => item.id), fromId, w.id, place)
+                  if (next.some((id, i) => id !== snap.workspaces[i]?.id)) {
+                    void window.pq.workspaces.reorder(next)
+                  }
+                }}
+              >
                 <div className="row" onClick={() => select(w)}>
                   <span
                     className="chev"

@@ -134,6 +134,7 @@ const pq = {
     update: (id: string, patch: Partial<Workspace>) =>
       invoke('workspaces:update', id, patch) as Promise<void>,
     remove: (id: string) => invoke('workspaces:remove', id) as Promise<void>,
+    reorder: (ids: string[]) => invoke('workspaces:reorder', ids) as Promise<void>,
     select: (id: string | null) => invoke('workspaces:select', id) as Promise<void>,
     pickFolder: () => invoke('workspaces:pickFolder') as Promise<string | null>,
     openFolder: (id: string) => invoke('workspaces:openFolder', id) as Promise<void>,

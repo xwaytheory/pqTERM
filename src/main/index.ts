@@ -42,6 +42,7 @@ import {
   type ResizeEdge,
   snapAreas
 } from '../shared/grid'
+import { reorderByIds } from '../shared/order'
 import { loadState, saveState, touchWorkspace } from './store'
 import { applyEmailMatch, scanProviders } from './providers'
 import { signInWithGoogle, openGoogleConsole } from './auth'
@@ -986,6 +987,19 @@ function registerIpc(): void {
     persist()
   })
 
+  ipcMain.handle('workspaces:reorder', (_e, ids: unknown) => {
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 64) return
+    if (!ids.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 128)) return
+    const next = reorderByIds(state.workspaces, ids)
+    if (next.length !== state.workspaces.length) return
+    let same = true
+    for (let i = 0; i < next.length; i++) {
+      if (next[i] !== state.workspaces[i]) { same = false; break }
+    }
+    if (same) return
+    state.workspaces = next
+    persist()
+  })
   ipcMain.handle('workspaces:remove', (_e, id: string) => {
     ptys.killWorkspace(id)
     state.workspaces = state.workspaces.filter((w) => w.id !== id)

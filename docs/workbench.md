@@ -1,5 +1,12 @@
 # pq workbench (gauntlet live board)
 
+
+## Sidebar — przeciąganie workspaces (2026-09-18)
+
+- HTML5 drag na kartach w `Sidebar.tsx`: drop before/after (zielona kreska). Kolejność = tablica `state.workspaces`, zapis przez istniejący `persist()` → `pq-state.json`.
+- IPC `workspaces:reorder` (walidacja: 1–64 stringów ≤128). Czysta logika: `src/shared/order.ts` + `order.test.ts`. Szukanie wyłącza drag (przefiltrowana lista ≠ pełna).
+- Bez nowej zależności. Telefon bez reorder (YAGNI).
+
 ## Relokacja drzewa roboczego (2026-09-17)
 
 - Stabilna kopia pozostaje w `C:/Users/pq/pqTERM`; hub: `repo.git`; pozostałe kopie: `instances/dev`, `instances/test`, `instances/wip`, `instances/feat/engine-lifecycle` (ścieżki względem stabilnej kopii).
