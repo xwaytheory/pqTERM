@@ -83,20 +83,31 @@ const UNIFORM: Record<number, [number, number]> = {
   3: [3, 1],
   4: [2, 2],
   6: [3, 2],
+  8: [4, 2],
   9: [3, 3]
+}
+
+/** Two equal-height rows with `top` and `bottom` equal-width cells. */
+export function rowLayout(top: number, bottom: number): Rect[] {
+  const h = 0.5
+  const out: Rect[] = []
+  for (let i = 0; i < top; i++) out.push({ x: i / top, y: 0, w: 1 / top, h })
+  for (let i = 0; i < bottom; i++) out.push({ x: i / bottom, y: h, w: 1 / bottom, h })
+  return out
 }
 
 /**
  * Default areas for `count` panes.
- * Nice templates for common counts; bigger/"awkward" counts get a big-left pane
- * (index 0) and a balanced split of the right half — same feel as the templates.
+ * 5 = 3+2, 7 = 4+3; even grids use uniform cells. Other counts keep big-left.
  */
 export function defaultAreas(count: number): Rect[] {
   const n = Math.max(1, Math.floor(count))
+  if (n === 5) return rowLayout(3, 2)
+  if (n === 7) return rowLayout(4, 3)
   const u = UNIFORM[n]
   if (u) return uniformGrid(u[0], u[1])
   const right: Rect = { x: 0.5, y: 0, w: 0.5, h: 1 }
-  const rest = n === 5 ? uniformGrid(2, 2, right) : splitInto(n - 1, right)
+  const rest = splitInto(n - 1, right)
   return [{ x: 0, y: 0, w: 0.5, h: 1 }, ...rest]
 }
 
@@ -226,6 +237,55 @@ function componentsOf(segs: Seg[]): Seg[][] {
   return comps
 }
 
+function completeCoverage(comp: Seg[]): boolean {
+  const sorted = [...comp].sort((a, b) => a.from - b.from || a.to - b.to)
+  for (const seg of sorted) {
+    let cover = seg.from
+    for (const other of sorted) {
+      if (other.side === seg.side || other.to <= cover) continue
+      if (other.from > cover + ALIGN_EPS) break
+      cover = Math.max(cover, other.to)
+      if (cover >= seg.to - ALIGN_EPS) break
+    }
+    if (cover < seg.to - ALIGN_EPS) return false
+  }
+  return true
+}
+
+function applyShift(
+  panes: { id: string; area: Rect }[],
+  comp: Seg[],
+  vertical: boolean,
+  delta: number,
+  minSize: number,
+  line: number
+): { id: string; area: Rect }[] | null {
+  if (!comp.length || !completeCoverage(comp)) return null
+  let lower = -line
+  let upper = 1 - line
+  for (const seg of comp) {
+    const r = panes[seg.pane].area
+    const room = Math.max(0, (vertical ? r.w : r.h) - minSize)
+    if (seg.side === 'end') lower = Math.max(lower, -room)
+    else upper = Math.min(upper, room)
+  }
+  const applied = Math.max(lower, Math.min(upper, delta))
+  if (applied === 0) return null
+  const out = panes.slice()
+  for (const seg of comp) {
+    const p = panes[seg.pane]
+    const r = p.area
+    const start = seg.side === 'start'
+    out[seg.pane] = {
+      ...p,
+      area: vertical
+        ? { ...r, x: r.x + (start ? applied : 0), w: r.w + (start ? -applied : applied) }
+        : { ...r, y: r.y + (start ? applied : 0), h: r.h + (start ? -applied : applied) }
+    }
+  }
+  return out
+}
+
 function shiftEdge(
   panes: { id: string; area: Rect }[],
   id: string,
@@ -242,56 +302,24 @@ function shiftEdge(
   const size = vertical ? self.w : self.h
   const line = side === 'end' ? lo + size : lo
   if (line <= ALIGN_EPS || line >= 1 - ALIGN_EPS) return panes
-  const comp = componentsOf([
+  const all = [
     ...spansAt(panes, vertical, line, 'start'),
     ...spansAt(panes, vertical, line, 'end')
-  ]).find((c) => c.some((s) => s.pane === index && s.side === side))
-  if (!comp) return panes
-
-  // Every moved segment needs complete coverage on the other side, including
-  // all branches at a T junction. A partially shared edge cannot move alone.
-  for (const seg of comp) {
-    let reach = seg.from
-    for (const other of comp) {
-      if (other.side === seg.side || other.to <= reach) continue
-      if (other.from > reach + ALIGN_EPS) break
-      reach = other.to
-      if (reach >= seg.to - ALIGN_EPS) break
-    }
-    if (reach < seg.to - ALIGN_EPS) return panes
-  }
-
-  let lower = -line
-  let upper = 1 - line
-  for (const seg of comp) {
-    const r = panes[seg.pane].area
-    const room = Math.max(0, (vertical ? r.w : r.h) - minSize)
-    // An already undersized pane may grow, but must not shrink further.
-    if (seg.side === 'end') lower = Math.max(lower, -room)
-    else upper = Math.min(upper, room)
-  }
-  const applied = Math.max(lower, Math.min(upper, delta))
-  if (applied === 0) return panes
-  const out = panes.slice()
-  for (const seg of comp) {
-    const p = panes[seg.pane]
-    const r = p.area
-    const start = seg.side === 'start'
-    out[seg.pane] = {
-      ...p,
-      area: vertical
-        ? { ...r, x: r.x + (start ? applied : 0), w: r.w + (start ? -applied : applied) }
-        : { ...r, y: r.y + (start ? applied : 0), h: r.h + (start ? -applied : applied) }
-    }
-  }
-  return out
+  ]
+  const crossLo = vertical ? self.y : self.x
+  const crossHi = vertical ? self.y + self.h : self.x + self.w
+  const local = all.filter((s) => s.from < crossHi - ALIGN_EPS && s.to > crossLo + ALIGN_EPS)
+  const moved = applyShift(panes, local, vertical, delta, minSize, line)
+  if (moved) return moved
+  const full = componentsOf(all).find((c) => c.some((s) => s.pane === index && s.side === side))
+  return (full && applyShift(panes, full, vertical, delta, minSize, line)) || panes
 }
+
 
 /**
  * Drag-resize pane `id` by dragging its edge/corner. `dx`/`dy` are deltas from
- * drag start in unit space. The dragged edge segment plus every neighbour
- * segment connected to it on the shared line moves as one component; panes on
- * the far side of that line give up / take the space so coverage stays exact.
+ * drag start in unit space. Prefers the overlapping neighbour on that edge so
+ * a column/row split moves alone; T-junctions fall back to the full shared line.
  * Clamped so no affected pane shrinks below its minimum; outer frame edges do
  * not move. Returns the array unchanged when the move is impossible.
  */

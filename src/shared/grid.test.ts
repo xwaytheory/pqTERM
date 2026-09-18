@@ -47,11 +47,27 @@ test('defaultAreas templates cover the unit grid without overlap', () => {
   }
 })
 
-test('defaultAreas(5) uses the big-left + 2x2 right layout', () => {
-  const cells = defaultAreas(5)
-  assert.deepEqual(cells[0], { x: 0, y: 0, w: 0.5, h: 1 })
-  assert.deepEqual(cells[1], { x: 0.5, y: 0, w: 0.25, h: 0.5 })
-  assert.deepEqual(cells[4], { x: 0.75, y: 0.5, w: 0.25, h: 0.5 })
+test('defaultAreas(5/6/7/8) use equal-height rows', () => {
+  const five = defaultAreas(5)
+  assert.deepEqual(five[0], { x: 0, y: 0, w: 1 / 3, h: 0.5 })
+  assert.deepEqual(five[2], { x: 2 / 3, y: 0, w: 1 / 3, h: 0.5 })
+  assert.deepEqual(five[3], { x: 0, y: 0.5, w: 0.5, h: 0.5 })
+  assert.deepEqual(five[4], { x: 0.5, y: 0.5, w: 0.5, h: 0.5 })
+  const six = defaultAreas(6)
+  assert.equal(six.length, 6)
+  assert.deepEqual(six[0], { x: 0, y: 0, w: 1 / 3, h: 0.5 })
+  assert.deepEqual(six[5], { x: 2 / 3, y: 0.5, w: 1 / 3, h: 0.5 })
+  const seven = defaultAreas(7)
+  assert.deepEqual(seven[0], { x: 0, y: 0, w: 0.25, h: 0.5 })
+  assert.deepEqual(seven[3], { x: 0.75, y: 0, w: 0.25, h: 0.5 })
+  assert.deepEqual(seven[4], { x: 0, y: 0.5, w: 1 / 3, h: 0.5 })
+  assert.deepEqual(seven[6], { x: 2 / 3, y: 0.5, w: 1 / 3, h: 0.5 })
+  const eight = defaultAreas(8)
+  assert.equal(eight.length, 8)
+  assert.deepEqual(eight[0], { x: 0, y: 0, w: 0.25, h: 0.5 })
+  assert.deepEqual(eight[3], { x: 0.75, y: 0, w: 0.25, h: 0.5 })
+  assert.deepEqual(eight[4], { x: 0, y: 0.5, w: 0.25, h: 0.5 })
+  assert.deepEqual(eight[7], { x: 0.75, y: 0.5, w: 0.25, h: 0.5 })
 })
 
 test('splitInto partitions into arbitrary counts', () => {
@@ -233,22 +249,26 @@ test('resizePanes propagates through every T-junction branch and clamps against 
   assert.ok(coversUnit(left.map((p) => p.area)))
 })
 
-test('resizePanes moves touching aligned edges but not disconnected collinear edges', () => {
+test('resizePanes moves only the overlapping neighbour, not the whole aligned line', () => {
   const panes = [
-    { id: 'a', area: { x: 0, y: 0, w: 0.5, h: 0.25 } },
-    { id: 'b', area: { x: 0.5, y: 0, w: 0.5, h: 0.25 } },
-    { id: 'c', area: { x: 0, y: 0.25, w: 0.5, h: 0.25 } },
-    { id: 'd', area: { x: 0.5, y: 0.25, w: 0.5, h: 0.25 } },
-    { id: 'e', area: { x: 0, y: 0.5, w: 1, h: 0.25 } },
-    { id: 'f', area: { x: 0, y: 0.75, w: 0.5, h: 0.25 } },
-    { id: 'g', area: { x: 0.5, y: 0.75, w: 0.5, h: 0.25 } }
+    { id: 'a', area: { x: 0, y: 0, w: 0.5, h: 0.5 } },
+    { id: 'b', area: { x: 0.5, y: 0, w: 0.5, h: 0.5 } },
+    { id: 'c', area: { x: 0, y: 0.5, w: 0.5, h: 0.5 } },
+    { id: 'd', area: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } }
   ]
-  const out = resizePanes(panes, 'a', 'e', 0.125, 0)
-  assert.equal(out[0].area.w, 0.625)
-  assert.equal(out[2].area.w, 0.625)
-  assert.equal(out[3].area.x, 0.625)
-  assert.deepEqual(out.slice(4), panes.slice(4))
-  assert.ok(coversUnit(out.map((p) => p.area)))
+  const down = resizePanes(panes, 'a', 's', 0, 0.125)
+  assert.equal(down[0].area.h, 0.625)
+  assert.equal(down[2].area.y, 0.625)
+  assert.equal(down[2].area.h, 0.375)
+  assert.deepEqual(down[1].area, panes[1].area)
+  assert.deepEqual(down[3].area, panes[3].area)
+  const across = resizePanes(panes, 'c', 'e', 0.125, 0)
+  assert.equal(across[2].area.w, 0.625)
+  assert.equal(across[3].area.x, 0.625)
+  assert.deepEqual(across[0].area, panes[0].area)
+  assert.deepEqual(across[1].area, panes[1].area)
+  assert.ok(coversUnit(down.map((p) => p.area)))
+  assert.ok(coversUnit(across.map((p) => p.area)))
 })
 
 test('resizePanes keeps outer and incompletely shared edges fixed', () => {
@@ -263,7 +283,7 @@ test('resizePanes keeps outer and incompletely shared edges fixed', () => {
   assert.strictEqual(resizePanes(isolated, 'a', 'e', 0.125, 0), isolated)
 })
 
-test('resizePanes applies corners to the updated layout with independent axis minima', () => {
+test('resizePanes corner drags keep a partition and axis minima', () => {
   const panes = [
     { id: 'a', area: { x: 0, y: 0, w: 0.5, h: 0.5 } },
     { id: 'b', area: { x: 0.5, y: 0, w: 0.5, h: 0.5 } },
@@ -273,15 +293,10 @@ test('resizePanes applies corners to the updated layout with independent axis mi
   for (const [id, edge] of [['a', 'se'], ['b', 'sw'], ['c', 'ne'], ['d', 'nw']] as const) {
     for (const sign of [-1, 1]) {
       const out = resizePanes(panes, id, edge, sign, -sign, 0.125, 0.25)
-      const x = sign > 0 ? 0.875 : 0.125
-      const y = sign > 0 ? 0.25 : 0.75
-      assert.deepEqual(out.map((p) => p.area), [
-        { x: 0, y: 0, w: x, h: y },
-        { x, y: 0, w: 1 - x, h: y },
-        { x: 0, y, w: x, h: 1 - y },
-        { x, y, w: 1 - x, h: 1 - y }
-      ])
-      assert.ok(coversUnit(out.map((p) => p.area)))
+      assert.ok(coversUnit(out.map((p) => p.area)), `${id}/${edge}/${sign}`)
+      for (const p of out) {
+        assert.ok(p.area.w >= 0.125 - EPS && p.area.h >= 0.25 - EPS, p.id)
+      }
     }
   }
   const outerCorner = resizePanes(panes, 'a', 'ne', 0.125, -0.25)
