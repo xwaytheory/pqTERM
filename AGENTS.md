@@ -115,8 +115,6 @@ Work in `C:\Users\pq\pqTERM\instances\dev` (branch `dev`). When a fix is ready f
   Main is authoritative — never trust renderer-provided ids blindly.
 - `src/preload/index.ts` is the only bridge. No new privileged channels
   without validation (paneId ∈ workspace, length caps, model allowlists).
-- Hermes engine defaults to `-m LongCat-2.0 --provider custom`
-  (needs user-configured custom provider in `~/.hermes` — don't touch it).
 
 ## Workflow (mandatory, daily)
 

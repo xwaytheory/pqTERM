@@ -201,17 +201,6 @@ function sessionLogPath(workspaceId: string, paneId: string): string {
   return join(sessionsDir(), workspaceId, `${paneId}.log`)
 }
 
-/**
- * Engine default model when the pane has none set. Hermes → LongCat 2.0
- * (first *enabled* model wins, so unchecking it in Providers falls back
- * to the next one). Other engines → undefined (their own CLI default).
- */
-function defaultModelFor(engine: EngineId): string | undefined {
-  if (engine !== 'hermes') return undefined
-  const prov = state.providers.find((p) => p.id === 'hermes')
-  return prov?.models.find((m) => m.enabled)?.id ?? 'LongCat-2.0'
-}
-
 /** Scrollback seed persisted at quit for a pane's terminal log ('' when absent). */
 function sessionSeed(workspaceId: string, paneId: string): string {
   try {
@@ -229,7 +218,7 @@ function restoreSession(ws: Workspace, pane: PaneState): void {
   const seed = sessionSeed(ws.id, pane.id)
   const provider = state.providers.find((p) => p.id === pane.engine)
   const spec = specById(pane.engine)
-  const model = pane.model ?? defaultModelFor(pane.engine)
+  const model = pane.model
   let extraArgs = [
     ...(spec.args ?? []),
     ...(model && spec.modelFlag ? spec.modelFlag(model) : [])
@@ -1168,7 +1157,7 @@ function registerIpc(): void {
       const spec = specById(input.engine)
       const provider = state.providers.find((p) => p.id === input.engine)
       const paneInWs = ws.panes.find((p) => p.id === input.paneId)
-      const model = input.model ?? paneInWs?.model ?? defaultModelFor(input.engine)
+      const model = input.model ?? paneInWs?.model
 
       const existing = ptys.describe(input.paneId)
       if (

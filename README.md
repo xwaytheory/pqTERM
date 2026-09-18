@@ -154,7 +154,7 @@ Aplikacja wykrywa automatycznie zainstalowane CLI agentów. Każdy engine ma: bi
 |---|---|---|---|---|
 | `grok` | Grok CLI | xAI | `grok` | `--always-approve --trust` |
 | `omp` | Omp | oh-my-pi | `omp` | `--yolo` |
-| `hermes` | Hermes | Nous | `hermes` | `--tui --yolo` |
+| `hermes` | Hermes | Nous | `hermes` | — |
 | `opencode` | OpenCode | OpenCode | `opencode` | `--yolo` |
 | `codex` | Codex | OpenAI | `codex` | `--yolo` |
 | `claude` | Claude Code | Anthropic | `claude` | `--dangerously-skip-permissions` |
