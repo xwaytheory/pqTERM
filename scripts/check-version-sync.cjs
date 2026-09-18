@@ -24,9 +24,9 @@ const { join } = require('path')
 const root = join(__dirname, '..')
 const LOCAL_CRATES = new Set(['pq', 'pq-core', 'pq-work', 'pq-voice'])
 // Registry deps that genuinely sit on the product version (checksums verified
-// against crates.io via cargo itself). ponytail: while product == 1.3.1,
-// proc-macro-crate 1.3.1 trips the replace-heuristic; drop once product moves past.
-const STATIC_ALLOWED = ['scopeguard@1.2.0', 'downcast-rs@1.2.1', 'stable_deref_trait@1.2.1', 'uds_windows@1.2.1', 'proc-macro-crate@1.3.1']
+// against crates.io via cargo itself). ponytail: while product == 1.3.2,
+// bitflags 1.3.2 trips the replace-heuristic; drop once product moves past.
+const STATIC_ALLOWED = ['scopeguard@1.2.0', 'downcast-rs@1.2.1', 'stable_deref_trait@1.2.1', 'uds_windows@1.2.1', 'bitflags@1.3.2']
 const allowed = new Set([
   ...STATIC_ALLOWED,
   ...String(process.env.PQ_VERSION_ALLOW || '')

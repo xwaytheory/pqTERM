@@ -20,6 +20,11 @@
 
 - Product 1.3.0 → 1.3.1. Grid 8=4×2, 7=4+3, 6=3×2, 5=3+2; independent pane-edge resize. FileVersion stays 1.1.7.
 
+## Release 1.3.2 — terminal http(s) links (2026-09-18)
+
+- Product 1.3.1 → 1.3.2. Open terminal URLs in the browser instead of `about:blank`. FileVersion stays 1.1.7.
+
+
 
 
 
