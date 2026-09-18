@@ -29,7 +29,7 @@ function stamp(exe) {
     '--set-version-string', 'OriginalFilename', 'pqterm.exe',
     '--set-version-string', 'CompanyName', 'pqTERM',
     '--set-version-string', 'LegalCopyright', 'pq',
-    '--set-product-version', '1.3.0',
+    '--set-product-version', '1.3.1',
     '--set-file-version', '1.1.7'
   ]
   const r = spawnSync(rcedit, args, { stdio: 'inherit' })

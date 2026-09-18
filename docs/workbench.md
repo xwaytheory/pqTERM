@@ -16,6 +16,11 @@
 
 - Product 1.2.1 → 1.3.0. Seed ponytail + i-have-adhd into every workspace CLI instruction file. FileVersion stays 1.1.7.
 
+## Release 1.3.1 — equal 5–8 grids (2026-09-18)
+
+- Product 1.3.0 → 1.3.1. Grid 8=4×2, 7=4+3, 6=3×2, 5=3+2; independent pane-edge resize. FileVersion stays 1.1.7.
+
+
 
 
 
