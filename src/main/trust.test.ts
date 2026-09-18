@@ -3,18 +3,19 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { DEFAULTS_END, DEFAULTS_START, seedWorkspaceDefaults } from './trust.ts'
+import { DEFAULTS_END, DEFAULTS_START, SEED_FILES, seedWorkspaceDefaults } from './trust.ts'
 
-test('seedWorkspaceDefaults writes AGENTS.md and CLAUDE.md', () => {
+test('seedWorkspaceDefaults writes instruction files every CLI reads', () => {
   const dir = mkdtempSync(join(tmpdir(), 'pq-seed-'))
   seedWorkspaceDefaults(dir)
-  const agents = readFileSync(join(dir, 'AGENTS.md'), 'utf8')
-  const claude = readFileSync(join(dir, 'CLAUDE.md'), 'utf8')
-  assert.ok(agents.includes(DEFAULTS_START))
-  assert.ok(agents.includes('Ponytail'))
-  assert.ok(agents.includes('i-have-adhd'))
-  assert.ok(agents.includes(DEFAULTS_END))
-  assert.equal(agents, claude)
+  const bodies = SEED_FILES.map((rel) => readFileSync(join(dir, rel), 'utf8'))
+  for (const body of bodies) {
+    assert.ok(body.includes(DEFAULTS_START))
+    assert.ok(body.includes('Ponytail'))
+    assert.ok(body.includes('i-have-adhd'))
+    assert.ok(body.includes(DEFAULTS_END))
+  }
+  assert.equal(new Set(bodies).size, 1)
 })
 
 test('seedWorkspaceDefaults keeps existing notes and stays idempotent', () => {

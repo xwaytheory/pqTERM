@@ -9,8 +9,9 @@
 
 ## Workspace defaults — ponytail + i-have-adhd (2026-09-18)
 
-- `trustWorkspace` (spawn CLI) i `workspaces:create` dopisują blok `<!-- pq:defaults -->` do `AGENTS.md` i `CLAUDE.md` w katalogu projektu (git root jeśli jest). Idempotentny. Pomija homedir / Windows / Program Files.
-- Bez kopiowania `.agents/skills` do każdego repo. Inline standing orders, żeby każdy CLI (omp/grok/claude/codex/opencode) je widział.
+- `trustWorkspace` (każdy spawn CLI) i `workspaces:create` dopisują blok `<!-- pq:defaults -->` do `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`, `.github/copilot-instructions.md`. Idempotentne. Pomija homedir / Windows / Program Files.
+- Bez kopiowania `.agents/skills`. Inline standing orders dla omp/grok/claude/gemini/codex/opencode/copilot/aider.
+
 
 
 ## Release 1.2.1 — drag-reorder workspaces (2026-09-18)
