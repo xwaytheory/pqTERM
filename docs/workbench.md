@@ -7,6 +7,12 @@
 - IPC `workspaces:reorder` (walidacja: 1–64 stringów ≤128). Czysta logika: `src/shared/order.ts` + `order.test.ts`. Szukanie wyłącza drag (przefiltrowana lista ≠ pełna).
 - Bez nowej zależności. Telefon bez reorder (YAGNI).
 
+## Release 1.2.1 — drag-reorder workspaces (2026-09-18)
+
+- Product 1.2.0 → 1.2.1 (`package.json`, lock, crates, src-tauri, stamp-host ProductVersion, README). FileVersion stays 1.1.7.
+- Feature already on main (`b9cbd0e`). This stamp ships it.
+
+
 ## Relokacja drzewa roboczego (2026-09-17)
 
 - Stabilna kopia pozostaje w `C:/Users/pq/pqTERM`; hub: `repo.git`; pozostałe kopie: `instances/dev`, `instances/test`, `instances/wip`, `instances/feat/engine-lifecycle` (ścieżki względem stabilnej kopii).
