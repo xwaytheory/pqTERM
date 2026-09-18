@@ -24,6 +24,11 @@
 
 - Product 1.3.1 → 1.3.2. Open terminal URLs in the browser instead of `about:blank`. FileVersion stays 1.1.7.
 
+## Release 1.3.3 — Hermes spawn like CMD (2026-09-18)
+
+- Product 1.3.2 → 1.3.3. SPAWN ENGINE runs bare `hermes` (not `--tui` dashboard). FileVersion stays 1.1.7.
+
+
 
 
 

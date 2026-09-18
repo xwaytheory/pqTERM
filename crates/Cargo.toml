@@ -10,7 +10,7 @@ default-members = ["pq-work", "pq-voice"]
 [workspace.package]
 # Product version: keep in sync with Electron package.json (1.1.8).
 # Crates inherit this; see pq-core::version for dual-track notes.
-version = "1.3.2"
+version = "1.3.3"
 edition = "2021"
 license = "MIT"
 authors = ["pq"]
