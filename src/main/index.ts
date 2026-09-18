@@ -44,6 +44,7 @@ import {
 } from '../shared/grid'
 import { reorderByIds } from '../shared/order'
 import { loadState, saveState, touchWorkspace } from './store'
+import { trustWorkspace } from './trust'
 import { applyEmailMatch, scanProviders } from './providers'
 import { signInWithGoogle, openGoogleConsole } from './auth'
 import { PtyManager } from './pty-manager'
@@ -971,6 +972,11 @@ function registerIpc(): void {
         panes: emptyPanes(input.layout, engines),
         createdAt: Date.now(),
         updatedAt: Date.now()
+      }
+      try {
+        trustWorkspace(cwd)
+      } catch {
+        /* ignore — seed/trust must not block create */
       }
       state.workspaces = [ws, ...state.workspaces]
       state.activeWorkspaceId = ws.id

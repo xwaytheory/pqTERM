@@ -7,6 +7,12 @@
 - IPC `workspaces:reorder` (walidacja: 1–64 stringów ≤128). Czysta logika: `src/shared/order.ts` + `order.test.ts`. Szukanie wyłącza drag (przefiltrowana lista ≠ pełna).
 - Bez nowej zależności. Telefon bez reorder (YAGNI).
 
+## Workspace defaults — ponytail + i-have-adhd (2026-09-18)
+
+- `trustWorkspace` (spawn CLI) i `workspaces:create` dopisują blok `<!-- pq:defaults -->` do `AGENTS.md` i `CLAUDE.md` w katalogu projektu (git root jeśli jest). Idempotentny. Pomija homedir / Windows / Program Files.
+- Bez kopiowania `.agents/skills` do każdego repo. Inline standing orders, żeby każdy CLI (omp/grok/claude/codex/opencode) je widział.
+
+
 ## Release 1.2.1 — drag-reorder workspaces (2026-09-18)
 
 - Product 1.2.0 → 1.2.1 (`package.json`, lock, crates, src-tauri, stamp-host ProductVersion, README). FileVersion stays 1.1.7.
