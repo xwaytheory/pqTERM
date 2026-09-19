@@ -28,6 +28,9 @@ export interface PtySession {
   buf: string
   /** chunk counter — lets the renderer dedupe replay vs live stream */
   seq: number
+  /** terminal size the current buffer content was formatted for (ConPTY repaints on resize) */
+  capCols: number
+  capRows: number
 }
 
 const MAX_BUF = 512 * 1024
@@ -84,7 +87,7 @@ function exitedInternally(proc: IPty): boolean {
 
 export class PtyManager {
   private sessions = new Map<string, PtySession>()
-  private lastBuf = new Map<string, { data: string; seq: number }>()
+  private lastBuf = new Map<string, { data: string; seq: number; cols?: number; rows?: number }>()
   private gen = new Map<string, number>()
   /** per-pane partial OSC sequence carried between data chunks */
   private oscTail = new Map<string, string>()
@@ -111,6 +114,9 @@ export class PtyManager {
     resolvedPath?: string
     extraArgs?: string[]
     seedBuf?: string
+    /** capture size of seedBuf (persisted from the previous run) */
+    seedCols?: number
+    seedRows?: number
   }): void {
     const live = this.sessions.get(opts.paneId)
     if (
@@ -137,11 +143,13 @@ export class PtyManager {
     const win0 = this.getWin()
 
     let proc: IPty
+    const capCols = Math.max(20, opts.cols || 80)
+    const capRows = Math.max(8, opts.rows || 24)
     try {
       proc = np.spawn(spawnFile, args, {
         name: 'xterm-256color',
-        cols: Math.max(20, opts.cols || 80),
-        rows: Math.max(8, opts.rows || 24),
+        cols: capCols,
+        rows: capRows,
         cwd: opts.cwd || homedir(),
         env: envFor(
           opts.cwd || homedir(),
@@ -174,17 +182,21 @@ export class PtyManager {
       proc,
       alive: true,
       buf: opts.seedBuf ?? '',
-      seq: 0
+      seq: 0,
+      // a seeded buffer was formatted at its persisted capture size, not the
+      // spawn size — replay must use the persisted geometry
+      capCols: opts.seedCols ?? capCols,
+      capRows: opts.seedRows ?? capRows
     }
     this.sessions.set(opts.paneId, session)
-    this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
+    this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq, cols: capCols, rows: capRows })
     this.hooks?.onStart?.(opts.paneId)
 
     proc.onData((data) => {
       if (!session.alive) return
       session.seq += 1
       session.buf = appendBuf(session.buf, data)
-      this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
+      this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq, cols: session.capCols, rows: session.capRows })
       const acc = (this.oscTail.get(opts.paneId) ?? '') + data
       const [oscTitle, keep] = scanOscTitle(acc)
       this.oscTail.set(opts.paneId, keep)
@@ -201,7 +213,7 @@ export class PtyManager {
       session.alive = false
       this.sessions.delete(opts.paneId)
       this.oscTail.delete(opts.paneId)
-      this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq })
+      this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq, cols: session.capCols, rows: session.capRows })
       this.hooks?.onExit?.(opts.paneId, exitCode ?? 0, false)
       this.getWin()?.webContents.send('term:exit', opts.paneId, exitCode ?? 0)
     })
@@ -226,7 +238,14 @@ export class PtyManager {
       return
     }
     try {
-      s.proc.resize(Math.max(20, cols), Math.max(8, rows))
+      const c = Math.max(20, cols)
+      const r = Math.max(8, rows)
+      s.proc.resize(c, r)
+      // ConPTY repaints the whole screen after a resize, so the buffer tail is
+      // now formatted for the new size — replay must know it.
+      s.capCols = c
+      s.capRows = r
+      this.lastBuf.set(paneId, { data: s.buf, seq: s.seq, cols: c, rows: r })
     } catch {
       s.alive = false
     }
@@ -241,7 +260,7 @@ export class PtyManager {
     s.alive = false
     this.sessions.delete(paneId)
     this.oscTail.delete(paneId)
-    this.lastBuf.set(paneId, { data: s.buf, seq: s.seq })
+    this.lastBuf.set(paneId, { data: s.buf, seq: s.seq, cols: s.capCols, rows: s.capRows })
     this.hooks?.onExit?.(paneId, 0, true)
     try {
       s.proc.kill()
@@ -278,9 +297,9 @@ export class PtyManager {
   }
 
   /** tail of accumulated output for a pane (also kept after the process exits) */
-  buffer(paneId: string): { data: string; seq: number } {
+  buffer(paneId: string): { data: string; seq: number; cols?: number; rows?: number } {
     const s = this.sessions.get(paneId)
-    if (s) return { data: s.buf, seq: s.seq }
+    if (s) return { data: s.buf, seq: s.seq, cols: s.capCols, rows: s.capRows }
     return this.lastBuf.get(paneId) ?? { data: '', seq: 0 }
   }
 
@@ -290,7 +309,7 @@ export class PtyManager {
     const s = this.sessions.get(paneId)
     if (s) {
       s.buf = appendBuf(s.buf, data)
-      this.lastBuf.set(paneId, { data: s.buf, seq: s.seq })
+      this.lastBuf.set(paneId, { data: s.buf, seq: s.seq, cols: s.capCols, rows: s.capRows })
     } else {
       this.lastBuf.set(paneId, { data, seq: 0 })
     }

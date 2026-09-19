@@ -95,6 +95,12 @@ function TerminalPane({
   const appliedFocusRequest = useRef(0)
   const spawned = useRef(false)
   const lineBuf = useRef('')
+  // ConPTY resize-repaint does NOT erase the old frame — cells not covered by
+  // the new repaint keep stale content (ghost/doubled TUI). Before the first
+  // data after a real PTY resize we erase the viewport so the repaint lands
+  // on a clean slate (same trick Windows Terminal does internally).
+  const pendingClearRef = useRef(false)
+  const lastSentSizeRef = useRef<{ c: number; r: number }>({ c: 0, r: 0 })
   const [dragOver, setDragOver] = useState(false)
   const [dropStatus, setDropStatus] = useState<string | null>(null)
   const [installing, setInstalling] = useState<Set<string>>(new Set())
@@ -105,6 +111,15 @@ function TerminalPane({
 
   const provider = providers.find((p) => p.id === pane.engine)
   const engineName = provider?.name ?? pane.engine ?? 'idle'
+
+  /** PTY resize that arms a viewport erase before the ConPTY repaint lands. */
+  function sendResize(c: number, r: number): void {
+    const last = lastSentSizeRef.current
+    if (last.c === c && last.r === r) return
+    lastSentSizeRef.current = { c, r }
+    pendingClearRef.current = true
+    window.pq.terminals.resize(pane.id, c, r)
+  }
 
   useEffect(() => {
     spawned.current = false
@@ -144,7 +159,13 @@ function TerminalPane({
         brightWhite: '#ffffff'
       },
       allowProposedApi: true,
-      scrollback: 4000
+      scrollback: 4000,
+      // Sessions run through node-pty with useConpty:true — tell xterm so its
+      // ConPTY heuristics apply (wrapped-line detection, scrollback-on-grow).
+      // Without this, TUI redraws leave glued/duplicated line fragments
+      // (e.g. "ugSuggested", "ress Enter") because xterm assumes unwrapped
+      // lines when ConPTY repaints them.
+      windowsPty: { backend: 'conpty' }
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
@@ -198,7 +219,13 @@ if (pane.engine && !isRawShell(pane.engine)) {
         if (stream.pending.length > 500) stream.pending.shift()
         return
       }
-      if (!seq || seq > stream.dropUntil) term.write(data)
+      if (!seq || seq > stream.dropUntil) {
+        if (pendingClearRef.current) {
+          pendingClearRef.current = false
+          term.write('\x1b[2J')
+        }
+        term.write(data)
+      }
     })
     const offExit = window.pq.terminals.onExit((id, code) => {
       if (id !== pane.id) return
@@ -235,11 +262,10 @@ if (pane.engine && !isRawShell(pane.engine)) {
         // minimum and garble output; fit only when the host is actually laid out
         if (!host.current || host.current.clientHeight < 10 || host.current.clientWidth < 10) return
         fit.fit()
-        if (!spawned.current) return
-        clearTimeout(resizeTimer)
-        resizeTimer = setTimeout(() => {
-          window.pq.terminals.resize(pane.id, term.cols, term.rows)
-        }, 50)
+        if (!spawned.current) return        clearTimeout(resizeTimer)
+          resizeTimer = setTimeout(() => {
+            sendResize(term.cols, term.rows)
+          }, 50)
       } catch {
         /* ignore */
       }
@@ -262,7 +288,29 @@ if (pane.engine && !isRawShell(pane.engine)) {
       })
       stream.dropUntil = res.replaySeq
       stream.applied = true
-      if (res.replay) term.write(res.replay)
+      lastSentSizeRef.current = { c: term.cols, r: term.rows }
+      // Replay the buffer in the size it was captured at — ConPTY positioned
+      // cursor/erasures for those cols, so rendering it at the current size
+      // glues fragments of old lines into new ones. Resize back to fit after
+      // and let the PTY repaint cleanly at the real size.
+      const rc = res.replayCols
+      const rr = res.replayRows
+      if (res.replay && rc && rr && (rc !== term.cols || rr !== term.rows)) {
+        try {
+          term.resize(rc, rr)
+          term.write(res.replay)
+          try {
+            fit.fit()
+          } catch {
+            /* ignore */
+          }
+          sendResize(term.cols, term.rows)
+        } catch {
+          term.write(res.replay)
+        }
+      } else if (res.replay) {
+        term.write(res.replay)
+      }
       for (const c of stream.pending) {
         if (!c.s || c.s > stream.dropUntil) term.write(c.d)
       }
@@ -292,7 +340,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
       fitRef.current?.fit()
       const term = termRef.current
       if (term && spawned.current) {
-        window.pq.terminals.resize(pane.id, term.cols, term.rows)
+        sendResize(term.cols, term.rows)
       }
     } catch {
       /* ignore */

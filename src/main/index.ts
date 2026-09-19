@@ -201,13 +201,24 @@ function sessionLogPath(workspaceId: string, paneId: string): string {
   return join(sessionsDir(), workspaceId, `${paneId}.log`)
 }
 
+function sessionMetaPath(workspaceId: string, paneId: string): string {
+  return join(sessionsDir(), workspaceId, `${paneId}.json`)
+}
+
 /** Scrollback seed persisted at quit for a pane's terminal log ('' when absent). */
-function sessionSeed(workspaceId: string, paneId: string): string {
+function sessionSeed(workspaceId: string, paneId: string): { data: string; cols?: number; rows?: number } {
   try {
     const f = sessionLogPath(workspaceId, paneId)
-    return existsSync(f) ? readFileSync(f, 'utf8') : ''
+    if (!existsSync(f)) return { data: '' }
+    const meta: { cols?: number; rows?: number } = {}
+    try {
+      Object.assign(meta, JSON.parse(readFileSync(sessionMetaPath(workspaceId, paneId), 'utf8')))
+    } catch {
+      /* no meta — seed without size info */
+    }
+    return { data: readFileSync(f, 'utf8'), cols: meta.cols, rows: meta.rows }
   } catch {
-    return ''
+    return { data: '' }
   }
 }
 
@@ -241,7 +252,9 @@ function restoreSession(ws: Workspace, pane: PaneState): void {
     rows: 24,
     resolvedPath: provider?.resolvedPath,
     extraArgs,
-    seedBuf: seed
+    seedBuf: seed.data,
+    seedCols: seed.cols,
+    seedRows: seed.rows
   })
   if (ws.id === state.activeWorkspaceId) {
     board.paneStart(pane.id, pane.engine, pane.title || spec.name)
@@ -270,6 +283,16 @@ function persistSessions(): void {
         if (!b.data) continue
         mkdirSync(join(root, w.id), { recursive: true })
         writeFileSync(f, b.data, 'utf8')
+        // persist the capture size so a boot replay can re-render the log in
+        // the geometry ConPTY formatted it for
+        keep.add(sessionMetaPath(w.id, p.id))
+        if (b.cols && b.rows) {
+          try {
+            writeFileSync(sessionMetaPath(w.id, p.id), JSON.stringify({ cols: b.cols, rows: b.rows }), 'utf8')
+          } catch {
+            /* ignore */
+          }
+        }
       }
     }
     if (existsSync(root)) {
@@ -1154,6 +1177,7 @@ function registerIpc(): void {
     ) => {
       const ws = state.workspaces.find((w) => w.id === input.workspaceId)
       if (!ws) throw new Error('brak workspace')
+      const sessionSeedData = sessionSeed(input.workspaceId, input.paneId)
       const spec = specById(input.engine)
       const provider = state.providers.find((p) => p.id === input.engine)
       const paneInWs = ws.panes.find((p) => p.id === input.paneId)
@@ -1171,7 +1195,7 @@ function registerIpc(): void {
           board.paneStart(input.paneId, input.engine, title || spec.name)
         }
         const b = ptys.buffer(input.paneId)
-        return { id: input.paneId, replay: b.data, replaySeq: b.seq, existed: true }
+        return { id: input.paneId, replay: b.data, replaySeq: b.seq, existed: true, replayCols: b.cols, replayRows: b.rows }
       }
 
       const extraArgs = [
@@ -1194,7 +1218,9 @@ function registerIpc(): void {
         rows: input.rows || 24,
         resolvedPath: provider?.resolvedPath,
         extraArgs,
-        seedBuf: sessionSeed(input.workspaceId, input.paneId)
+        seedBuf: sessionSeedData.data,
+        seedCols: sessionSeedData.cols,
+        seedRows: sessionSeedData.rows
       })
       state.workspaces = state.workspaces.map((w) => {
         if (w.id !== input.workspaceId) return w
@@ -1222,7 +1248,7 @@ function registerIpc(): void {
         board.paneStart(input.paneId, input.engine, live?.title || spec.name)
       }
       const replay = ptys.buffer(input.paneId)
-      return { id: input.paneId, replay: replay.data, replaySeq: replay.seq, existed: false }
+      return { id: input.paneId, replay: replay.data, replaySeq: replay.seq, existed: false, replayCols: replay.cols, replayRows: replay.rows }
     }
   )
 

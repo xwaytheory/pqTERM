@@ -283,7 +283,9 @@ function PaneView({
       fontFamily: 'Cascadia Mono, Cascadia Code, Consolas, monospace',
       theme: { background: '#0b0d10', foreground: '#d6deea', cursor: '#39ffb6' },
       scrollback: 3000,
-      convertEol: false
+      convertEol: false,
+      // Same ConPTY stream as the desktop grid — same heuristics needed.
+      windowsPty: { backend: 'conpty' }
     })
     const fit = new FitAddon()
     term.loadAddon(fit)

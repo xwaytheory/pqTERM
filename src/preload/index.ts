@@ -195,6 +195,8 @@ const pq = {
         replay: string
         replaySeq: number
         existed?: boolean
+        replayCols?: number
+        replayRows?: number
       }>,
     write: (paneId: string, data: string) => ipcRenderer.send('term:write', paneId, data),
     resize: (paneId: string, cols: number, rows: number) =>
