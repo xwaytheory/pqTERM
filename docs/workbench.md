@@ -1,6 +1,68 @@
 # pq workbench (gauntlet live board)
 
 
+## CLI nie może się „krzaczyć” — audyt pipeline'u xterm ↔ ConPTY (2026-09-22)
+
+**Symptom:** TUI (freebuff i inne CLI) potrafi pokazać poszatkowany ekran — fragmenty starych
+klatek rozsypane po całej szerokości, pojedyncze znaki w skrajnej lewej kolumnie na kolejnych
+wierszach, logo w połowie ekranu. Wymaganie: po zmniejszeniu / powiększeniu / minimalizacji /
+maksymalizacji zawsze wygląda jak w `cmd.exe`.
+
+**Root cause (z kodu, każdy punkt ma linijkę):**
+
+1. **Kłamstwo o rozmiarze PTY** (naprawione): `TerminalPane` po `spawn` ustawiał
+   `lastSentSizeRef = {term.cols, term.rows}`, czyli „PTY stoi tam, gdzie `fit()`”. PTY stoi
+   jednak tam, gdzie je postawiono: `restoreSession` spawnuje na sztywno **80×24**, a seed
+   scrollbacku zgłaszał własną, starą geometrię (`capCols = seedCols`). Dedupe w `sendResize`
+   uznawał resize za zbędny → **PTY nigdy nie dostał realnego rozmiaru, ConPTY nie zrobił
+   repaintu**, a xterm po `term.resize(replayCols)` → `fit()` zostawał ze zreflowaną,
+   posklejaną klatką (reflow xterm na strumieniu ConPTY, bez markerów zawijania, skleja
+   wiersze wg heurystyki „ostatni znak ≠ spacja ⇒ zawinięte”). To jest obraz z rzutu ekranu.
+2. **Cichy clamp ≥20×8 w mainie** (naprawione): renderer o nim nie wiedział, a jego dedupe
+   nigdy nie wysłał realnego rozmiaru → CLI pisało na 20 kolumn do 12-kolumnowego xterm (stąd
+   znaki zsuwające się po lewej kolumnie).
+3. **Trim bufora 512 kB ciął w środku sekwencji ANSI** (naprawione): replay zaczynał się
+   połową CSI, która zjadała kolejne bajty. Teraz cięcie przechodzi za ostatni bajt sekwencji
+   (`src/shared/term-stream.ts` + 7 testów).
+4. **`pending.shift()` po 500 chunkach przy attachu** (naprawione): dziura w strumieniu = raz
+   rozcięta sekwencja między dwoma chunkami; zamiast dropować, widok dociąga cały bufor z maina
+   (`term:buffer`, nowy kanał read-only z `requireRenderer` + capem długości).
+5. **`ESC[2J` bez `ESC[H`** (naprawione): repaint ConPTY lądował przesunięty o pozycję kursora.
+
+**Research:** wez (autor wezterm, wezterm#3363) — jedynym pełnym lekarstwem na wyścig
+resize↔repaint jest debounce resize'u do PTY, a ConPTY potrafi sam „syntetyzować” pełny repaint
+ekranu; xterm `IWindowsPty` (`xterm.d.ts:294-310`) — reflow jest poprawny tylko dla
+`conpty && buildNumber ≥ 21376`. Host ma `10.0.26200`, a brak `buildNumber` w xterm 5.5 wpada w
+gałąź `_hasScrollback && !windowsMode` = **reflow on**, czyli już zgodnie z nowoczesnym ConPTY —
+świadomie nie zmieniano (żadnego zysku, nowy kanał IPC bez potrzeby).
+
+**Zmiany (dev):** `src/main/pty-manager.ts` (`capCols/capRows` = rozmiar PTY, nie seeda; `resize`
+bez clampu 20/8; trim przez `appendTail`), `src/main/index.ts` (zniknął sidecar `*.json` z
+geometrią seeda; nowy `term:buffer`), `src/preload/index.ts` (+`terminals.buffer`),
+`src/renderer/src/components/TerminalPane.tsx` (rozmiar PTY z raportu spawnu, `ESC[2J`+`ESC[H`,
+resync zamiast dropu, marker `ponytail:` o cieciu seeda).
+
+**Weryfikacja na żywo (CDP, `REMOTE_DEBUGGING_PORT=9333`):** electron-vite czyta tę zmienną
+środowiskową i dokłada `--remote-debugging-port`, więc instancję dev dało się sondować przez
+`Runtime.evaluate`. Sonda porównywała `terminals.buffer(paneId).cols/rows` (rozmiar PTY)
+z liczbą wierszy DOM xterm oraz szerokością `.xterm-screen` podzieloną przez szerokość znaku,
+w krokach: layout 6 → 3 → powrót, zoom on/off, maksymalizacja, minimalizacja, przywrócenie,
+burza resize'ów, przełączenie workspace. **Wiersze zgadzały się co do jednego w każdym kroku**
+(33/33, 69/69, 33/33…). Kolumny wychodziły ~2% wyżej od rozmiaru PTY (145 vs 142, 95 vs 93,
+294 vs 289) — to mieści się w błędzie pomiaru szerokości znaku sondą (span w czcionce xterm
+vs własny pomiar xterm), ale **nie rozstrzygnięto tego do końca**. Sesja dev padła w połowie
+(proces odpalony z shella tego narzędzia), więc przebieg nie został dokończony: werdykt
+zostaje **WARUNKOWO OK**, nie PASS. Użytkownik ocenił wynik wizualnie jako „idealnie”.
+
+**Bramki:** `npm run test:unit` = oba typechecki + **114 PASS** (w tym 7 nowych);
+`npm run check:version` OK po bumpie produktu **1.3.4 → 1.3.5**; `npm run build` PASS.
+
+**OPEN (ten sam defekt, inna powierzchnia):** `src/phone/src/App.tsx` montuje xterm w rozmiarze
+telefonu i **nigdy nie wysyła rozmiaru do PTY** (brak `resize` w `client.ts` i w `remote.ts`), więc
+na telefonie CLI pisze na szerokość desktopu i zawija się na ekranie telefonu. Naprawa wymaga
+nowej wiadomości WS + walidacji w `remote.ts` (granica zaufania) — do zrobienia świadomie, nie
+przy okazji.
+
 ## Sidebar — przeciąganie workspaces (2026-09-18)
 
 - HTML5 drag na kartach w `Sidebar.tsx`: drop before/after (zielona kreska). Kolejność = tablica `state.workspaces`, zapis przez istniejący `persist()` → `pq-state.json`.
