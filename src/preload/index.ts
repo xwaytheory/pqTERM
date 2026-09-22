@@ -198,6 +198,13 @@ const pq = {
         replayCols?: number
         replayRows?: number
       }>,
+    buffer: (paneId: string) =>
+      invoke('term:buffer', paneId) as Promise<{
+        data: string
+        seq: number
+        cols?: number
+        rows?: number
+      }>,
     write: (paneId: string, data: string) => ipcRenderer.send('term:write', paneId, data),
     resize: (paneId: string, cols: number, rows: number) =>
       ipcRenderer.send('term:resize', paneId, cols, rows),

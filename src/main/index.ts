@@ -201,22 +201,12 @@ function sessionLogPath(workspaceId: string, paneId: string): string {
   return join(sessionsDir(), workspaceId, `${paneId}.log`)
 }
 
-function sessionMetaPath(workspaceId: string, paneId: string): string {
-  return join(sessionsDir(), workspaceId, `${paneId}.json`)
-}
-
 /** Scrollback seed persisted at quit for a pane's terminal log ('' when absent). */
-function sessionSeed(workspaceId: string, paneId: string): { data: string; cols?: number; rows?: number } {
+function sessionSeed(workspaceId: string, paneId: string): { data: string } {
   try {
     const f = sessionLogPath(workspaceId, paneId)
     if (!existsSync(f)) return { data: '' }
-    const meta: { cols?: number; rows?: number } = {}
-    try {
-      Object.assign(meta, JSON.parse(readFileSync(sessionMetaPath(workspaceId, paneId), 'utf8')))
-    } catch {
-      /* no meta — seed without size info */
-    }
-    return { data: readFileSync(f, 'utf8'), cols: meta.cols, rows: meta.rows }
+    return { data: readFileSync(f, 'utf8') }
   } catch {
     return { data: '' }
   }
@@ -252,9 +242,7 @@ function restoreSession(ws: Workspace, pane: PaneState): void {
     rows: 24,
     resolvedPath: provider?.resolvedPath,
     extraArgs,
-    seedBuf: seed.data,
-    seedCols: seed.cols,
-    seedRows: seed.rows
+    seedBuf: seed.data
   })
   if (ws.id === state.activeWorkspaceId) {
     board.paneStart(pane.id, pane.engine, pane.title || spec.name)
@@ -283,16 +271,6 @@ function persistSessions(): void {
         if (!b.data) continue
         mkdirSync(join(root, w.id), { recursive: true })
         writeFileSync(f, b.data, 'utf8')
-        // persist the capture size so a boot replay can re-render the log in
-        // the geometry ConPTY formatted it for
-        keep.add(sessionMetaPath(w.id, p.id))
-        if (b.cols && b.rows) {
-          try {
-            writeFileSync(sessionMetaPath(w.id, p.id), JSON.stringify({ cols: b.cols, rows: b.rows }), 'utf8')
-          } catch {
-            /* ignore */
-          }
-        }
       }
     }
     if (existsSync(root)) {
@@ -1218,9 +1196,7 @@ function registerIpc(): void {
         rows: input.rows || 24,
         resolvedPath: provider?.resolvedPath,
         extraArgs,
-        seedBuf: sessionSeedData.data,
-        seedCols: sessionSeedData.cols,
-        seedRows: sessionSeedData.rows
+        seedBuf: sessionSeedData.data
       })
       state.workspaces = state.workspaces.map((w) => {
         if (w.id !== input.workspaceId) return w
@@ -1257,6 +1233,14 @@ function registerIpc(): void {
   })
   ipcMain.on('term:resize', (_e, paneId: string, cols: number, rows: number) => {
     ptys.resize(paneId, cols, rows)
+  })
+  // read-only: a pane that fell behind re-attaches from one authoritative
+  // buffer instead of stitching the live stream chunk by chunk
+  ipcMain.handle('term:buffer', (event, paneId: unknown) => {
+    requireRenderer(event)
+    if (typeof paneId !== 'string' || paneId.length > 128) throw new Error('Invalid pane id')
+    const b = ptys.buffer(paneId)
+    return { data: b.data, seq: b.seq, cols: b.cols, rows: b.rows }
   })
   ipcMain.handle('term:kill', (_e, paneId: string) => {
     ptys.kill(paneId)

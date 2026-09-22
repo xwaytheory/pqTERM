@@ -211,18 +211,28 @@ if (pane.engine && !isRawShell(pane.engine)) {
 
     // sessions run in the main process for as long as the app lives — this pane
     // may mount, unmount, or just stay hidden; here we only attach to the stream.
-    const stream = { applied: false, dropUntil: 0, pending: [] as { d: string; s: number }[] }
+    const stream = {
+      applied: false,
+      dropUntil: 0,
+      pending: [] as { d: string; s: number }[],
+      overflowed: false
+    }
     const offData = window.pq.terminals.onData((id, data, seq) => {
       if (id !== pane.id) return
       if (!stream.applied) {
         stream.pending.push({ d: data, s: seq })
-        if (stream.pending.length > 500) stream.pending.shift()
+        // Never shift() here: a dropped chunk tears the escape sequence that
+        // spans it, which is what smears fragments of old frames onto the
+        // screen. Flag the overflow and re-attach from main's buffer instead.
+        if (stream.pending.length > 500) stream.overflowed = true
         return
       }
       if (!seq || seq > stream.dropUntil) {
         if (pendingClearRef.current) {
           pendingClearRef.current = false
-          term.write('\x1b[2J')
+          // Erase AND home: ConPTY's repaint assumes the cursor is where its own
+          // model put it, so erasing without homing lands the frame offset.
+          term.write('\x1b[2J\x1b[H')
         }
         term.write(data)
       }
@@ -278,7 +288,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
       } catch {
         /* ignore */
       }
-      const res = await window.pq.terminals.spawn({
+      let res = await window.pq.terminals.spawn({
         paneId: pane.id,
         workspaceId,
         engine: pane.engine as EngineId,
@@ -286,13 +296,29 @@ if (pane.engine && !isRawShell(pane.engine)) {
         cols: term.cols,
         rows: term.rows
       })
+      if (stream.overflowed) {
+        // Output outran this view while it was attaching. Main's buffer already
+        // holds everything that was queued, so re-attach from that single piece.
+        const whole = await window.pq.terminals.buffer(pane.id)
+        res = { ...res, replay: whole.data, replaySeq: whole.seq, replayCols: whole.cols, replayRows: whole.rows }
+        stream.pending = []
+      }
       stream.dropUntil = res.replaySeq
       stream.applied = true
-      lastSentSizeRef.current = { c: term.cols, r: term.rows }
+      // The PTY is not necessarily where we asked it to be: a resumed session
+      // keeps its own geometry and the boot path spawns at 80x24. Record what it
+      // reports, or the resize below looks like a no-op to the dedupe and ConPTY
+      // never repaints — the replayed frame then stays reflowed (old lines
+      // glued and smeared across the viewport).
+      lastSentSizeRef.current = { c: res.replayCols || term.cols, r: res.replayRows || term.rows }
       // Replay the buffer in the size it was captured at — ConPTY positioned
       // cursor/erasures for those cols, so rendering it at the current size
       // glues fragments of old lines into new ones. Resize back to fit after
       // and let the PTY repaint cleanly at the real size.
+      // ponytail: only the buffer tail is guaranteed to match replayCols, so a
+      // persisted seed can still hold content drawn at older widths (harmless:
+      // the forced resize below makes ConPTY repaint the whole viewport).
+      // Upgrade: seed the log with the tail only.
       const rc = res.replayCols
       const rr = res.replayRows
       if (res.replay && rc && rr && (rc !== term.cols || rr !== term.rows)) {

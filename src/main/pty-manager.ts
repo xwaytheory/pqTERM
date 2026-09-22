@@ -8,6 +8,7 @@ import { resolveLaunch, sanitizeEnv, yoloEnv } from './resolve-launch'
 import { trustWorkspace } from './trust'
 import { runningDev } from './env'
 import { cleanOscTitle, scanOscTitle } from './osc-title'
+import { appendTail } from '../shared/term-stream'
 
 let pty: typeof import('node-pty') | null = null
 
@@ -33,14 +34,10 @@ export interface PtySession {
   capRows: number
 }
 
-const MAX_BUF = 512 * 1024
-
 function appendBuf(prev: string, data: string): string {
-  const joined = prev + data
-  if (joined.length <= MAX_BUF) return joined
-  let cut = joined.length - MAX_BUF
-  if (cut > 0 && /[\ud800-\udbff]/.test(joined[cut - 1] ?? '')) cut -= 1
-  return joined.slice(cut)
+  // trim lives in src/shared/term-stream.ts: the head cut must not split an
+  // escape sequence (see term-stream.test.ts)
+  return appendTail(prev, data)
 }
 
 function envFor(
@@ -114,9 +111,6 @@ export class PtyManager {
     resolvedPath?: string
     extraArgs?: string[]
     seedBuf?: string
-    /** capture size of seedBuf (persisted from the previous run) */
-    seedCols?: number
-    seedRows?: number
   }): void {
     const live = this.sessions.get(opts.paneId)
     if (
@@ -183,10 +177,12 @@ export class PtyManager {
       alive: true,
       buf: opts.seedBuf ?? '',
       seq: 0,
-      // a seeded buffer was formatted at its persisted capture size, not the
-      // spawn size — replay must use the persisted geometry
-      capCols: opts.seedCols ?? capCols,
-      capRows: opts.seedRows ?? capRows
+      // Geometry the live tail was drawn at = the PTY's own size. A persisted
+      // seed keeps its older geometry, but reporting that as current would make
+      // the renderer believe the PTY already sits there and skip the resize that
+      // triggers the ConPTY repaint — the replay then stays reflowed/glued.
+      capCols,
+      capRows
     }
     this.sessions.set(opts.paneId, session)
     this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq, cols: capCols, rows: capRows })
@@ -238,8 +234,11 @@ export class PtyManager {
       return
     }
     try {
-      const c = Math.max(20, cols)
-      const r = Math.max(8, rows)
+      // Keep the PTY exactly as wide as xterm: a floor the renderer cannot see
+      // makes the CLI format for a wider screen than the one on display (wrapped
+      // / duplicated lines) and the renderer's dedupe then never re-sends.
+      const c = Math.max(1, cols)
+      const r = Math.max(1, rows)
       s.proc.resize(c, r)
       // ConPTY repaints the whole screen after a resize, so the buffer tail is
       // now formatted for the new size — replay must know it.
