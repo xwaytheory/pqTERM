@@ -1,5 +1,24 @@
 # pq workbench (gauntlet live board)
 
+## Release 1.3.5 — CLI screen scale (2026-09-22)
+
+- Produkt 1.3.4 → 1.3.5; 17 plików w commicie `6e5eba8` (fix + bump).
+- Bramki na `dev` i na `test`: `npm run test:unit` **114 PASS** (oba typechecki),
+  `npm run check:version` OK (`product 1.3.5; 2 locki, cargo`), `npm run build` PASS.
+- `dev` = `test` = `main` = `6e5eba8`; zdalnie `origin/dev|test|main` = `6e5eba8`
+  (fast-forward `2e4ad86..6e5eba8`).
+- Zdalne commity `b7afec2` (build `out/` na postinstall) i `2e4ad86` (seeds w plikach
+  instrukcji agentów) zintegrowane **rebasem** — bez konfliktu. Lokalne `AGENTS.md`,
+  `CLAUDE.md`, `CONVENTIONS.md`, `GEMINI.md` i `.github/copilot-instructions.md` były
+  bajt w bajt identyczne z `2e4ad86`, więc przed FF poszły na `stash@{0}` jako backup
+  (można go zrzucić — nic unikalnego nie trzyma).
+- `host\pqterm.exe` **nie został zestampowany**: plik zwraca `EBUSY`, bo trzyma go
+  działająca instancja pqTERM. Po jej zamknięciu: `node scripts/stamp-host.cjs`
+  (ProductVersion → 1.3.5; FileVersion zostaje 1.1.7 z założenia).
+- Oficjalne `out/` przebudowane w `C:\Users\pq\pqTERM` (`npm run build`) — build z 1.3.5.
+- `instances/wip` (gałąź `main`, cudzy staged index) i `instances/feat/engine-lifecycle`
+  nietknięte; `wip` widzi teraz nowy HEAD `main`, jego bajty w indexie zostały nienaruszone.
+
 
 ## CLI nie może się „krzaczyć” — audyt pipeline'u xterm ↔ ConPTY (2026-09-22)
 
