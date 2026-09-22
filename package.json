@@ -14,7 +14,7 @@
     "rebuild": "node scripts/rebuild.cjs",
     "stamp": "node scripts/stamp-host.cjs",
     "shortcuts": "node scripts/make-shortcuts.cjs",
-    "postinstall": "node scripts/rebuild.cjs",
+    "postinstall": "node scripts/rebuild.cjs && npm run build",
     "dist": "npm run build && electron-builder --win nsis msi",
     "new-work": "node scripts/new-work.cjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",

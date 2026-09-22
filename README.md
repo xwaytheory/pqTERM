@@ -39,7 +39,6 @@ Nie usuwaj / nie łam src/, package.json, host/ — Phase 1 ich nie zastępuje.
 git clone https://github.com/xwaytheory/pq.git
 cd pq
 npm install
-npm run rebuild
 npm run dev
 ```
 
@@ -103,7 +102,7 @@ pq/
 │   └── android/       # Kotlin/APK (edge-to-edge, safe-area, mic permission)
 ├── scripts/
 │   ├── pq.cjs         # dev/build/preview orchestrator
-│   ├── rebuild.cjs    # electron-builder install-app-deps + stamp-host
+│   ├── rebuild.cjs    # electron-builder install-app-deps + stamp-host; postinstall: rebuild + build
 │   ├── stamp-host.cjs # kopiuje electron dist → host/, rcedit → pqterm.exe
 │   └── make-shortcuts.cjs # skróty .lnk na pulpicie (PowerShell)
 ├── host/              # ⭐ skompilowany Electron podpisany jako "pqTERM" (gitignore)
@@ -115,8 +114,8 @@ pq/
 ├── phone.vite.config.ts
 ├── tsconfig.json
 ├── START.cmd          # → START-dev.cmd
-├── START-dev.cmd      # dev: npm install → rebuild → npm run dev
-└── START-pr.cmd       # prod: npm install → rebuild → build → stamp-host → host/pqterm.exe
+├── START-dev.cmd      # dev: npm install (→ rebuild + build) → npm run dev
+└── START-pr.cmd       # prod: npm install (→ rebuild + build) → stamp-host → host/pqterm.exe
 ```
 
 ---
@@ -134,7 +133,7 @@ pq/
 | `npm run shortcuts` | Utwórz skróty na pulpicie (pqTERM-dev.lnk, pqTERM-pr.lnk) |
 | `npm run dist` | Installery NSIS+MSI → `release/` (nadpisuje target; `build.win.target` zostaje `dir` dla stamp-host) |
 | `npm run test:unit` | Testy jednostkowe (m.in. `quotePath` / DnD) |
-| `npm postinstall` | Automatycznie po `npm install`: `rebuild` |
+| `npm postinstall` | Automatycznie po `npm install`: `rebuild` + `build` (tworzy `out/`) |
 
 ---
 
@@ -290,6 +289,8 @@ Tworzy na pulpicie:
 ```bat
 cd %USERPROFILE%\pq
 npm install
-npm run rebuild
-npm run dev
+npm run build
+npm run stamp
+:: host/pqterm.exe gotowy
+START-pr.cmd
 ```
