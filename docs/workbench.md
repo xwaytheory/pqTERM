@@ -1,5 +1,18 @@
 # pq workbench (gauntlet live board)
 
+## Release 1.3.6 — stage-bar wolny, edycja workspace, floor geometrii, powiadomienia (2026-09-23)
+
+- Produkt 1.3.5 → 1.3.6. W releasie trzy feature commity:
+  `0519e2d`/`9c47b5f` stage-bar usunięty (zoom-strip tylko przy zoomie), zębatka ⚙
+  + dwuklik = EDIT WORKSPACE (nazwa/katalog/grid 1–9); `6fcec31` floor geometrii
+  20×8 po obu stronach (koniec "pionowej zupy liter" w małych pane); `b2a1095`
+  powiadomienia dla każdego CLI (OSC 9/777 + waiting po 60 s ciszy).
+- Bramki: `npm run test:unit` **125 PASS** + oba typechecki + `check:version`
+  (product 1.3.6; 2 locki, cargo) + `npm run build` PASS na `dev`.
+- Bump w 10 plikach: package.json(+lock 2 pola), crates/Cargo.toml, pq-core/version.rs,
+  crates/Cargo.lock (pq-core, pq-voice, pq-work), src-tauri/Cargo.toml+lock (pq),
+  tauri.conf.json, stamp-host.cjs, README. Guard zielony.
+
 ## Powiadomienia od każdego CLI — OSC 9/777 + heurystyka "czeka na Ciebie" (2026-09-23)
 
 **Problem:** OMP dzwoni BEL-em przy końcu pracy → pqTERM pokazywał powiadomienie
