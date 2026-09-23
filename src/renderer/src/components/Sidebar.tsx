@@ -167,6 +167,17 @@ export default function Sidebar({
                     {live}/{w.layout}
                   </span>
                   <button
+                    className="iconx ws-gear"
+                    title={`ustawienia „${w.title}” — nazwa, katalog, liczba okien (dwuklik też otwiera)`}
+                    aria-label={`ustawienia workspace ${w.title}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onEdit(w.id)
+                    }}
+                  >
+                    ⚙
+                  </button>
+                  <button
                     className="iconx side-remove"
                     title={`usuń projekt ${w.title}`}
                     aria-label={`usuń projekt ${w.title}`}

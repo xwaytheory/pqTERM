@@ -640,40 +640,23 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
         <main className="stage">
           {ws ? (
             <>
-              <div className="stage-bar">
-                <button
-                  className="gridbadge"
-                  title={`ten workspace ma ${ws.layout} okien — klik, żeby zmienić nazwę, katalog lub grid`}
-                  onClick={() => {
-                    setEditWsId(ws.id)
-                    setModal('edit')
-                  }}
-                >
-                  ▦ {ws.layout}
-                </button>
-                {zoomedId ? (
-                  <div className="pane-strip" title="przełącz powiększony slot">
-                    <button className="ghost" onClick={() => setZoom(null)} title="siatka (ctrl+shift+g)">
-                      grid
+              {zoomedId ? (
+                <div className="zoom-strip" title="przełącz powiększony slot">
+                  <button className="ghost" onClick={() => setZoom(null)} title="siatka (ctrl+shift+g)">
+                    grid
+                  </button>
+                  {ws.panes.map((p) => (
+                    <button
+                      key={p.id}
+                      className={p.id === zoomedId ? 'on' : ''}
+                      onClick={() => setZoom(p.id === zoomedId ? null : p.id)}
+                      title={p.title}
+                    >
+                      {p.engine ? p.title : 'idle'}
                     </button>
-                    {ws.panes.map((p) => (
-                      <button
-                        key={p.id}
-                        className={p.id === zoomedId ? 'on' : ''}
-                        onClick={() => setZoom(p.id === zoomedId ? null : p.id)}
-                        title={p.title}
-                      >
-                        {p.engine ? p.title : 'idle'}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="path" title={ws.cwd}>
-                    {ws.cwd}
-                  </span>
-                )}
-                <div className="grow" />
-              </div>
+                  ))}
+                </div>
+              ) : null}
               {drag ? (
                 <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 14 }}>
                   {draggedTitle}
