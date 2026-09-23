@@ -1,5 +1,20 @@
 # pq workbench (gauntlet live board)
 
+## Stage-bar usunięty w całości, zębatka edycji w sidebarze (2026-09-23)
+
+- **Stage-bar nie istnieje.** Po zdjęciu steppera/1-9/fill/broadcast (poprzedni wpis)
+  został i pasek jako taki: badge `▦ N`, ścieżka cwd, `.grow`. Teraz zniknęło wszystko —
+  grid CLI zyskał ~34 px wysokości na stałe. Jeden exception: **zoom-strip** (tylko
+  przy powiększonym pane) wyprowadzony z `.pane-strip` + `.stage-bar` do nowego
+  `.zoom-strip` — pokazuje się wyłącznie w trybie zoom.
+- **Zębatka `⚙` na każdym wierszu workspace w sidebarze** (`onEdit(w.id)`) — widoczna
+  na hover/focus-within (wzór z `.side-remove`), hover zielony nie czerwony. Otwiera
+  ten sam EDIT WORKSPACE co dwuklik; dwuklik dalej działa.
+- Zapytanie użytkownika „zabrałeś wszystko do wyboru CLI?” — tak, celowo: zmiana grida
+  to operacja konfiguracyjna (raz na jakiś czas), nie ciągła; sterowanie
+  silnikami w pane pozostaje w TerminalPane. Skrót `ctrl+shift+R` nietknięty.
+- Bramki: 114 PASS + oba typechecki na `dev`; commit `9c47b5f`.
+
 ## Stage-bar: grid-switch do modala, edycja workspace (2026-09-23)
 
 - **Co zniknęło z stage-bara:** stepper `− 1 +`, przyciski `1..9`, `fill rest`, input
