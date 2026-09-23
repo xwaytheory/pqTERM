@@ -1,5 +1,19 @@
 # pq workbench (gauntlet live board)
 
+## "Sync engines" → "Update CLIs": tylko zainstalowane (2026-09-23)
+
+- **Problem (zględu użytkownika):** przycisk ↻ „sync engines” instalował WSZYSTKIE
+  silniki ze specyfikacji, także te, których user nigdy nie chciał (npm install -g
+  kilkunastu pakietów naraz). Update powinien dotykać tylko to, co już jest.
+- **Fix** (`src/main/sync.ts`): `start()` filtruje kolejność do silników z
+  `installed(spec)` (ten sam predykat `knownLaunch`, którego używa providers-scan).
+  `ensure(id)` zostaje bez zmian — przy spawn pane nadal doinstalowuje brakujące,
+  bo pane musi dostać działający binarny (to ścieżka "użytkownik poprosił").
+- **Nazewnictwo:** tooltip docka → "update CLIs — aktualizuje tylko zainstalowane
+  silniki", status line `pq · update CLIs…` / `pq · update done N/N`.
+  IPC `sync:*` i klasa `EngineSync` bez zmian (internalne nazwy, nie warto renamować).
+- Bramki: 125 PASS + oba typechecki na `dev`.
+
 ## Release 1.3.6 — stage-bar wolny, edycja workspace, floor geometrii, powiadomienia (2026-09-23)
 
 - Produkt 1.3.5 → 1.3.6. W releasie trzy feature commity:

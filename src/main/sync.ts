@@ -99,9 +99,13 @@ export class EngineSync {
   async start(priority: EngineId[] = []): Promise<void> {
     if (this.running) return
     this.running = true
-    const jobs = ENGINE_SPECS.map((s) => s.id).filter((id) => !isRawShell(id))
-    const order = [...new Set([...priority.filter((id) => !isRawShell(id)), ...jobs])]
-    this.emit({ running: true, done: 0, total: order.length, line: 'pq · sync engines…' })
+    // Update-only: touch nothing the user has not installed. Installing
+    // missing CLIs is ensure()'s job (pane spawn needs a working binary);
+    // a global "sync" that npm-installs a dozen unrequested packages is
+    // surprising and slow.
+    const jobs = ENGINE_SPECS.map((s) => s.id).filter((id) => !isRawShell(id) && installed(specById(id)))
+    const order = [...new Set([...priority.filter((id) => !isRawShell(id) && installed(specById(id))), ...jobs])]
+    this.emit({ running: true, done: 0, total: order.length, line: 'pq · update CLIs…' })
 
     let done = 0
     for (const id of order) {
@@ -120,7 +124,7 @@ export class EngineSync {
     this.emit({
       running: false,
       current: undefined,
-      line: `pq · sync done ${done}/${order.length}`,
+      line: `pq · update done ${done}/${order.length}`,
       done,
       total: order.length
     })

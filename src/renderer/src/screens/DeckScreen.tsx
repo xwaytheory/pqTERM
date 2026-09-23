@@ -600,7 +600,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           <button className="dockbtn" title="powiadomienia" aria-label="Ustawienia powiadomień" onClick={() => setModal('notifications')}>
             !
           </button>
-          <button className="dockbtn" title="sync engines" onClick={() => window.pq.sync.start()}>
+          <button className="dockbtn" title="update CLIs — aktualizuje tylko zainstalowane silniki" onClick={() => window.pq.sync.start()}>
             ↻
           </button>
           <button className="dockbtn" title="telefon / remote" onClick={() => setModal('remote')}>
