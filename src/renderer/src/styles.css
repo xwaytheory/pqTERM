@@ -532,11 +532,19 @@ button {
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
 }
-.layout-switch {
-  display: flex;
-  gap: 4px;
+.gridbadge {
+  border: 1px solid var(--green-dim);
+  background: #0c1a16;
+  color: var(--green);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
 }
-.layout-switch button,
+.gridbadge:hover {
+  background: #10251f;
+}
 .ghost {
   border: 1px solid var(--line);
   background: transparent;
@@ -545,45 +553,13 @@ button {
   padding: 3px 8px;
   min-width: 28px;
 }
-.layout-switch button.on,
 .ghost:hover {
   color: var(--green);
   border-color: var(--green-dim);
   background: #0c1a16;
 }
-.layout-switch .stepper {
-  min-width: 26px;
-  padding: 3px 6px;
-  font-weight: 700;
-  color: var(--text);
-}
-.layout-switch .count {
-  min-width: 2.2em;
-  text-align: center;
-  font-size: 11px;
-  color: var(--text);
-  align-self: center;
-}
-.layout-switch .sep {
-  width: 1px;
-  align-self: stretch;
-  margin: 3px 4px;
-  background: var(--line);
-}
 .stage-bar .grow {
   flex: 1;
-}
-.broadcast {
-  width: min(220px, 28vw);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 3px 8px;
-  outline: none;
-  color: var(--text);
-}
-.broadcast:focus {
-  border-color: var(--green-dim);
 }
 .path {
   color: var(--muted);

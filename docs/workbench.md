@@ -1,5 +1,21 @@
 # pq workbench (gauntlet live board)
 
+## Stage-bar: grid-switch do modala, edycja workspace (2026-09-23)
+
+- **Co zniknęło z stage-bara:** stepper `− 1 +`, przyciski `1..9`, `fill rest`, input
+  broadcast — pasek zostaje z badge `▦ N`, ścieżką cwd i pane-strip przy zoomie.
+- **Badge `▦ N`** = liczba okien aktywnego workspace; klik otwiera **EDIT WORKSPACE**
+  (ten sam `NewWorkspaceModal`, nowy props `workspace`).
+- **EDIT WORKSPACE:** tytuł + katalog przez istniejące `workspaces:update`, grid przez
+  istniejące `workspaces:setLayout`. Zmniejszenie grida poniżej liczby żywych sesji
+  pyta `window.confirm` (setLayout i tak ubija nadmiarowe PTY-je — confirm tylko ostrzega).
+- **Sidebar:** dwuklik na wierszu workspace → ten sam modal edycji (`onEdit(w.id)`);
+  pojedynczy klik dalej tylko otwiera. Dwuklik na przyciskach wiersza (chev/remove/folder)
+  nie otwiera modala.
+- Skrót `ctrl+shift+R` (fill rest) zostaje — zniknął tylko przycisk; input broadcast
+  nie miał skrótu i został zdjęty (silnik startowy i prompt dalej są w TerminalPane).
+- Zero nowych kanałów IPC. Bramki: `npm run test:unit` **114 PASS** + oba typechecki na `dev`.
+
 ## Release 1.3.5 — CLI screen scale (2026-09-22)
 
 - Produkt 1.3.4 → 1.3.5; 17 plików w commicie `6e5eba8` (fix + bump).

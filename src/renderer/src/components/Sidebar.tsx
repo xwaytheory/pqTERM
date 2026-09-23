@@ -7,11 +7,13 @@ export default function Sidebar({
   snap,
   activity,
   onNew,
+  onEdit,
   focusPane
 }: {
   snap: AppSnapshot
   activity: Record<string, PaneActivity>
   onNew: () => void
+  onEdit: (workspaceId: string) => void
   focusPane: (workspaceId: string, paneId: string) => void
 }) {
   const [q, setQ] = useState('')
@@ -139,7 +141,17 @@ export default function Sidebar({
                   }
                 }}
               >
-                <div className="row" onClick={() => select(w)}>
+                <div
+                  className="row"
+                  onClick={() => select(w)}
+                  onDoubleClick={(e) => {
+                    // Not on the row's action buttons (chev/remove/folder).
+                    if ((e.target as HTMLElement).closest('button, .chev')) return
+                    e.stopPropagation()
+                    onEdit(w.id)
+                  }}
+                  title="klik: otwórz · dwuklik: edytuj (nazwa, katalog, grid)"
+                >
                   <span
                     className="chev"
                     onClick={(e) => {

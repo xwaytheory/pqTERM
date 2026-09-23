@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import type { AppSnapshot, EngineId, LayoutId, PaneActivity, PaneArea, SnapZone, UsageMap } from '../../../shared/types'
-import { isRawShell, LAYOUTS } from '../../../shared/types'
+import type { AppSnapshot, EngineId, PaneActivity, PaneArea, SnapZone, UsageMap } from '../../../shared/types'
+import { isRawShell } from '../../../shared/types'
 import {
   FULL,
   resolveAreas,
@@ -71,7 +71,8 @@ const FRAME_SNAP_PX = 28
 const NO_HOVER: Hover = { zone: null, zoneStyle: null, paneId: null, haloStyle: null, preview: null }
 
 export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
-  const [modal, setModal] = useState<'new' | 'providers' | 'remote' | 'notifications' | null>(null)
+  const [modal, setModal] = useState<'new' | 'edit' | 'providers' | 'remote' | 'notifications' | null>(null)
+  const [editWsId, setEditWsId] = useState<string | null>(null)
   const [focus, setFocus] = useState<string | null>(null)
   const [renameNonce, setRenameNonce] = useState(0)
   const [usage, setUsage] = useState<UsageMap>({})
@@ -81,13 +82,13 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
   const focusContext = useRef({ snap, modal })
   focusContext.current = { snap, modal }
   const reportedFocus = useRef<string | undefined>(undefined)
-  const [cast, setCast] = useState('')
   const [drag, setDrag] = useState<{ paneId: string; x: number; y: number } | null>(null)
   const [hover, setHover] = useState<Hover>(NO_HOVER)
   const [resizePreview, setResizePreview] = useState<Pick<PaneResize, 'workspaceId' | 'layoutKey' | 'areas'> | null>(null)
   const [resizeError, setResizeError] = useState('')
   const resizeRef = useRef<PaneResize | null>(null)
   const ws = snap.workspaces.find((w) => w.id === snap.activeWorkspaceId) ?? null
+  const editWs = snap.workspaces.find((w) => w.id === editWsId) ?? null
   const visitedWorkspaces = useRef(new Set<string>())
   useLayoutEffect(() => {
     if (ws) visitedWorkspaces.current.add(ws.id)
@@ -577,12 +578,6 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [ws, focus])
 
-  function changeLayout(delta: number): void {
-    if (!ws) return
-    const n = Math.min(12, Math.max(1, ws.layout + delta))
-    void window.pq.workspaces.setLayout(ws.id, n as LayoutId)
-  }
-
   return (
     <>
       <Titlebar center={center} />
@@ -598,6 +593,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           <button className="dockbtn" title="nowy workspace" onClick={() => setModal('new')}>
             +
           </button>
+          {/* grid count lives here too: single click opens the edit modal for the active workspace */}
           <button className="dockbtn" title="providers" onClick={() => setModal('providers')}>
             ⚙
           </button>
@@ -626,6 +622,10 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           snap={snap}
           activity={activity}
           onNew={() => setModal('new')}
+          onEdit={(id) => {
+            setEditWsId(id)
+            setModal('edit')
+          }}
           focusPane={(wId, paneId) => {
             requestPaneFocus(wId, paneId)
             const target = snap.workspaces.find((w) => w.id === wId)
@@ -641,35 +641,16 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           {ws ? (
             <>
               <div className="stage-bar">
-                <div className="layout-switch">
-                  <button
-                    className="stepper"
-                    title="mniej okien"
-                    onClick={() => changeLayout(-1)}
-                  >
-                    −
-                  </button>
-                  <span className="count" title="liczba okien">
-                    {ws.layout}
-                  </span>
-                  <button
-                    className="stepper"
-                    title="więcej okien"
-                    onClick={() => changeLayout(1)}
-                  >
-                    +
-                  </button>
-                  <span className="sep" />
-                  {LAYOUTS.map((n) => (
-                    <button
-                      key={n}
-                      className={ws.layout === n ? 'on' : ''}
-                      onClick={() => window.pq.workspaces.setLayout(ws.id, n as LayoutId)}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
+                <button
+                  className="gridbadge"
+                  title={`ten workspace ma ${ws.layout} okien — klik, żeby zmienić nazwę, katalog lub grid`}
+                  onClick={() => {
+                    setEditWsId(ws.id)
+                    setModal('edit')
+                  }}
+                >
+                  ▦ {ws.layout}
+                </button>
                 {zoomedId ? (
                   <div className="pane-strip" title="przełącz powiększony slot">
                     <button className="ghost" onClick={() => setZoom(null)} title="siatka (ctrl+shift+g)">
@@ -692,44 +673,6 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                   </span>
                 )}
                 <div className="grow" />
-                {(() => {
-                  const idle = ws.panes.filter((p) => !p.engine).length
-                  const focusedEngine =
-                    ws.panes.find((p) => p.id === focus)?.engine ??
-                    ws.panes.find((p) => p.engine)?.engine ??
-                    'grok'
-                  return (
-                    <>
-                      <button
-                        className="ghost"
-                        disabled={!idle}
-                        title="odpal ten sam silnik w pustych oknach (ctrl+shift+r)"
-                        onClick={() =>
-                          window.pq.panes.fill({ engine: focusedEngine as EngineId })
-                        }
-                      >
-                        fill rest{idle ? ` ${idle}` : ''}
-                      </button>
-                      <input
-                        className="broadcast"
-                        value={cast}
-                        placeholder="wyślij do wszystkich…"
-                        title="pqTERM wyśle ten prompt do wszystkich okien tego silnika; puste od razu odpali"
-                        onChange={(e) => setCast(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key !== 'Enter' || !cast.trim()) return
-                          e.preventDefault()
-                          const text = cast.trim()
-                          setCast('')
-                          void window.pq.panes.fill({
-                            engine: focusedEngine as EngineId,
-                            prompt: text
-                          })
-                        }}
-                      />
-                    </>
-                  )
-                })()}
               </div>
               {drag ? (
                 <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 14 }}>
@@ -851,6 +794,16 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
       </footer>
       {modal === 'new' ? (
         <NewWorkspaceModal providers={snap.providers} onClose={() => setModal(null)} />
+      ) : null}
+      {modal === 'edit' && editWs ? (
+        <NewWorkspaceModal
+          providers={snap.providers}
+          workspace={editWs}
+          onClose={() => {
+            setEditWsId(null)
+            setModal(null)
+          }}
+        />
       ) : null}
       {modal === 'providers' ? (
         <ProvidersModal

@@ -1,22 +1,27 @@
 import { useState } from 'react'
-import type { EngineId, LayoutId, ProviderInfo } from '../../../shared/types'
+import type { EngineId, LayoutId, ProviderInfo, Workspace } from '../../../shared/types'
 import { isRawShell, LAYOUTS } from '../../../shared/types'
 import EngineMark from './EngineMark'
 
 export default function NewWorkspaceModal({
   providers,
+  workspace,
   onClose
 }: {
   providers: ProviderInfo[]
+  /** Present → edit this workspace (name/cwd/grid) instead of creating one. */
+  workspace?: Workspace
   onClose: () => void
 }) {
-  const [title, setTitle] = useState('')
-  const [cwd, setCwd] = useState('')
-  const [layout, setLayout] = useState<LayoutId>(2)
+  const editing = workspace !== undefined
+  const [title, setTitle] = useState(workspace?.title ?? '')
+  const [cwd, setCwd] = useState(workspace?.cwd ?? '')
+  const [layout, setLayout] = useState<LayoutId>(workspace?.layout ?? 2)
   const [engines, setEngines] = useState<EngineId[]>([])
   const [err, setErr] = useState('')
 
   const usable = providers.filter((p) => !isRawShell(p.id) && p.enabled)
+  const liveEngines = workspace?.panes.filter((p) => p.engine).length ?? 0
 
   function toggle(id: EngineId) {
     setEngines((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))
@@ -46,11 +51,39 @@ export default function NewWorkspaceModal({
     onClose()
   }
 
+  async function save() {
+    setErr('')
+    if (!workspace) return
+    if (!title.trim()) {
+      setErr('nadaj tytuł — to nazwa pracy, nie folderu.')
+      return
+    }
+    if (!cwd.trim()) {
+      setErr('wybierz katalog projektu.')
+      return
+    }
+    if (layout < workspace.layout && liveEngines > layout) {
+      const ok = window.confirm(
+        `Zmniejszasz grid z ${workspace.layout} do ${layout} okien — zamknie to ${liveEngines - layout} działających sesji CLI. Kontynuować?`
+      )
+      if (!ok) return
+    }
+    await window.pq.workspaces.update(workspace.id, { title: title.trim(), cwd: cwd.trim() })
+    if (layout !== workspace.layout) {
+      await window.pq.workspaces.setLayout(workspace.id, layout)
+    }
+    onClose()
+  }
+
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>NEW WORKSPACE</h2>
-        <div className="sub">tytuł = zadanie. katalog = cwd dla każdego terminala w gridzie.</div>
+        <h2>{editing ? 'EDIT WORKSPACE' : 'NEW WORKSPACE'}</h2>
+        <div className="sub">
+          {editing
+            ? 'zmień nazwę, katalog albo liczbę okien. sesje żyją, dopóki mieszczą się w gridzie.'
+            : 'tytuł = zadanie. katalog = cwd dla każdego terminala w gridzie.'}
+        </div>
         <label className="f">TYTUŁ</label>
         <input
           className="f"
@@ -74,42 +107,50 @@ export default function NewWorkspaceModal({
             </button>
           ))}
         </div>
-        <label className="f">SILNIKI NA START</label>
-        <div className="sub" style={{ marginTop: -8 }}>
-          jeden silnik = wszystkie {layout} okna. kilka silników = rozłożą się w kółko.
-        </div>
-        <div className="chips">
-          {usable.map((p) => (
-            <button
-              key={p.id}
-              className={engines.includes(p.id) ? 'chip on' : 'chip'}
-              disabled={!p.installed}
-              onClick={() => toggle(p.id)}
-            >
-              <EngineMark id={p.id} name={p.name} color={p.color} logo={p.logo} icon={p.icon} mark={p.mark} size={26} />
-              {p.name}
-            </button>
-          ))}
-        </div>
-        {engines.length ? (
-          <div className="hint" style={{ marginTop: 8 }}>
-            {Array.from({ length: layout }, (_, i) => {
-              const id = engines[i % engines.length]
-              return usable.find((p) => p.id === id)?.name ?? id
-            }).join(' · ')}
-          </div>
-        ) : (
-          <div className="hint" style={{ marginTop: 8 }}>
-            bez wyboru — {layout} puste sloty, silnik klikasz w pane.
-          </div>
-        )}
+        {!editing ? (
+          <>
+            <label className="f">SILNIKI NA START</label>
+            <div className="sub" style={{ marginTop: -8 }}>
+              jeden silnik = wszystkie {layout} okna. kilka silników = rozłożą się w kółko.
+            </div>
+            <div className="chips">
+              {usable.map((p) => (
+                <button
+                  key={p.id}
+                  className={engines.includes(p.id) ? 'chip on' : 'chip'}
+                  disabled={!p.installed}
+                  onClick={() => toggle(p.id)}
+                >
+                  <EngineMark id={p.id} name={p.name} color={p.color} logo={p.logo} icon={p.icon} mark={p.mark} size={26} />
+                  {p.name}
+                </button>
+              ))}
+            </div>
+            {engines.length ? (
+              <div className="hint" style={{ marginTop: 8 }}>
+                {Array.from({ length: layout }, (_, i) => {
+                  const id = engines[i % engines.length]
+                  return usable.find((p) => p.id === id)?.name ?? id
+                }).join(' · ')}
+              </div>
+            ) : (
+              <div className="hint" style={{ marginTop: 8 }}>
+                bez wyboru — {layout} puste sloty, silnik klikasz w pane.
+              </div>
+            )}
+          </>
+        ) : null}
         {err ? <div className="err">{err}</div> : null}
         <div className="modal-actions">
           <button className="ghost" onClick={onClose}>
             cancel
           </button>
-          <button className="primary" style={{ width: 'auto', padding: '0 18px', marginTop: 0 }} onClick={create}>
-            create
+          <button
+            className="primary"
+            style={{ width: 'auto', padding: '0 18px', marginTop: 0 }}
+            onClick={editing ? save : create}
+          >
+            {editing ? 'save' : 'create'}
           </button>
         </div>
       </div>
