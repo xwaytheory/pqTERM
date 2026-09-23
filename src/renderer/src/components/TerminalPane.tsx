@@ -16,6 +16,7 @@ import {
   type ProviderInfo
 } from '../../../shared/types'
 import { areaStyle } from '../../../shared/grid'
+import { paneUnderMin } from '../../../shared/term-geometry'
 import { formatDroppedPaths, pathShellForPane, quotePath } from '../lib/dropPaths'
 import EngineMark from './EngineMark'
 
@@ -271,6 +272,10 @@ if (pane.engine && !isRawShell(pane.engine)) {
         // hidden hosts report 0x0 — fitting them would shrink the PTY to the
         // minimum and garble output; fit only when the host is actually laid out
         if (!host.current || host.current.clientHeight < 10 || host.current.clientWidth < 10) return
+        // A pane smaller than MIN_PANE_* must not drive the PTY: ConPTY reflows
+        // to a ~2-column terminal and the TUI comes back as one letter per
+        // line. Keep the last good fit; refit when the pane grows again.
+        if (paneUnderMin(host.current.clientWidth, host.current.clientHeight)) return
         fit.fit()
         if (!spawned.current) return        clearTimeout(resizeTimer)
           resizeTimer = setTimeout(() => {
@@ -284,7 +289,9 @@ if (pane.engine && !isRawShell(pane.engine)) {
 
     const start = async () => {
       try {
-        fit.fit()
+        // Same floor as the ResizeObserver: a pane born below it must not
+        // propose 2-column geometry to the PTY on its first fit.
+        if (host.current && !paneUnderMin(host.current.clientWidth, host.current.clientHeight)) fit.fit()
       } catch {
         /* ignore */
       }
@@ -363,6 +370,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
   useEffect(() => {
     try {
       if (!host.current || host.current.clientHeight < 10) return
+      if (paneUnderMin(host.current.clientWidth, host.current.clientHeight)) return
       fitRef.current?.fit()
       const term = termRef.current
       if (term && spawned.current) {

@@ -1,4 +1,8 @@
 import type { PaneArea, PaneState, SnapZone } from './types'
+// explicit .ts: strip-types test scripts import this module directly (see AGENTS.md)
+import { MIN_PANE_W, MIN_PANE_H, paneUnderMin } from './term-geometry.ts'
+
+export { MIN_PANE_W, MIN_PANE_H, paneUnderMin }
 
 type Rect = PaneArea
 type Orient = 'v' | 'h'

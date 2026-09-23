@@ -1,5 +1,31 @@
 # pq workbench (gauntlet live board)
 
+## „Pionowa zupa liter” — floor geometrii 20×8 po obu stronach (2026-09-23)
+
+**Symptom (zrzuty):** w małych pane gęstych siatek TUI zamienia się w pionowy sznur
+pojedynczych liter; po powiększeniu pane ramka wraca, ale momentami zostają przesunięcia.
+
+**Root cause:** `fit()` w `TerminalPane` nie miał dolnego limitu — pane ~200×100 px po
+odjęciu paddingu proponuje ConPTY geometrię 2–3 kolumny. Renderer wysyłał ją bez clampu,
+main przyjął (`Math.max(1, …)` od 1.3.5), ConPTY zrobił reflow bufora do 2 kolumn i
+przemalował ekran jako jedną literę na wiersz. To nie ten sam bug co w 1.3.5 (tam PTY
+stał w 80×24 mimo innego xterm); tu PTY słusznie stoi tam, gdzie kazano — tylko
+kazano mu bezsensu.
+
+**Fix — jedna stała, dwie strony (`src/shared/term-geometry.ts`):**
+1. `PTY_MIN_COLS=20 / PTY_MIN_ROWS=8` (te same liczby co dotychczasowy clamp spawnu):
+   `pty-manager.ts` przy spawnie **i** przy resize nie zejdzie poniżej flooru.
+2. `MIN_PANE_W=190 / MIN_PANE_H=92` + `paneUnderMin()`: `TerminalPane` nie wykonuje
+   `fit()`/`sendResize` dla pane poniżej flooru (ResizeObserver, efekt zoom/focus
+   **i pierwszy fit w `start()`**) — terminal trzyma ostatni dobry rozmiar i refituje
+   w momencie, gdy pane urośnie (ResizeObserver to załatwia).
+3. Re-eksport przez `grid.ts` (z jawnym `.ts`, wymagane przez strip-types); tsconfigi
+   dostawiły `allowImportingTsExtensions`.
+4. Testy `src/shared/term-geometry.test.ts` (3): floor pane mieści floor PTY,
+   `paneUnderMin` na granicy, zgodność liczbową z historycznym clampem.
+- Bramki: `npm run test:unit` **117 PASS** + oba typechecki na `dev`.
+- Otwarte: ten sam floor dla `src/phone` (zdalny widok nie wysyła rozmiaru — bez zmiany).
+
 ## Stage-bar usunięty w całości, zębatka edycji w sidebarze (2026-09-23)
 
 - **Stage-bar nie istnieje.** Po zdjęciu steppera/1-9/fill/broadcast (poprzedni wpis)

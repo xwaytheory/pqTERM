@@ -9,6 +9,7 @@ import { trustWorkspace } from './trust'
 import { runningDev } from './env'
 import { cleanOscTitle, scanOscTitle } from './osc-title'
 import { appendTail } from '../shared/term-stream'
+import { PTY_MIN_COLS, PTY_MIN_ROWS } from '../shared/term-geometry'
 
 let pty: typeof import('node-pty') | null = null
 
@@ -137,8 +138,11 @@ export class PtyManager {
     const win0 = this.getWin()
 
     let proc: IPty
-    const capCols = Math.max(20, opts.cols || 80)
-    const capRows = Math.max(8, opts.rows || 24)
+    // Same floor on both sides: a pane below it never fits (renderer guard),
+    // so these constants only stop a stale/buggy renderer from driving ConPTY
+    // into a ~2-column reflow (TUI smeared one letter per line).
+    const capCols = Math.max(PTY_MIN_COLS, opts.cols || 80)
+    const capRows = Math.max(PTY_MIN_ROWS, opts.rows || 24)
     try {
       proc = np.spawn(spawnFile, args, {
         name: 'xterm-256color',
@@ -234,11 +238,11 @@ export class PtyManager {
       return
     }
     try {
-      // Keep the PTY exactly as wide as xterm: a floor the renderer cannot see
-      // makes the CLI format for a wider screen than the one on display (wrapped
-      // / duplicated lines) and the renderer's dedupe then never re-sends.
-      const c = Math.max(1, cols)
-      const r = Math.max(1, rows)
+      // Keep the PTY exactly as wide as xterm — but never below the floor:
+      // a 2-column ConPTY reflow is what smears a TUI into vertical letter
+      // soup, and the renderer's dedupe would then never re-send a sane size.
+      const c = Math.max(PTY_MIN_COLS, cols)
+      const r = Math.max(PTY_MIN_ROWS, rows)
       s.proc.resize(c, r)
       // ConPTY repaints the whole screen after a resize, so the buffer tail is
       // now formatted for the new size — replay must know it.
