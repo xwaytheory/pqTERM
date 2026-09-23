@@ -1,5 +1,13 @@
 # pq workbench (gauntlet live board)
 
+## Release 1.3.7 — update CLIs (2026-09-23)
+
+- Produkt 1.3.6 → 1.3.7. Jedyna zmiana względem 1.3.6: `803958b` — przycisk ↻
+  to "update CLIs", aktualizuje wyłącznie zainstalowane silniki (filtr
+  `installed(spec)` w `sync.start()`); `ensure()` nadal instaluje przy spawn pane.
+- Bramki na `dev` i `test`: 125 PASS, oba typechecki, check:version (product
+  1.3.7; 2 locki, cargo), `npm run build` PASS.
+
 ## "Sync engines" → "Update CLIs": tylko zainstalowane (2026-09-23)
 
 - **Problem (zględu użytkownika):** przycisk ↻ „sync engines” instalował WSZYSTKIE
