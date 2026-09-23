@@ -1,6 +1,8 @@
 ﻿import type { PaneActivity, PaneActivityKind } from '../shared/types'
 
 const IDLE_MS = 30_000
+/** Silence after activity that counts as "waiting for you" (agent finished/prompting). */
+const WAITING_MS = 60_000
 const BEL_COOLDOWN_MS = 5_000
 
 interface Entry {
@@ -11,6 +13,8 @@ interface Entry {
   lastOutputAt: number
   lastBellAt: number
   lastSemantic: PaneActivityKind | null
+  /** Set once per silence stretch: one 'waiting' alert per stretch, not per tick. */
+  waitingAnnounced: boolean
 }
 
 
@@ -44,7 +48,8 @@ export class PaneActivityTracker {
       escape: false,
       lastOutputAt: at,
       lastBellAt: -Infinity,
-      lastSemantic: null
+      lastSemantic: null,
+      waitingAnnounced: false
     }
   }
 
@@ -59,7 +64,10 @@ export class PaneActivityTracker {
     const e = this.entries.get(paneId)
     if (!e || e.ended || !data) return
     e.lastOutputAt = this.now()
-    if (e.activity.kind === 'quiet') this.set(paneId, e, 'running', false)
+    e.waitingAnnounced = false
+    if (e.activity.kind === 'quiet' || e.activity.kind === 'waiting') {
+      this.set(paneId, e, 'running', false)
+    }
     let bell = false
     for (const ch of data) {
       if (e.control) {
@@ -86,6 +94,21 @@ export class PaneActivityTracker {
       this.set(paneId, e, 'attention', true)
       this.onAlert(paneId, 'attention')
     }
+  }
+
+  /**
+   * The CLI sent an explicit notification request (OSC 9 / 777). Fold it into
+   * activity state so the sidebar badge updates; the caller shows the toast.
+   */
+  notice(paneId: string, title: string, body: string): void {
+    const e = this.entries.get(paneId)
+    if (!e || e.ended) return
+    e.lastOutputAt = this.now()
+    e.waitingAnnounced = false
+    e.lastSemantic = 'attention'
+    this.set(paneId, e, 'attention', true)
+    void title
+    void body
   }
 
   /** Semantic event from the agent/hook layer: ready | waiting | attention | error | running. */
@@ -118,15 +141,33 @@ export class PaneActivityTracker {
     this.onChange(paneId, { ...e.activity })
   }
 
-  /** Output without semantic events after IDLE_MS is silence, not completion. */
+  /**
+   * Silence after activity: 'quiet' at IDLE_MS (status only, no alert), then
+   * 'waiting' at WAITING_MS — alerted once per silence stretch. This is what
+   * notifies for CLIs that never ring the bell (freebuff & co.): an agent
+   * stopping its output for a minute after working means it wants input.
+   */
   tick(): void {
     const t = this.now()
     for (const [id, e] of this.entries) {
-      if (
-        e.activity.kind === 'running' &&
-        t - e.lastOutputAt >= IDLE_MS
-      ) {
-        this.set(id, e, 'quiet', false)
+      if (e.ended || e.activity.kind === 'running' || e.activity.kind === 'quiet') {
+        if (
+          e.activity.kind === 'running' &&
+          t - e.lastOutputAt >= IDLE_MS
+        ) {
+          this.set(id, e, 'quiet', false)
+        }
+        if (
+          !e.waitingAnnounced &&
+          t - e.lastOutputAt >= WAITING_MS &&
+          (e.activity.kind === 'quiet' || (e.activity.kind === 'running' && t - e.lastOutputAt >= WAITING_MS))
+        ) {
+          // Semantic-style alert through the same dedupe as agent events.
+          e.lastSemantic = 'waiting'
+          e.waitingAnnounced = true
+          this.set(id, e, 'waiting', true)
+          this.onAlert(id, 'waiting')
+        }
       }
     }
   }

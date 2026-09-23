@@ -1,5 +1,30 @@
 # pq workbench (gauntlet live board)
 
+## Powiadomienia od każdego CLI — OSC 9/777 + heurystyka "czeka na Ciebie" (2026-09-23)
+
+**Problem:** OMP dzwoni BEL-em przy końcu pracy → pqTERM pokazywał powiadomienie
+(BEL = attention w `pane-activity.ts`). freebuff (i większość CLI) nigdy nie wysyła
+BEL — user nie dostawał nic. `activity.signal()` (warstwa semantyczna) nie miała
+żadnego wywołania w produkcie — martwy kod do tej pory.
+
+**Fix — trzy kanały, zero integracji per-CLI:**
+1. **OSC 9 / OSC 777** (`src/main/osc-notify.ts`): skan strumienia PTY pod kątem
+   standardowych sekwencji powiadomień (iTerm2 `ESC]9;<body>BEL/ST`, rxvt
+   `ESC]777;notify;<title>;<body>BEL/ST`) — odporny na cięcie między chunkami
+   (tail jak w `osc-title.ts`, cap 2048 B). CLI, które "prosi" o powiadomienie,
+   dostaje toast natychmiast (`onNotice` w `pty-manager` → `index.ts`), pod tymi
+   samymi strażami co BEL (settings, focus, Notification.isSupported), z kliknięciem
+   do pane.
+2. **"Czeka na Ciebie" z ciszy** (`pane-activity.ts`): running → quiet po 30 s
+   (status, bez alertu, jak było) → **waiting po 60 s ciszy = alert raz na stretch**.
+   Output resetuje stretch. To działa dla KAŻDEGO CLI, które po pracy po prostu
+   przestaje pisać (freebuff włącznie) — nie wymaga żadnego wsparcia z jego strony.
+3. **BEL / wyjście procesu** — bez zmian (attention / exited / error).
+
+Testy: `osc-notify.test.ts` (7: BEL+ST, 777, nie-łamania na OSC 0/2, split-chunk,
+multi, patologia, cleaner) + `pane-activity.test.ts` +1 (stretch: raz, reset,
+nowy stretch). Bramki: **125 PASS** + oba typechecki na `dev`.
+
 ## „Pionowa zupa liter” — floor geometrii 20×8 po obu stronach (2026-09-23)
 
 **Symptom (zrzuty):** w małych pane gęstych siatek TUI zamienia się w pionowy sznur

@@ -186,6 +186,45 @@ const ptys = new PtyManager(() => mainWindow, {
     board.paneEnd(paneId)
     remote?.pushExit(paneId, code)
   },
+  onNotice: (paneId, notice) => {
+    // The CLI itself said "notify the user" (OSC 9 / OSC 777) — trust it over
+    // any silence heuristic and show the toast under the same guards as BELs.
+    activity.notice(paneId, notice.title, notice.body)
+    const win = mainWindow
+    const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId && p.engine))
+    if (!state.notifications.enabled || paneIsFocused(paneId) || !ws ||
+      !win || win.isDestroyed() || win.webContents.isDestroyed() || !Notification.isSupported()) return
+    const pane = ws.panes.find((p) => p.id === paneId)!
+    closePaneNotification(paneId)
+    const notification = new Notification({
+      title: notice.title ? `${ws.title} · ${notice.title}` : `${ws.title} · ${pane.title}`,
+      body: notice.body,
+      silent: !state.notifications.sound
+    })
+    paneNotifications.set(paneId, notification)
+    notification.on('click', () => {
+      if (paneNotifications.get(paneId) !== notification || mainWindow !== win ||
+        win.isDestroyed() || win.webContents.isDestroyed()) return
+      const target = state.workspaces.find((w) => w.id === ws.id)
+      if (!target?.panes.some((p) => p.id === paneId && p.engine)) return
+      state.activeWorkspaceId = target.id
+      if (target.zoomedPaneId && target.zoomedPaneId !== paneId) target.zoomedPaneId = null
+      focusedPaneId = null
+      persist()
+      attachBoard()
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+      win.webContents.send('activity:focus', target.id, paneId)
+      closePaneNotification(paneId)
+    })
+    const forget = () => {
+      if (paneNotifications.get(paneId) === notification) paneNotifications.delete(paneId)
+    }
+    notification.on('close', forget)
+    notification.on('failed', forget)
+    notification.show()
+  },
   onTitle: (paneId, title) => {
     applyAutoTitle(paneId, title)
   }

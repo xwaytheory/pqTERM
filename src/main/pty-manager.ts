@@ -8,6 +8,7 @@ import { resolveLaunch, sanitizeEnv, yoloEnv } from './resolve-launch'
 import { trustWorkspace } from './trust'
 import { runningDev } from './env'
 import { cleanOscTitle, scanOscTitle } from './osc-title'
+import { scanOscNotices, cleanNoticeText, type OscNotice } from './osc-notify'
 import { appendTail } from '../shared/term-stream'
 import { PTY_MIN_COLS, PTY_MIN_ROWS } from '../shared/term-geometry'
 
@@ -89,6 +90,8 @@ export class PtyManager {
   private gen = new Map<string, number>()
   /** per-pane partial OSC sequence carried between data chunks */
   private oscTail = new Map<string, string>()
+  /** per-pane partial OSC 9/777 notification sequence carried between chunks */
+  private noticeTail = new Map<string, string>()
 
   constructor(
     private getWin: () => BrowserWindow | null,
@@ -99,6 +102,8 @@ export class PtyManager {
       onExit?: (paneId: string, exitCode: number, intentional: boolean) => void
       /** CLI set its own window title via OSC — expose it so a pane can adopt it */
       onTitle?: (paneId: string, title: string) => void
+      /** CLI asked for a desktop notification via OSC 9 / OSC 777. */
+      onNotice?: (paneId: string, notice: OscNotice) => void
     }
   ) {}
 
@@ -204,6 +209,16 @@ export class PtyManager {
         const clean = cleanOscTitle(oscTitle)
         if (clean) this.hooks?.onTitle?.(opts.paneId, clean)
       }
+      // OSC 9 / OSC 777: the CLI explicitly asked the terminal to notify the
+      // user (completion / needs attention). Same cross-chunk-safe scanning as
+      // titles; both sequences pass through ConPTY as plain output.
+      const noticeTail = (this.noticeTail.get(opts.paneId) ?? '') + data
+      const [allNotices, nk] = scanOscNotices(noticeTail)
+      this.noticeTail.set(opts.paneId, nk)
+      for (const n of allNotices) {
+        const body = cleanNoticeText(n.body)
+        if (body) this.hooks?.onNotice?.(opts.paneId, { title: cleanNoticeText(n.title), body })
+      }
       this.hooks?.onOutput?.(opts.paneId, data)
       this.getWin()?.webContents.send('term:data', opts.paneId, data, session.seq)
     })
@@ -263,6 +278,7 @@ export class PtyManager {
     s.alive = false
     this.sessions.delete(paneId)
     this.oscTail.delete(paneId)
+    this.noticeTail.delete(paneId)
     this.lastBuf.set(paneId, { data: s.buf, seq: s.seq, cols: s.capCols, rows: s.capRows })
     this.hooks?.onExit?.(paneId, 0, true)
     try {
