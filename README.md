@@ -141,7 +141,7 @@ pq/
 
 - **Daily / portable:** `npm run stamp` / `START-pr.cmd` → `host/pqterm.exe` (`build.win.target: "dir"`).
 - **Installers:** `npm run dist` → NSIS Setup + MSI in `release/` (`appId: com.pqterm.app`, stable MSI `upgradeCode`).
-- Brand icons: `resources/brand/pq.ico`, `pq-256.png`, `pq-512.png` (not `pq.png`).
+- Brand icons: `resources/brand/pq.ico`, `pq-256.png`, `pq-512.png` (not `pq.png`), all derived from `resources/brand/pq-master.jpg` by `python scripts/brand-import.py` (Pillow, manual step). `pq.svg` is the legacy mark.
 - Builds are **unsigned** — expect SmartScreen warnings until a signing cert is configured (`publisherName` placeholder in `package.json`; not a real cert).
 - `npm run dist` smoke: run when convenient; **do not claim** NSIS/MSI exist until `release/` artifacts are present. Daily path remains `stamp` → `host/pqterm.exe`.
 

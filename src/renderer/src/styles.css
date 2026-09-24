@@ -140,16 +140,12 @@ button {
   opacity: 0.85;
 }
 
-.grid-mark {
-  width: 14px;
-  height: 14px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5px;
-}
-.grid-mark i {
-  background: var(--green);
-  opacity: 0.85;
+/* Brand mark: resources/brand master -> src/renderer/src/assets/brand-mark.png
+   (scripts/brand-import.py). Transparent glyphs, so it sits on any chrome. */
+.brand-mark {
+  height: 16px;
+  width: auto;
+  display: block;
 }
 .titlebar .center {
   color: var(--muted);
@@ -991,13 +987,11 @@ body.pane-resizing * {
   border-right: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(57, 255, 182, 0.04), transparent 40%), var(--bg);
 }
-.ascii {
-  color: var(--green);
-  white-space: pre;
-  font-size: 11px;
-  line-height: 1.15;
+.brand-logo {
+  width: 168px;
+  height: auto;
   margin: 0 0 18px;
-  text-shadow: 0 0 18px rgba(57, 255, 182, 0.25);
+  filter: drop-shadow(0 0 18px rgba(57, 255, 182, 0.25));
 }
 .login-left h1 {
   font-size: 22px;

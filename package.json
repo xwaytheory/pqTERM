@@ -47,6 +47,7 @@
       "out/**/*",
       "package.json",
       "resources/**/*",
+      "!resources/brand/pq-master.jpg",
       "!**/{.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!crates{,/**/*}",

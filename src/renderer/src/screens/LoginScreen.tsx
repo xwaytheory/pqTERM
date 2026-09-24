@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { AppSnapshot } from '../../../shared/types'
 import Titlebar from '../components/Titlebar'
+import brandMark from '../assets/brand-mark.png'
 
 export default function LoginScreen({ snap }: { snap: AppSnapshot }) {
   const [email, setEmail] = useState('')
@@ -50,9 +51,7 @@ export default function LoginScreen({ snap }: { snap: AppSnapshot }) {
       <Titlebar center="auth · google / local session" />
       <div className="login">
         <div className="login-left">
-          <pre className="ascii" style={{ fontSize: '72px', letterSpacing: '0.28em', lineHeight: 1 }}>
-pq
-          </pre>
+          <img className="brand-logo" src={brandMark} alt="pqTERM" />
           <p className="lead">
             command deck dla agentów AI. workspace po lewej, siatka terminali po prawej. grok, omp,
             hermes, opencode, codex, claude code — prawdziwe TUI w ConPTY, na twoim dysku.

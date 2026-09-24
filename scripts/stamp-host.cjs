@@ -10,6 +10,9 @@ const pathTxt = join(root, 'node_modules', 'electron', 'path.txt')
 const host = join(root, 'host')
 const hostExe = join(host, 'pqterm.exe')
 const distExe = join(dist, 'pqterm.exe')
+// Desktop shortcuts point IconLocation at this exe, so the brand has to live in
+// the binary itself — a window icon alone leaves Explorer showing Electron's.
+const brandIco = join(root, 'resources', 'brand', 'pq.ico')
 
 if (!existsSync(srcExe)) {
   console.error('[pqTERM] host binary missing — npm install first')
@@ -23,6 +26,7 @@ if (!existsSync(rcedit)) {
 function stamp(exe) {
   const args = [
     exe,
+    ...(existsSync(brandIco) ? ['--set-icon', brandIco] : []),
     '--set-version-string', 'ProductName', 'pqTERM',
     '--set-version-string', 'FileDescription', 'pqTERM',
     '--set-version-string', 'InternalName', 'pqterm',

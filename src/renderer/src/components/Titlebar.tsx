@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import brandMark from '../assets/brand-mark.png'
 
 export default function Titlebar({ center }: { center?: ReactNode }) {
   const [info, setInfo] = useState<{
@@ -16,17 +17,7 @@ export default function Titlebar({ center }: { center?: ReactNode }) {
     // ignores it and uses the -webkit-app-region rules from styles.css).
     <header className="titlebar" data-tauri-drag-region>
       <div className="brand">
-        <span className="grid-mark" aria-hidden>
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-        </span>
+        <img className="brand-mark" src={brandMark} alt="" aria-hidden />
         {info?.name ?? 'pqTERM'}
         {info && (
           <span className="edition-chip">
