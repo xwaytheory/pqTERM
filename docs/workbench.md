@@ -1,5 +1,20 @@
 # pq workbench (gauntlet live board)
 
+## Ikony: przezroczyste tło i świeży cache (2026-09-24, siódma runda, `dev`)
+
+**Korekta po zgłoszeniu:** marka była wprawdę o połowę mniejsza, ale czarne kafelki i
+ Explorer pokazywały stare ikony z cache, więc efekt był nadal zły.
+
+**Fix:** `square_tile()` składa teraz markę przez `transparent_mark()` na kwadratowym
+`RGBA` tle o pełnej przezroczystości. Skróty wskazują osobny `pq-desktop.ico`, aby Explorer
+nie użył ponownie cache dla starej ścieżki `pq.ico`. Marka pozostje przy 30% szerokości.
+
+**Pomiar:** narożnik PNG/ICO `(0, 0, 0, 0)`; widoczna marka w `pq-256.png` ma bbox
+`82×64` px, czyli około 32% szerokości i 25% wysokości. ICO nadal ma 7 rozmiarów.
+
+**Bramki:** `npm run test:unit` 130/130 (oba typechecki), `node --check
+scripts/make-shortcuts.cjs`, `npm run check:version`, `npm run build` — zielone.
+
 ## Ikony: marka o połowę mniejsza (2026-09-24, szósta runda, `dev`)
 
 **Zgłoszenie:** zmniejszyć logo na ikonach co najmniej o 50%.

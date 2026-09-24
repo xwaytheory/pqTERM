@@ -47,20 +47,13 @@ def content_box(img: Image.Image) -> tuple[int, int, int, int]:
 
 
 def square_tile(img: Image.Image, size: int) -> Image.Image:
-    """Mark centred on a square black tile — the app/executable icon.
-
-    The tile stays `side` square and only the mark scales down to `inner`, so
-    PAD is real padding. (Scaling the tile itself left the mark edge-to-edge.)
-    """
+    """Mark centred on a transparent square — the app/executable icon."""
     x0, y0, x1, y1 = content_box(img)
-    mark = img.crop((x0, y0, x1, y1))
-    side = max(mark.size)
-    canvas = Image.new("RGB", (side, side), (0, 0, 0))
-    canvas.paste(mark, ((side - mark.width) // 2, (side - mark.height) // 2))
+    side = max(x1 - x0, y1 - y0)
     inner = max(1, int(side * (1 - 2 * PAD)))
-    tile = Image.new("RGB", (side, side), (0, 0, 0))
-    offset = (side - inner) // 2
-    tile.paste(canvas.resize((inner, inner), Image.LANCZOS), (offset, offset))
+    mark = transparent_mark(img, inner)
+    tile = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    tile.alpha_composite(mark, ((side - mark.width) // 2, (side - mark.height) // 2))
     return tile.resize((size, size), Image.LANCZOS)
 
 
@@ -100,10 +93,9 @@ def main() -> None:
         square_tile(master, size).save(ROOT / "resources" / "brand" / f"pq-{size}.png")
 
     ico = square_tile(master, 256)
-    ico.save(
-        ROOT / "resources" / "brand" / "pq.ico",
-        sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
-    )
+    icon_sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+    ico.save(ROOT / "resources" / "brand" / "pq.ico", sizes=icon_sizes)
+    ico.save(ROOT / "resources" / "brand" / "pq-desktop.ico", sizes=icon_sizes)
 
     # Renderer favicon (src/renderer/index.html links both) + window icon fallback.
     square_tile(master, 32).save(ROOT / "src" / "renderer" / "favicon.png")

@@ -8,11 +8,7 @@ const stable = dirname(commonDir)
 const devRoot = join(stable, 'instances', 'dev')
 const testRoot = join(stable, 'instances', 'test')
 const exe = join(stable, 'host', 'pqterm.exe')
-// Icon straight from the brand file, not from the exe: host\pqterm.exe is a
-// build artifact that is regularly locked by a running instance, and shortcuts
-// exported an Electron atom every time the stamp was skipped. Same .ico the
-// stamp puts into the binary.
-const brandIco = join(stable, 'resources', 'brand', 'pq.ico')
+const shortcutIco = join(stable, 'resources', 'brand', 'pq-desktop.ico')
 const devCmd = join(devRoot, 'START-dev.cmd')
 const testCmd = join(testRoot, 'START-dev.cmd')
 const desktop = spawnSync('powershell.exe', ['-NoProfile', '-Command', "[Environment]::GetFolderPath('Desktop')"], { encoding: 'utf8' }).stdout.trim()
@@ -34,7 +30,7 @@ $devRoot = ${psQuote(devRoot)}
 $testRoot = ${psQuote(testRoot)}
 $devCmd = ${psQuote(devCmd)}
 $testCmd = ${psQuote(testCmd)}
-$icon = ${psQuote(existsSync(brandIco) ? brandIco : `${exe},0`)}
+$icon = ${psQuote(existsSync(shortcutIco) ? shortcutIco : `${exe},0`)}
 $w = New-Object -ComObject WScript.Shell
 
 foreach ($name in @('pq-prod.lnk', 'pq-dev.lnk', 'pqTERM-pr.lnk', 'pqTERM-dev.lnk', '1 - pqTERM Oficjalna.lnk', '1 - pqTERM Oficjalna (START-pr).lnk', '2 - pqTERM DEV.lnk', '3 - pqTERM TEST.lnk')) {
