@@ -250,19 +250,17 @@ export default function Sidebar({
                         </span>
                       ) : null}
                       </span>
-                      {p.engine ? (
-                        <button
-                          className="iconx side-remove"
-                          title={`zamknij sesję ${p.title}`}
-                          aria-label={`zamknij sesję ${p.title}`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void window.pq.terminals.clearPane(w.id, p.id)
-                          }}
-                        >
-                          ×
-                        </button>
-                      ) : null}
+                      <button
+                        className="iconx side-remove"
+                        title={`zamknij okno ${p.title} — sesja zostanie zakończona`}
+                        aria-label={`zamknij okno ${p.title}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void window.pq.workspaces.removePane(w.id, p.id)
+                        }}
+                      >
+                        ×
+                      </button>
                     </div>
                   ))}
               </div>

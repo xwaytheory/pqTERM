@@ -804,7 +804,8 @@ body.pane-resizing * {
 .iconx:hover {
   color: var(--red);
 }
-.iconx.zoom:hover {
+.iconx.zoom:hover,
+.iconx.add:hover {
   color: var(--accent);
 }
 .iconx.lock {

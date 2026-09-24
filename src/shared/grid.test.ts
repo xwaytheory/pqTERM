@@ -10,6 +10,7 @@ import {
   resizePanes,
   resolveAreas,
   snapAreas,
+  splitFromCells,
   splitInto,
   swapAreasById,
   zoneNear,
@@ -68,6 +69,42 @@ test('defaultAreas(5/6/7/8) use equal-height rows', () => {
   assert.deepEqual(eight[3], { x: 0.75, y: 0, w: 0.25, h: 0.5 })
   assert.deepEqual(eight[4], { x: 0, y: 0.5, w: 0.25, h: 0.5 })
   assert.deepEqual(eight[7], { x: 0.75, y: 0.5, w: 0.25, h: 0.5 })
+})
+
+const sameRect = (a: PaneArea, b: PaneArea): boolean =>
+  Math.abs(a.x - b.x) < EPS && Math.abs(a.y - b.y) < EPS &&
+  Math.abs(a.w - b.w) < EPS && Math.abs(a.h - b.h) < EPS
+
+/**
+ * Adding a pane splits exactly one cell in half. That is the whole promise of
+ * the "add pane" button: every rectangle the user already arranged stays put,
+ * and the grid still covers the frame without overlap.
+ */
+test('splitFromCells halves the largest cell and moves nothing else', () => {
+  const custom: PaneArea[] = [
+    { x: 0, y: 0, w: 0.6, h: 1 },
+    { x: 0.6, y: 0, w: 0.4, h: 0.5 },
+    { x: 0.6, y: 0.5, w: 0.4, h: 0.5 }
+  ]
+  for (const before of [defaultAreas(3), defaultAreas(5), custom]) {
+    const after = splitFromCells(before.length + 1, before)
+    assert.equal(after.length, before.length + 1)
+    assert.ok(coversUnit(after), `unit tiling after growing ${before.length} panes`)
+    const moved = before.filter((r) => !after.some((c) => sameRect(c, r)))
+    assert.equal(moved.length, 1, 'only the split cell changes')
+    const largest = before.reduce((b, r) => (area(r) > area(b) + EPS ? r : b))
+    assert.ok(sameRect(moved[0], largest), 'the split cell is the largest one')
+    const parts = after.filter((c) => !before.some((r) => sameRect(r, c)))
+    assert.equal(parts.length, 2)
+    for (const part of parts) assert.ok(Math.abs(area(part) * 2 - area(largest)) < EPS)
+    const box: PaneArea = {
+      x: Math.min(...parts.map((p) => p.x)),
+      y: Math.min(...parts.map((p) => p.y)),
+      w: Math.max(...parts.map((p) => p.x + p.w)) - Math.min(...parts.map((p) => p.x)),
+      h: Math.max(...parts.map((p) => p.y + p.h)) - Math.min(...parts.map((p) => p.y))
+    }
+    assert.ok(sameRect(box, largest), 'the two halves fill exactly the cell they replaced')
+  }
 })
 
 test('splitInto partitions into arbitrary counts', () => {

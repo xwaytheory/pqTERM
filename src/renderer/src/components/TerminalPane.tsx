@@ -78,6 +78,9 @@ function TerminalPane({
   cursorStyle,
   cursorBlink,
   scrollback,
+  isLast,
+  onAdd,
+  onClose,
   onFocus,
   onZoom,
   onDragStart
@@ -99,6 +102,10 @@ function TerminalPane({
   cursorStyle: CursorStyleId
   cursorBlink: boolean
   scrollback: number
+  /** bottom-right slot of the grid — the one that carries the "add pane" button */
+  isLast: boolean
+  onAdd: () => void
+  onClose: () => void
   onFocus: () => void
   onZoom: () => void
   onDragStart?: (paneId: string, e: PointerEvent<HTMLElement>) => void
@@ -756,18 +763,34 @@ if (pane.engine && !isRawShell(pane.engine)) {
         >
           {zoomed ? '⊟' : '⛶'}
         </button>
-        {pane.engine ? (
+        {isLast ? (
           <button
-            className="iconx"
-            title="zamknij sesję"
+            className="iconx add"
+            title="dodaj okno CLI — otworzy się puste, z wyborem silnika"
+            aria-label="dodaj okno CLI"
             onClick={(e) => {
               e.stopPropagation()
-              void window.pq.terminals.clearPane(workspaceId, pane.id)
+              onAdd()
             }}
           >
-            ×
+            +
           </button>
         ) : null}
+        <button
+          className="iconx"
+          title={
+            pane.engine
+              ? 'zamknij okno — sesja CLI zostanie zakończona, siatka zmieści pozostałe'
+              : 'usuń to puste okno z siatki'
+          }
+          aria-label="zamknij okno CLI"
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+        >
+          ×
+        </button>
       </div>
       {pane.engine ? (
         <>
@@ -876,5 +899,6 @@ export default memo(TerminalPane, (a, b) =>
   a.fontSize === b.fontSize &&
   a.cursorStyle === b.cursorStyle &&
   a.cursorBlink === b.cursorBlink &&
-  a.scrollback === b.scrollback
+  a.scrollback === b.scrollback &&
+  a.isLast === b.isLast
 )

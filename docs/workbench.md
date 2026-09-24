@@ -1,5 +1,51 @@
 # pq workbench (gauntlet live board)
 
+## Plus w ostatniej kratce, krzyżyk naprawdę zamyka okno (2026-09-24, czwarta runda, `dev`)
+
+**Zgłoszenie:** (1) w ostatnim okienku CLI w gridzie ma być „+” — dodaje kolejne okno, ale
+naprawdę: otwiera się puste, z całym SPAWN ENGINE; (2) „×” ma faktycznie zamykać okno CLI —
+okno znika, a workspace przelicza się na mniejszą liczbę okien, reszta dostaje nowe rozmiary.
+
+**Diagnoza (root cause):** pane'owy „×” (nagłówek `TerminalPane` i lista w `Sidebar`) wołał
+`term:clearPane`, które robiło `ptys.kill()` + `engine:null` — sesja CLI umierała, ale **slot
+zostawał** jako idle. Siatka dalej liczyła tyle samo okien, `layout` i `sidebarowe live/layout`
+się nie zmieniały, więc z punktu widzenia użytkownika „× nic nie zamykał”. Dodania okna nie było
+wcale — nowe pane powstawało tylko przez liczbę okien w edytorze workspace (`workspaces:setLayout`).
+
+**Main (`src/main/index.ts`):** dwa helpery, każdy z własnym handlerem.
+- `addPane(workspaceId)` → `splitFromCells(n+1, resolveAreas(panes).map(e => e.area))`: rozpoławia
+  **największą** kratkę i nie rusza żadnego istniejącego prostokąta; nowy pane ma `engine: null`,
+  czyli pokazuje SPAWN ENGINE. `layout` = liczba panes. Zoom jest zdejmowany (`zoomedPaneId: null`),
+  inaczej świeżo dodane okno zostałoby schowane pod powiększonym pane.
+- `removePane(workspaceId, paneId)` → `ptys.kill` + `closePaneNotification` + `board.paneEnd`,
+  slot wypada z `panes`, `layout` = liczba panes, zoom czyszczony gdy dotyczył usuwanego okna.
+  Reszta przechodzi na `defaultAreas(n)` — dziury nie da się załatać bez przesuwania sąsiadów,
+  więc zamknięcie re-flowuje siatkę dokładnie tak, jak `workspaces:setLayout`.
+  **Ostatnie okno** nie jest usuwane, tylko resetowane do idle (`engine:null`, bez
+  `sessionHandle`/`model`/`titleLocked`) — workspace bez panes nie miałby już na czym pokazać „+”.
+- `term:clearPane` **usunięte** (razem z metodą w `preload`): oba „×” (nagłówek + sidebar) idą
+  teraz przez `workspaces:removePane`, więc nie ma już „zamykania”, które nic nie zamyka. Ścieżka
+  telefonu (`remote` `term.clear`) zostaje bez zmian — nie ma UI, które jej używa.
+- Świadome zamknięcie dalej nie alarmuje: `ptys.kill()` woła `onExit(..., intentional=true)`, więc
+  tracker czyści stan bez alertu — ta sama droga co przed zmianą (wpis z 2026-09-17 niżej
+  opisuje `term:clearPane`, który przestał istnieć).
+
+**Renderer:** w nagłówku pane jest „+” (`isLast`, kolor akcentu na hover) i zawsze obecny „×”.
+`isLast` liczy `DeckScreen.lastPaneId()` po geometrii (dolna krawędź, potem prawa), bo po snapie
+pane trzyma swój indeks w tablicy, a inną kratkę — indeks tablicy nie wystarcza. `×` w sidebarze
+jest teraz widoczny także dla panes bez silnika (pusty slot też da się posprzątać). Zamknięcie
+sprząta fokus po stronie renderera (`liveRef`, bo memoizowany pane może trzymać starszy handler)
+i pokazuje błąd jako istniejący pływający `.pane-alert`.
+
+**Test:** `grid.test.ts` → „splitFromCells halves the largest cell and moves nothing else”
+(3 przypadki, w tym własny układ 60/40): dokładnie jedna kratka jest rozpołowiona, połówki sumują
+się do niej i cała siatka dalej pokrywa ramkę bez nakładania. **Dowód mutacyjny:** wymuszenie
+`largestCellIndex() → 0` daje FAIL tego testu (`22 pass / 1 fail`); po przywróceniu 23/23.
+
+**Bramki:** `npm run typecheck` (oba projekty), `npm run test:unit` (**130/130**) i `npm run build`
+na `dev`; po `merge --ff-only dev` na `test` — te same bramki. Weryfikacja wizualna („+” dodaje
+pusty pane z SPAWN ENGINE, „×” zwija siatkę z 3 do 2) należy do użytkownika.
+
 ## Paski znikają, Settings z zakładkami, theme na szarość (2026-09-24, trzecia runda, `dev`)
 
 **Zgłoszenie:** (1) napis „workspace · pqTERM” na górnym pasku do wywalenia w całości;

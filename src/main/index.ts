@@ -43,7 +43,8 @@ import {
   resizePanes,
   RESIZE_EDGES,
   type ResizeEdge,
-  snapAreas
+  snapAreas,
+  splitFromCells
 } from '../shared/grid'
 import { reorderByIds } from '../shared/order'
 import { isHttpUrl } from '../shared/httpUrl'
@@ -753,6 +754,76 @@ function emptyPanes(layout: LayoutId, engines: EngineId[] = []): Workspace['pane
   })
 }
 
+/**
+ * Add one idle pane to the end of the grid: `splitFromCells` halves the largest
+ * cell and leaves every other rectangle exactly where the user put it. The new
+ * pane has no engine, which is what makes it show the SPAWN ENGINE picker.
+ * Zoom is dropped so the pane you just asked for is actually visible.
+ */
+function addPane(workspaceId: string): boolean {
+  const ws = state.workspaces.find((w) => w.id === workspaceId)
+  if (!ws) return false
+  const areas = splitFromCells(
+    ws.panes.length + 1,
+    resolveAreas(ws.panes).map((e) => e.area)
+  )
+  const panes = [
+    ...ws.panes,
+    { id: newId(), engine: null, title: `pane ${ws.panes.length + 1}` }
+  ].map((p, i) => ({ ...p, area: areas[i] }))
+  state.workspaces = state.workspaces.map((w) =>
+    w.id === workspaceId
+      ? touchWorkspace({ ...w, layout: panes.length, panes, zoomedPaneId: null })
+      : w
+  )
+  persist()
+  return true
+}
+
+/**
+ * Close a pane for real: the PTY dies AND the slot goes away, so the workspace
+ * re-tiles itself with one pane fewer (`layout` is the pane count everywhere
+ * else, and the sidebar shows it as `live/layout`). A hole cannot be filled
+ * without moving the neighbours, so a close re-flows — same geometry as
+ * `workspaces:setLayout`. The last pane is only reset to idle: a workspace with
+ * no panes would have no grid left to add one back in.
+ */
+function removePane(workspaceId: string, paneId: string): boolean {
+  const ws = state.workspaces.find((w) => w.id === workspaceId)
+  const pane = ws?.panes.find((p) => p.id === paneId)
+  if (!ws || !pane) return false
+  ptys.kill(paneId)
+  closePaneNotification(paneId)
+  board.paneEnd(paneId)
+  const rest = ws.panes.filter((p) => p.id !== paneId)
+  const kept = rest.length
+    ? rest
+    : [
+        {
+          ...pane,
+          engine: null,
+          title: 'pane 1',
+          titleLocked: false,
+          model: undefined,
+          sessionHandle: undefined
+        }
+      ]
+  const areas = defaultAreas(kept.length)
+  const panes = kept.map((p, i) => ({ ...p, area: areas[i] }))
+  state.workspaces = state.workspaces.map((w) =>
+    w.id === workspaceId
+      ? touchWorkspace({
+          ...w,
+          layout: panes.length,
+          panes,
+          zoomedPaneId: w.zoomedPaneId === paneId ? null : w.zoomedPaneId
+        })
+      : w
+  )
+  persist()
+  return true
+}
+
 function brandIconPath(): string | undefined {
   const candidates = [
     join(process.resourcesPath || '', 'brand', 'pq.ico'),
@@ -1127,6 +1198,19 @@ function registerIpc(): void {
     persist()
   })
 
+  ipcMain.handle('workspaces:addPane', (_e, id: string) => {
+    if (typeof id !== 'string' || id.length > 128) throw new Error('Invalid workspace id')
+    return addPane(id)
+  })
+
+  ipcMain.handle('workspaces:removePane', (_e, workspaceId: string, paneId: string) => {
+    if (
+      typeof workspaceId !== 'string' || workspaceId.length > 128 ||
+      typeof paneId !== 'string' || paneId.length > 128
+    ) throw new Error('Invalid pane close')
+    return removePane(workspaceId, paneId)
+  })
+
   ipcMain.handle(
     'workspaces:swapPanes',
     (_e, workspaceId: string, aId: string, bId: string) => {
@@ -1409,30 +1493,6 @@ function registerIpc(): void {
       /* ignore */
     }
   })
-  ipcMain.handle('term:clearPane', (_e, workspaceId: string, paneId: string) => {
-    ptys.kill(paneId)
-    state.workspaces = state.workspaces.map((w) => {
-      if (w.id !== workspaceId) return w
-      return touchWorkspace({
-        ...w,
-        panes: w.panes.map((p) =>
-          p.id === paneId
-            ? {
-                ...p,
-                engine: null,
-                title: 'idle',
-                titleLocked: false,
-                model: undefined,
-                sessionHandle: undefined
-              }
-            : p
-        )
-      })
-    })
-    persist()
-    board.paneEnd(paneId)
-  })
-
   ipcMain.handle('open:google-console', () => openGoogleConsole())
   ipcMain.handle('board:get', () => board.snapshot())
   ipcMain.handle('sync:start', () => syncer.start())

@@ -152,7 +152,12 @@ const pq = {
     resizePane: (workspaceId: string, paneId: string, edge: ResizeEdge, dx: number, dy: number) =>
       invoke('workspaces:resizePane', workspaceId, paneId, edge, dx, dy) as Promise<void>,
     snapPane: (workspaceId: string, paneId: string, zone: SnapZone) =>
-      invoke('workspaces:snapPane', workspaceId, paneId, zone) as Promise<void>
+      invoke('workspaces:snapPane', workspaceId, paneId, zone) as Promise<void>,
+    /** Appends an empty pane (SPAWN ENGINE picker) and subdivides the largest cell. */
+    addPane: (workspaceId: string) => invoke('workspaces:addPane', workspaceId) as Promise<boolean>,
+    /** Closes the pane: session ends, slot goes away, the rest re-tiles. */
+    removePane: (workspaceId: string, paneId: string) =>
+      invoke('workspaces:removePane', workspaceId, paneId) as Promise<boolean>
   },
   files: {
     /**
@@ -216,8 +221,6 @@ const pq = {
     clipboardRead: () => invoke('term:clipboardRead') as Promise<string>,
     clipboardReadImage: () => invoke('term:clipboardReadImage') as Promise<string>,
     clipboardWrite: (text: string) => invoke('term:clipboardWrite', text) as Promise<void>,
-    clearPane: (workspaceId: string, paneId: string) =>
-      invoke('term:clearPane', workspaceId, paneId) as Promise<void>,
     onData: (cb: (paneId: string, data: string, seq: number) => void) => {
       const fn = (_: unknown, paneId: string, data: string, seq: number) => cb(paneId, data, seq)
       ipcRenderer.on('term:data', fn)
