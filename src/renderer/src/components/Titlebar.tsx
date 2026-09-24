@@ -1,7 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import brandMark from '../assets/brand-mark.png'
 
-export default function Titlebar({ center }: { center?: ReactNode }) {
+/**
+ * Frameless window chrome: brand on the left, window buttons on the right. The
+ * middle used to repeat the active workspace — the sidebar and the panes already
+ * say that, so it is gone and the bar is just a drag surface.
+ */
+export default function Titlebar() {
   const [info, setInfo] = useState<{
     name: string
     edition: 'pq' | 'dev' | 'test'
@@ -30,7 +35,6 @@ export default function Titlebar({ center }: { center?: ReactNode }) {
           </span>
         )}
       </div>
-      <div className="center">{center}</div>
       <div className="win">
         <button className="winbtn" onClick={() => window.pq.app.minimize()} title="minimalizuj">
           ─

@@ -39,6 +39,13 @@ export default function App() {
     }
   }, [])
 
+  // Accent lives on <html> so it reaches every screen (login included) and every
+  // modal without threading a class through the tree; styles.css keys off it.
+  const accent = snap?.ui?.accent
+  useEffect(() => {
+    if (accent) document.documentElement.dataset.accent = accent
+  }, [accent])
+
   if (!snap) {
     return (
       <div className="app">

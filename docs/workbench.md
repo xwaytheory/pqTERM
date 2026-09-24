@@ -1,5 +1,55 @@
 # pq workbench (gauntlet live board)
 
+## Paski znikają, Settings z zakładkami, theme na szarość (2026-09-24, trzecia runda, `dev`)
+
+**Zgłoszenie:** (1) napis „workspace · pqTERM” na górnym pasku do wywalenia w całości;
+(2) z dolnego paska statusu można zrezygnować w całości; (3) rozbudować „Settings” —
+zębatka z porządnym zestawem ustawień całego pqTERM; (4) przemalować cały theme na
+szarości/czerń zamiast zieleni.
+
+**Decyzje użytkownika:** jeden gear = Settings z zakładkami
+[wygląd · terminal · powiadomienia · silniki · telefon] (z docka znikają ⚙-providers, `!`
+i ◯); szary chrome, terminal zostaje kolorowy — ANSI to dane CLI (diff, git status, logi),
+nie theme.
+
+**Warstwa danych (jedno źródło walidacji):**
+- `UiSettings` w `src/shared/types.ts`: `accent`, `fontId`, `fontSize`, `cursorStyle`,
+  `cursorBlink`, `scrollback`. `DEFAULT_UI` = `mono` · cascadia · 13 px · bar · blink · 4000.
+- `sanitizeUi()` używa **i** nowy handler `ui:set` (z `requireRenderer`), **i** loader stanu,
+  więc ręcznie popsuty `pq-state.json` nie wejdzie do renderera: klamp 9–20 px, 0–50 000 linii,
+  akcent/czcionka/kursor tylko z zamkniętej listy, reszta → poprzednia wartość.
+- Test `src/shared/ui.test.ts` (3 przypadki) dopisany do `package.json` (`test:unit`).
+
+**UI:**
+- **Titlebar bez środka** — dwa elementy, `justify-content: space-between`, cały pasek dalej
+  przeciąga okno (jest frameless). `Titlebar` nie ma już propa `center`.
+- **Dolny pasek statusu usunięty.** Zostały po nim tylko realne błędy: pływający
+  `role="status"` (`.pane-alert`, `position: fixed`) nie zabiera już wysokości gridowi.
+  Liczniki `engines N installed · M auth` przeniesione do zakładki Silniki.
+- `NotificationsModal` + `ProvidersModal` → `NotificationsPanel` + `ProvidersPanel`,
+  `RemotePanel` przerobiony na treść bez własnego modala; trzy modale zastępuje jeden
+  `SettingsModal` (role=tablist/tab, focus trap, Escape, przywrócenie fokusu).
+  Ustawienia **aplikują się od razu** — bez „zapisz”, źródłem prawdy jest snapshot
+  z `state:changed`.
+- **Terminal reaguje na ustawienia na żywo:** kursor/blink/scrollback to zwykłe zapisy opcji,
+  a czcionka i rozmiar przeliczą siatkę na następnej klatce (`fit()` + `sendResize`) — bez tego
+  PTY zostałby w starym rozmiarze (dokładnie ten defekt, który naprawialiśmy w rundzie 1).
+
+**Theme:** `--green`/`--green-dim` → `--accent`/`--accent-dim` + `--wash` (delikatna mgiełka
+akcentu) — 61 linii 1:1. Akcent `mono` (jasny neutral `#d5dae2`) jest domyślny, warianty
+mint/blue/amber siedzą w `:root[data-accent=…]` i ustawia je `App`, więc login też je łapie.
+Wszystkie miętowe literały (9× `rgba(57,255,182,…)`, `#39ffb6`, `#0c1a16`, `#10241e`) zamienione
+na `color-mix`/zmienne. Paleta ANSI terminala zostaje normalna — znika tylko neonowy kursor
+(`#39ffb6` → `#dfe4ea`) i ANSI „green” wraca do zwykłego `#3fb950`.
+
+**Znalezione przy okazji (dwa defekty w CSS):** `.edition-chip` miał
+`border: 1px solid var(--grid)`, a zmiennej `--grid` nigdy nie było — obramowanie chipa nie
+istniało; jest `--line-2`. `.notification-error` **nie miał żadnej reguły**, więc błędy w
+panelach były kolorystycznie niewidoczne; jest `.notification-error { color: var(--red) }`.
+
+**Bramki:** oba typechecki, `npm run build`, `npm run test:unit` z nowym plikiem testów.
+Weryfikacja wzrokowa (theme, zakładki, brak pasków) należy do użytkownika.
+
 ## Zgłoszenie użytkownika: fałszywe alerty po starcie, nowe logo, artefakty terminali (2026-09-24, `dev`)
 
 Trzy zgłoszenia z jednej sesji, wszystkie na `dev` (worktree `instances/dev`).

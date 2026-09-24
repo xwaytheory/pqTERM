@@ -48,7 +48,7 @@ export default function LoginScreen({ snap }: { snap: AppSnapshot }) {
 
   return (
     <>
-      <Titlebar center="auth · google / local session" />
+      <Titlebar />
       <div className="login">
         <div className="login-left">
           <img className="brand-logo" src={brandMark} alt="pqTERM" />

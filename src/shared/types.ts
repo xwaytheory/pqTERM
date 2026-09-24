@@ -226,6 +226,74 @@ export const ACTIVITY_LABELS: Record<PaneActivityKind, string> = {
   error: 'błąd sesji'
 }
 
+/**
+ * UI accent. `mono` is the default: pqTERM's own chrome (bars, borders, focus,
+ * badges, buttons) is grayscale, while terminal output keeps normal ANSI colour —
+ * CLI colour is data (diffs, git status, logs), not theme.
+ */
+export type AccentId = 'mono' | 'mint' | 'blue' | 'amber'
+export const ACCENT_IDS: readonly AccentId[] = ['mono', 'mint', 'blue', 'amber']
+
+export type CursorStyleId = 'bar' | 'block' | 'underline'
+export const CURSOR_STYLE_IDS: readonly CursorStyleId[] = ['bar', 'block', 'underline']
+
+/** Terminal font. An id, not a free string: the renderer cannot inject CSS families. */
+export type FontId = 'cascadia' | 'consolas' | 'jetbrains' | 'ibmplex'
+export const FONT_IDS: readonly FontId[] = ['cascadia', 'consolas', 'jetbrains', 'ibmplex']
+export const FONT_STACKS: Record<FontId, string> = {
+  cascadia: 'Cascadia Mono, Cascadia Code, Consolas, monospace',
+  consolas: 'Consolas, Courier New, monospace',
+  jetbrains: 'JetBrains Mono, Cascadia Mono, Consolas, monospace',
+  ibmplex: 'IBM Plex Mono, Cascadia Mono, Consolas, monospace'
+}
+
+/** Whole-app settings, persisted as `state.ui` in pq-state.json. */
+export interface UiSettings {
+  accent: AccentId
+  fontId: FontId
+  /** terminal font size in css px — feeds fit(), so main clamps it too */
+  fontSize: number
+  cursorStyle: CursorStyleId
+  cursorBlink: boolean
+  /** terminal scrollback lines (0 = no scrollback) */
+  scrollback: number
+}
+
+export const DEFAULT_UI: UiSettings = {
+  accent: 'mono',
+  fontId: 'cascadia',
+  fontSize: 13,
+  cursorStyle: 'bar',
+  cursorBlink: true,
+  scrollback: 4000
+}
+
+export const UI_FONT_MIN = 9
+export const UI_FONT_MAX = 20
+export const UI_SCROLLBACK_MAX = 50000
+
+const clampInt = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, Math.round(v)))
+
+/**
+ * One validator for `ui`, used by the IPC handler and by the state loader, so a
+ * hand-edited pq-state.json cannot hand the renderer a font size of 4000 or an
+ * accent that does not exist. Anything invalid falls back to `base`.
+ */
+export function sanitizeUi(patch: Partial<UiSettings> | undefined, base: UiSettings = DEFAULT_UI): UiSettings {
+  const p = (patch && typeof patch === 'object' ? patch : {}) as Partial<UiSettings>
+  const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+  return {
+    accent: ACCENT_IDS.includes(p.accent as AccentId) ? (p.accent as AccentId) : base.accent,
+    fontId: FONT_IDS.includes(p.fontId as FontId) ? (p.fontId as FontId) : base.fontId,
+    cursorStyle: CURSOR_STYLE_IDS.includes(p.cursorStyle as CursorStyleId)
+      ? (p.cursorStyle as CursorStyleId)
+      : base.cursorStyle,
+    cursorBlink: typeof p.cursorBlink === 'boolean' ? p.cursorBlink : base.cursorBlink,
+    fontSize: num(p.fontSize) ? clampInt(p.fontSize, UI_FONT_MIN, UI_FONT_MAX) : base.fontSize,
+    scrollback: num(p.scrollback) ? clampInt(p.scrollback, 0, UI_SCROLLBACK_MAX) : base.scrollback
+  }
+}
+
 export interface AppSnapshot {
   user: UserSession | null
   google: GoogleOAuthConfig
@@ -234,6 +302,7 @@ export interface AppSnapshot {
   providers: ProviderInfo[]
   sidebarOpen: boolean
   notifications: NotificationSettings
+  ui: UiSettings
 }
 
 export const DEFAULT_NOTIFICATIONS: NotificationSettings = {

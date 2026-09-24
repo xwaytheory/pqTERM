@@ -27,11 +27,14 @@ import type {
 import {
   ACTIVITY_LABELS,
   DEFAULT_NOTIFICATIONS,
+  DEFAULT_UI,
   ENGINE_ORDER,
   isRawShell,
   looksLikePathTitle,
   paneCount,
-  type SnapZone
+  sanitizeUi,
+  type SnapZone,
+  type UiSettings
 } from '../shared/types'
 import {
   applyAreasToPanes,
@@ -90,7 +93,8 @@ let state: AppSnapshot = {
   activeWorkspaceId: null,
   providers: [],
   sidebarOpen: true,
-  notifications: { ...DEFAULT_NOTIFICATIONS }
+  notifications: { ...DEFAULT_NOTIFICATIONS },
+  ui: { ...DEFAULT_UI }
 }
 const board = new BoardHub()
 let bridge: PaneBridge
@@ -888,6 +892,14 @@ function registerIpc(): void {
     }
     state.notifications = { enabled: settings.enabled, sound: settings.sound }
     if (!settings.enabled) for (const paneId of paneNotifications.keys()) closePaneNotification(paneId)
+    persist()
+  })
+  // Settings modal (accent, terminal font/cursor/scrollback). Same validator as
+  // the state loader, so a bad renderer can only ever send values we accept.
+  ipcMain.handle('ui:set', (event, patch: Partial<UiSettings>) => {
+    requireRenderer(event)
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Invalid ui settings')
+    state.ui = sanitizeUi(patch, state.ui)
     persist()
   })
 

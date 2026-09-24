@@ -10,10 +10,14 @@
   --text: #d6deea;
   --muted: #7a8494;
   --dim: #4e5868;
-  --green: #39ffb6;
-  --green-dim: #1a6b52;
-  /* pane focus/zoom ring — sits between --green-dim and --green */
-  --focus: #2d8f6c;
+  /* Accent colours pqTERM's OWN chrome (bars, borders, focus, buttons, badges).
+     Set in Settings → wygląd; `mono` is the default. Terminal output keeps a
+     normal ANSI palette — CLI colour is data, see TerminalPane. */
+  --accent: #d5dae2;
+  --accent-dim: #3b424c;
+  --focus: color-mix(in srgb, var(--accent) 45%, var(--bg));
+  /* faint accent wash for active/hover surfaces */
+  --wash: color-mix(in srgb, var(--accent) 10%, var(--bg));
   --blue: #7aa2ff;
   --amber: #f5c542;
   --red: #ff5c7a;
@@ -21,9 +25,20 @@
   --titlebar: 36px;
   --dock: 52px;
   --sidebar: 268px;
-  --status: 26px;
   --mono: 'Cascadia Mono', 'Cascadia Code', 'JetBrains Mono', 'IBM Plex Mono', Consolas, 'Courier New',
     monospace;
+}
+:root[data-accent='mint'] {
+  --accent: #39ffb6;
+  --accent-dim: #1a6b52;
+}
+:root[data-accent='blue'] {
+  --accent: #7aa2ff;
+  --accent-dim: #2f4280;
+}
+:root[data-accent='amber'] {
+  --accent: #f5c542;
+  --accent-dim: #6d5a1c;
 }
 
 * {
@@ -73,9 +88,9 @@ button {
   justify-content: space-between;
   gap: 12px;
   padding: 0 12px;
-  background: #0c1a16;
-  border-bottom: 1px solid var(--green-dim);
-  color: var(--green);
+  background: var(--wash);
+  border-bottom: 1px solid var(--accent-dim);
+  color: var(--accent);
   font-size: 11px;
   letter-spacing: 0.06em;
   -webkit-app-region: drag;
@@ -104,16 +119,16 @@ button {
       transparent 1px,
       transparent 3px
     ),
-    radial-gradient(1200px 600px at 10% -10%, rgba(57, 255, 182, 0.05), transparent 50%),
+    radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 50%),
     var(--bg);
 }
 
 /* titlebar */
 .titlebar {
   height: var(--titlebar);
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   border-bottom: 1px solid var(--line);
   background: #080a0d;
   -webkit-app-region: drag;
@@ -124,7 +139,7 @@ button {
   align-items: center;
   gap: 10px;
   padding-left: 12px;
-  color: var(--green);
+  color: var(--accent);
   font-weight: 600;
   letter-spacing: 0.22em;
   font-size: 11px;
@@ -132,7 +147,7 @@ button {
 }
 .titlebar .edition-chip {
   padding: 1px 8px;
-  border: 1px solid var(--grid);
+  border: 1px solid var(--line-2);
   border-radius: 999px;
   font-size: 10px;
   font-weight: 500;
@@ -146,18 +161,6 @@ button {
   height: 16px;
   width: auto;
   display: block;
-}
-.titlebar .center {
-  color: var(--muted);
-  font-size: 11px;
-  text-align: center;
-}
-.titlebar .center b {
-  color: var(--text);
-  font-weight: 500;
-}
-.titlebar .center .sep {
-  color: var(--dim);
 }
 .titlebar .win {
   display: flex;
@@ -217,7 +220,7 @@ button {
 }
 .dockbtn:hover,
 .dockbtn.on {
-  color: var(--green);
+  color: var(--accent);
   border-color: var(--line-2);
   background: var(--bg-3);
 }
@@ -228,10 +231,10 @@ button {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid var(--green-dim);
+  border: 1px solid var(--accent-dim);
   object-fit: cover;
   background: #122;
-  color: var(--green);
+  color: var(--accent);
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -260,7 +263,7 @@ button {
 .side-head button {
   border: 1px solid var(--line);
   background: var(--bg-3);
-  color: var(--green);
+  color: var(--accent);
   border-radius: 6px;
   padding: 4px 8px;
   letter-spacing: 0.08em;
@@ -276,7 +279,7 @@ button {
   width: calc(100% - 24px);
 }
 .search:focus {
-  border-color: var(--green-dim);
+  border-color: var(--accent-dim);
 }
 .ws-list {
   flex: 1;
@@ -296,10 +299,10 @@ button {
   opacity: 0.45;
 }
 .ws.drop-before {
-  box-shadow: inset 0 2px 0 var(--green);
+  box-shadow: inset 0 2px 0 var(--accent);
 }
 .ws.drop-after {
-  box-shadow: inset 0 -2px 0 var(--green);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 .ws.active {
   background: var(--bg-3);
@@ -354,7 +357,7 @@ button {
   color: var(--text);
 }
 .ws .folder-open:focus-visible {
-  outline: 1px solid var(--green);
+  outline: 1px solid var(--accent);
   outline-offset: 1px;
 }
 .pane-link {
@@ -401,13 +404,7 @@ button {
   color: var(--text);
 }
 .pane-link.zoomed {
-  color: var(--green);
-}
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
+  color: var(--accent);
 }
 .engine-mark {
   display: inline-flex;
@@ -508,7 +505,7 @@ button {
   color: #f5d78a;
 }
 .coord-note.independent {
-  border-color: var(--green-dim);
+  border-color: var(--accent-dim);
 }
 
 .stage {
@@ -543,9 +540,9 @@ button {
 }
 .zoom-strip button.on,
 .zoom-strip button:hover {
-  color: var(--green);
-  border-color: var(--green-dim);
-  background: #0c1a16;
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  background: var(--wash);
 }
 .ghost {
   border: 1px solid var(--line);
@@ -556,9 +553,9 @@ button {
   min-width: 28px;
 }
 .ghost:hover {
-  color: var(--green);
-  border-color: var(--green-dim);
-  background: #0c1a16;
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  background: var(--wash);
 }
 .ws-gear {
   flex-shrink: 0;
@@ -570,7 +567,7 @@ button {
 }
 .ws-gear:hover,
 .iconx.ws-gear:hover {
-  color: var(--green);
+  color: var(--accent);
 }
 .ws .row:hover .ws-gear,
 .ws .row:focus-within .ws-gear,
@@ -608,9 +605,9 @@ button {
   border-radius: 6px;
 }
 .snap-zone {
-  border: 2px dashed #39ffb6;
-  background: rgba(57, 255, 182, 0.12);
-  box-shadow: 0 0 0 1px rgba(57, 255, 182, 0.25) inset;
+  border: 2px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent) inset;
 }
 .snap-zone.zone-full {
   border-color: #f5c542;
@@ -645,7 +642,7 @@ button {
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: rgba(57, 255, 182, 0.9);
+  color: color-mix(in srgb, var(--accent) 90%, transparent);
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
 }
 .snap-zone.zone-full .zone-label {
@@ -660,9 +657,9 @@ button {
   background: rgba(122, 162, 255, 0.08);
 }
 .layout-preview.self {
-  border: 1.5px solid #39ffb6;
-  background: rgba(57, 255, 182, 0.16);
-  box-shadow: 0 0 0 1px rgba(57, 255, 182, 0.2) inset;
+  border: 1.5px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent) inset;
 }
 body.dragging {
   user-select: none;
@@ -681,10 +678,10 @@ body.dragging {
 }
 .pane-resize-handle:hover,
 .pane-resize-handle:focus-visible {
-  background: color-mix(in srgb, var(--green) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 .pane-resize-handle:focus-visible {
-  outline: 1px solid var(--green);
+  outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
 .resize-n, .resize-s { cursor: ns-resize; }
@@ -713,7 +710,7 @@ body.pane-resizing * {
 }
 .pane.focused {
   border-color: var(--focus);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--green) 18%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .pane-head {
   height: 26px;
@@ -774,7 +771,7 @@ body.pane-resizing * {
 }
 .uchip.ok .ubar,
 .uchip.ok .upct {
-  color: var(--green);
+  color: var(--accent);
 }
 .uchip.warm .ubar,
 .uchip.warm .upct {
@@ -789,7 +786,7 @@ body.pane-resizing * {
   min-width: 0;
   height: 18px;
   background: var(--bg);
-  border: 1px solid var(--green-dim);
+  border: 1px solid var(--accent-dim);
   color: var(--text);
   outline: none;
   padding: 0 6px;
@@ -808,7 +805,7 @@ body.pane-resizing * {
   color: var(--red);
 }
 .iconx.zoom:hover {
-  color: var(--green);
+  color: var(--accent);
 }
 .iconx.lock {
   color: var(--amber);
@@ -901,7 +898,7 @@ body.pane-resizing * {
   gap: 6px;
 }
 .eng:hover {
-  border-color: var(--green-dim);
+  border-color: var(--accent-dim);
 }
 .eng:disabled {
   opacity: 0.35;
@@ -949,27 +946,23 @@ body.pane-resizing * {
   border: 1px solid var(--line-2);
   padding: 1px 6px;
   border-radius: 4px;
-  color: var(--green);
+  color: var(--accent);
 }
 
-.status {
-  height: var(--status);
-  border-top: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 12px;
-  color: var(--dim);
+/* The status footer is gone — errors surface on their own, floating over the
+   grid instead of stealing a strip of height from every layout. */
+.pane-alert {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 40;
+  max-width: 60ch;
+  padding: 6px 12px;
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--red) 12%, var(--bg));
+  color: var(--text);
   font-size: 11px;
-  background: #080a0d;
-  flex-shrink: 0;
-}
-.status .ok {
-  color: var(--green);
-}
-.status .hint-keys {
-  margin-left: auto;
-  letter-spacing: 0.04em;
 }
 
 /* login */
@@ -985,13 +978,13 @@ body.pane-resizing * {
   justify-content: center;
   padding: 48px 56px;
   border-right: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(57, 255, 182, 0.04), transparent 40%), var(--bg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent), transparent 40%), var(--bg);
 }
 .brand-logo {
   width: 168px;
   height: auto;
   margin: 0 0 18px;
-  filter: drop-shadow(0 0 18px rgba(57, 255, 182, 0.25));
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 25%, transparent));
 }
 .login-left h1 {
   font-size: 22px;
@@ -1012,7 +1005,7 @@ body.pane-resizing * {
   font-size: 12px;
 }
 .boot .g {
-  color: var(--green);
+  color: var(--accent);
 }
 
 .login-right {
@@ -1091,7 +1084,7 @@ textarea.f {
 }
 input.f:focus,
 textarea.f:focus {
-  border-color: var(--green-dim);
+  border-color: var(--accent-dim);
 }
 .row2 {
   display: flex;
@@ -1101,13 +1094,13 @@ textarea.f:focus {
   width: 100%;
   margin-top: 12px;
   height: 38px;
-  border: 1px solid var(--green-dim);
-  background: #0c1a16;
-  color: var(--green);
+  border: 1px solid var(--accent-dim);
+  background: var(--wash);
+  color: var(--accent);
   border-radius: 8px;
 }
 .primary:hover {
-  background: #10241e;
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg));
 }
 .err {
   color: var(--red);
@@ -1155,6 +1148,61 @@ textarea.f:focus {
   color: var(--muted);
   margin-bottom: 16px;
 }
+/* Settings: one modal, five tabs (wygląd · terminal · powiadomienia · silniki · telefon) */
+.modal.settings {
+  width: min(760px, calc(100vw - 48px));
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 10px 0 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+.tabs button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 4px 10px;
+  letter-spacing: 0.06em;
+}
+.tabs button:hover {
+  color: var(--text);
+  border-color: var(--line-2);
+}
+.tabs button.on {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  background: var(--wash);
+}
+.tab-body {
+  min-height: 260px;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+.stepper span {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  border: 1px solid var(--line-2);
+}
+.swatch.accent-mono { background: #d5dae2; }
+.swatch.accent-mint { background: #39ffb6; }
+.swatch.accent-blue { background: #7aa2ff; }
+.swatch.accent-amber { background: #f5c542; }
 .layouts {
   display: flex;
   gap: 8px;
@@ -1170,8 +1218,8 @@ textarea.f:focus {
   color: var(--muted);
 }
 .layouts button.on {
-  border-color: var(--green-dim);
-  color: var(--green);
+  border-color: var(--accent-dim);
+  color: var(--accent);
 }
 .chips {
   display: flex;
@@ -1189,11 +1237,16 @@ textarea.f:focus {
   color: var(--muted);
 }
 .chip.on {
-  border-color: var(--green-dim);
-  color: var(--green);
+  border-color: var(--accent-dim);
+  color: var(--accent);
 }
 .chip:disabled {
   opacity: 0.35;
+}
+.notification-error {
+  color: var(--red);
+  margin-top: 10px;
+  line-height: 1.5;
 }
 .modal-actions {
   display: flex;
@@ -1228,8 +1281,8 @@ textarea.f:focus {
   color: var(--muted);
 }
 .badge.ok {
-  color: var(--green);
-  border-color: var(--green-dim);
+  color: var(--accent);
+  border-color: var(--accent-dim);
 }
 .badge.warn {
   color: var(--amber);
@@ -1268,17 +1321,17 @@ textarea.f:focus {
   transition: 0.15s;
 }
 .switch.on {
-  border-color: var(--green-dim);
-  background: #0c1a16;
+  border-color: var(--accent-dim);
+  background: var(--wash);
 }
 .switch.on i {
   left: 18px;
-  background: var(--green);
+  background: var(--accent);
 }
 
 /* drag-drop paths onto terminal panes */
 .pane.drop-target {
-  outline: 1px solid var(--green, #39ffb6);
+  outline: 1px solid var(--accent);
   outline-offset: -2px;
 }
 .drop-overlay {
@@ -1288,10 +1341,10 @@ textarea.f:focus {
   display: grid;
   place-items: center;
   background: rgba(7, 8, 10, 0.72);
-  color: var(--green, #39ffb6);
+  color: var(--accent);
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   z-index: 5;
-  border: 1px dashed rgba(57, 255, 182, 0.45);
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
 }

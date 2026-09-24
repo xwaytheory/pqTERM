@@ -12,6 +12,7 @@ import type {
   PanePatch,
   RemoteInfo,
   SnapZone,
+  UiSettings,
   UsageMap,
   UserSession,
   Workspace
@@ -97,6 +98,9 @@ const pq = {
   },
   notifications: {
     set: (settings: NotificationSettings) => invoke('notifications:set', settings) as Promise<void>
+  },
+  ui: {
+    set: (patch: Partial<UiSettings>) => invoke('ui:set', patch) as Promise<void>
   },
   board: {
     get: () => invoke('board:get') as Promise<BoardSnapshot | null>,

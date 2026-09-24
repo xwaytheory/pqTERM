@@ -16,9 +16,7 @@ import Titlebar from '../components/Titlebar'
 import Sidebar from '../components/Sidebar'
 import TerminalPane from '../components/TerminalPane'
 import NewWorkspaceModal from '../components/NewWorkspaceModal'
-import ProvidersModal from '../components/ProvidersModal'
-import NotificationsModal from '../components/NotificationsModal'
-import RemotePanel from '../components/RemotePanel'
+import SettingsModal from '../components/SettingsModal'
 
 interface Hover {
   zone: SnapZone | null
@@ -71,7 +69,7 @@ const FRAME_SNAP_PX = 28
 const NO_HOVER: Hover = { zone: null, zoneStyle: null, paneId: null, haloStyle: null, preview: null }
 
 export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
-  const [modal, setModal] = useState<'new' | 'edit' | 'providers' | 'remote' | 'notifications' | null>(null)
+  const [modal, setModal] = useState<'new' | 'edit' | 'settings' | null>(null)
   const [editWsId, setEditWsId] = useState<string | null>(null)
   const [focus, setFocus] = useState<string | null>(null)
   const [renameNonce, setRenameNonce] = useState(0)
@@ -96,10 +94,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
       if (!snap.workspaces.some((w) => w.id === id)) visitedWorkspaces.current.delete(id)
     }
   }, [ws, snap.workspaces])
-  const detected = snap.providers.filter((p) => p.installed && !isRawShell(p.id)).length
-  const authed = snap.providers.filter((p) => p.detectedAuth && !isRawShell(p.id)).length
   const zoomedId = ws?.zoomedPaneId ?? null
-  const zoomedPane = ws?.panes.find((p) => p.id === zoomedId) ?? null
 
   const gridRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ paneId: string; x: number; y: number; started: boolean } | null>(null)
@@ -115,24 +110,6 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
   const liveRef = useRef({ ws, panes, zoomedId, layoutKey })
   liveRef.current = { ws, panes, zoomedId, layoutKey }
   const draggedTitle = drag ? panes.find((p) => p.id === drag.paneId)?.title ?? '' : ''
-
-  const center = useMemo(() => {
-    if (!ws) return 'no workspace'
-    if (zoomedPane) {
-      return (
-        <>
-          workspace · <b>{ws.title}</b>
-          <span className="sep"> · </span>
-          <b>{zoomedPane.title}</b>
-        </>
-      )
-    }
-    return (
-      <>
-        workspace · <b>{ws.title}</b>
-      </>
-    )
-  }, [ws, zoomedPane])
 
   function requestPaneFocus(workspaceId: string, paneId: string): void {
     setFocus(paneId)
@@ -580,7 +557,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
 
   return (
     <>
-      <Titlebar center={center} />
+      <Titlebar />
       <div className={`deck${zoomedId ? ' zen' : ''}`}>
         <nav className="dock">
           <button
@@ -593,18 +570,17 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           <button className="dockbtn" title="nowy workspace" onClick={() => setModal('new')}>
             +
           </button>
-          {/* grid count lives here too: single click opens the edit modal for the active workspace */}
-          <button className="dockbtn" title="providers" onClick={() => setModal('providers')}>
+          {/* one gear for the whole app: look, terminal, notifications, engines, phone */}
+          <button
+            className="dockbtn"
+            title="ustawienia pqTERM"
+            aria-label="Ustawienia pqTERM"
+            onClick={() => setModal('settings')}
+          >
             ⚙
-          </button>
-          <button className="dockbtn" title="powiadomienia" aria-label="Ustawienia powiadomień" onClick={() => setModal('notifications')}>
-            !
           </button>
           <button className="dockbtn" title="update CLIs — aktualizuje tylko zainstalowane silniki" onClick={() => window.pq.sync.start()}>
             ↻
-          </button>
-          <button className="dockbtn" title="telefon / remote" onClick={() => setModal('remote')}>
-            ◯
           </button>
           <div className="sp" />
           {snap.user?.picture ? (
@@ -707,6 +683,11 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                           focusRequest={active && !modal && (!wZoomed || wZoomed === p.id) && focusRequest?.workspaceId === w.id && focusRequest.paneId === p.id ? focusRequest.nonce : 0}
                           index={i + 1}
                           area={wZoomed === p.id ? FULL : wAreaById.get(p.id)}
+                          fontId={snap.ui.fontId}
+                          fontSize={snap.ui.fontSize}
+                          cursorStyle={snap.ui.cursorStyle}
+                          cursorBlink={snap.ui.cursorBlink}
+                          scrollback={snap.ui.scrollback}
                           onDragStart={beginDrag}
                           onFocus={() => setFocus(p.id)}
                           onZoom={() => toggleZoomFor(w.id, wZoomed, p.id)}
@@ -758,23 +739,13 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           )}
         </main>
       </div>
-      <footer className="status">
-<span className="ok">pqTERM {snap.user?.provider}</span>
-        <span>{snap.user?.email}</span>
-        <span>
-          engines {detected} installed · {authed} auth
-        </span>
-        <span>
-          {ws
-            ? zoomedPane
-              ? `zoom · ${zoomedPane.title}`
-              : `${ws.layout}-grid`
-            : 'idle'}
-        </span>
-        <span className="hint-keys">upuść na okno = zamień · upuść na ramkę = przytnij · ctrl+shift+[b panel / f zoom]</span>
-        {resizeError ? <span role="status">{resizeError}</span> : null}
-        {activityError ? <span role="status">{activityError}</span> : null}
-      </footer>
+      {/* The old status footer is gone; only real trouble surfaces, as a floating
+          line that stays out of the way of the grid. */}
+      {resizeError || activityError ? (
+        <div className="pane-alert" role="status">
+          {resizeError || activityError}
+        </div>
+      ) : null}
       {modal === 'new' ? (
         <NewWorkspaceModal providers={snap.providers} onClose={() => setModal(null)} />
       ) : null}
@@ -788,15 +759,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
           }}
         />
       ) : null}
-      {modal === 'providers' ? (
-        <ProvidersModal
-          providers={snap.providers}
-          email={snap.user?.email}
-          onClose={() => setModal(null)}
-        />
-      ) : null}
-      {modal === 'remote' ? <RemotePanel onClose={() => setModal(null)} /> : null}
-      {modal === 'notifications' ? <NotificationsModal settings={snap.notifications} onClose={() => setModal(null)} /> : null}
+      {modal === 'settings' ? <SettingsModal snap={snap} onClose={() => setModal(null)} /> : null}
     </>
   )
 }

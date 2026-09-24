@@ -2,40 +2,42 @@ import type { ProviderInfo } from '../../../shared/types'
 import { isRawShell } from '../../../shared/types'
 import EngineMark from './EngineMark'
 
-export default function ProvidersModal({
+/**
+ * Engine/auth/model switches. Sits in the Settings modal (tab "silniki"); no
+ * modal chrome of its own.
+ */
+export default function ProvidersPanel({
   providers,
-  email,
-  onClose
+  email
 }: {
   providers: ProviderInfo[]
   email?: string
-  onClose: () => void
 }) {
+  // The status footer used to report these; it is gone, so the counts live where
+  // the engines do.
+  const detected = providers.filter((p) => p.installed && !isRawShell(p.id)).length
+  const authed = providers.filter((p) => p.detectedAuth && !isRawShell(p.id)).length
+
   return (
-    <div className="modal-back" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>PROVIDERS / MODELS</h2>
-        <div className="sub">
-          skan lokalnych CLI i plików auth. konto: <b>{email ?? '—'}</b>. zaznacz, których agentów
-          chcesz widzieć w gridzie.
-        </div>
-        <div className="modal-actions" style={{ marginTop: 0, marginBottom: 12, justifyContent: 'flex-start' }}>
-          <button className="ghost" onClick={() => window.pq.providers.scan()}>
-            re-scan
-          </button>
-        </div>
-        {providers
-          .filter((p) => !isRawShell(p.id))
-          .map((p) => (
-            <ProviderCard key={p.id} p={p} email={email} />
-          ))}
-        <div className="modal-actions">
-          <button className="primary" style={{ width: 'auto', padding: '0 18px', marginTop: 0 }} onClick={onClose}>
-            done
-          </button>
-        </div>
+    <>
+      <div className="sub">
+        skan lokalnych CLI i plików auth. konto: <b>{email ?? '—'}</b>. zaznacz, których agentów
+        chcesz widzieć w gridzie.
       </div>
-    </div>
+      <div className="hint">
+        engines {detected} installed · {authed} auth
+      </div>
+      <div className="modal-actions" style={{ marginTop: 0, marginBottom: 12, justifyContent: 'flex-start' }}>
+        <button className="ghost" onClick={() => void window.pq.providers.scan()}>
+          re-scan
+        </button>
+      </div>
+      {providers
+        .filter((p) => !isRawShell(p.id))
+        .map((p) => (
+          <ProviderCard key={p.id} p={p} email={email} />
+        ))}
+    </>
   )
 }
 
@@ -46,7 +48,7 @@ function ProviderCard({ p, email }: { p: ProviderInfo; email?: string }) {
       <div className="prov-top">
         <button
           className={p.enabled ? 'switch on' : 'switch'}
-          onClick={() => window.pq.providers.setEnabled(p.id, !p.enabled)}
+          onClick={() => void window.pq.providers.setEnabled(p.id, !p.enabled)}
           aria-label="toggle"
         >
           <i />
@@ -69,7 +71,7 @@ function ProviderCard({ p, email }: { p: ProviderInfo; email?: string }) {
               <input
                 type="checkbox"
                 checked={m.enabled}
-                onChange={() => window.pq.providers.setModel(p.id, m.id, !m.enabled)}
+                onChange={() => void window.pq.providers.setModel(p.id, m.id, !m.enabled)}
               />
               {m.name}
             </label>

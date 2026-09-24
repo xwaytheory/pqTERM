@@ -3,7 +3,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, 
 import { homedir } from 'os'
 import { dirname, join } from 'path'
 import type { AppSnapshot, PaneState, ProviderInfo, Workspace } from '../shared/types'
-import { DEFAULT_NOTIFICATIONS, looksLikePathTitle } from '../shared/types'
+import { DEFAULT_NOTIFICATIONS, DEFAULT_UI, looksLikePathTitle, sanitizeUi } from '../shared/types'
 import { defaultProvider, ENGINE_SPECS } from './engines'
 import { runningDev } from './env'
 
@@ -49,7 +49,8 @@ function empty(): AppSnapshot {
     activeWorkspaceId: null,
     providers: ENGINE_SPECS.map((s) => defaultProvider(s)),
     sidebarOpen: true,
-    notifications: { ...DEFAULT_NOTIFICATIONS }
+    notifications: { ...DEFAULT_NOTIFICATIONS },
+    ui: { ...DEFAULT_UI }
   }
 }
 
@@ -104,6 +105,7 @@ export function loadState(): AppSnapshot {
         sound: typeof parsed.notifications?.sound === 'boolean'
           ? parsed.notifications.sound : DEFAULT_NOTIFICATIONS.sound
       },
+      ui: sanitizeUi(parsed.ui, DEFAULT_UI),
       providers: mergeProviders(parsed.providers),
       workspaces
     }

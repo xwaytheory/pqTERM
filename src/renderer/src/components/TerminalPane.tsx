@@ -5,11 +5,14 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import {
   ACTIVITY_LABELS,
   clipTitle,
+  FONT_STACKS,
   isDefaultPaneTitle,
   isRawShell,
   parseGridIntent,
+  type CursorStyleId,
   type EngineId,
   type EngineUsage,
+  type FontId,
   type PaneArea,
   type PaneActivity,
   type PaneState,
@@ -70,6 +73,11 @@ function TerminalPane({
   focusRequest,
   index,
   area,
+  fontId,
+  fontSize,
+  cursorStyle,
+  cursorBlink,
+  scrollback,
   onFocus,
   onZoom,
   onDragStart
@@ -86,6 +94,11 @@ function TerminalPane({
   focusRequest: number
   index: number
   area?: PaneArea
+  fontId: FontId
+  fontSize: number
+  cursorStyle: CursorStyleId
+  cursorBlink: boolean
+  scrollback: number
   onFocus: () => void
   onZoom: () => void
   onDragStart?: (paneId: string, e: PointerEvent<HTMLElement>) => void
@@ -135,20 +148,22 @@ function TerminalPane({
     }
 
     const term = new Terminal({
-      cursorBlink: true,
-      cursorStyle: 'bar',
-      fontFamily: 'Cascadia Mono, Cascadia Code, Consolas, monospace',
-      fontSize: 13,
+      cursorBlink,
+      cursorStyle,
+      fontFamily: FONT_STACKS[fontId],
+      fontSize,
       lineHeight: 1.2,
       theme: {
         background: '#0b0d10',
         foreground: '#d6deea',
-        cursor: '#39ffb6',
+        // Chrome is grayscale (Settings → wygląd); the ANSI palette stays a
+        // normal one so CLI colour keeps meaning (diffs, git status, logs).
+        cursor: '#dfe4ea',
         cursorAccent: '#07080a',
-        selectionBackground: '#214283',
+        selectionBackground: '#2b3138',
         black: '#0b0d10',
         red: '#ff5c7a',
-        green: '#39ffb6',
+        green: '#3fb950',
         yellow: '#f5c542',
         blue: '#7aa2ff',
         magenta: '#c084fc',
@@ -156,7 +171,7 @@ function TerminalPane({
         white: '#d6deea',
         brightBlack: '#4e5868',
         brightRed: '#ff8aa0',
-        brightGreen: '#7dffd2',
+        brightGreen: '#56d364',
         brightYellow: '#ffe08a',
         brightBlue: '#a8c4ff',
         brightMagenta: '#ddb4ff',
@@ -164,7 +179,7 @@ function TerminalPane({
         brightWhite: '#ffffff'
       },
       allowProposedApi: true,
-      scrollback: 4000,
+      scrollback,
       // Sessions run through node-pty with useConpty:true — tell xterm so its
       // ConPTY heuristics apply (wrapped-line detection, scrollback-on-grow).
       // Without this, TUI redraws leave glued/duplicated line fragments
@@ -409,6 +424,36 @@ if (pane.engine && !isRawShell(pane.engine)) {
       /* ignore */
     }
   }, [zoomed, focused, pane.id])
+
+  // Look settings apply live: cursor options are plain option writes.
+  useEffect(() => {
+    const term = termRef.current
+    if (!term) return
+    term.options.cursorBlink = cursorBlink
+    term.options.cursorStyle = cursorStyle
+    term.options.scrollback = scrollback
+  }, [cursorBlink, cursorStyle, scrollback])
+
+  // A font change moves the cell size, so the fit (and with it the PTY size) must
+  // be recomputed — on the next frame, once xterm has re-measured the cell.
+  useEffect(() => {
+    const term = termRef.current
+    if (!term) return
+    term.options.fontFamily = FONT_STACKS[fontId]
+    term.options.fontSize = fontSize
+    const frame = requestAnimationFrame(() => {
+      const hostEl = host.current
+      if (!hostEl || !termRef.current) return
+      try {
+        if (paneUnderMin(hostEl.clientWidth, hostEl.clientHeight)) return
+        fitRef.current?.fit()
+        if (spawned.current) sendResize(termRef.current.cols, termRef.current.rows)
+      } catch {
+        /* ignore */
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [fontId, fontSize])
 
   useEffect(() => {
     if (!focusRequest || appliedFocusRequest.current === focusRequest) return
@@ -826,5 +871,10 @@ export default memo(TerminalPane, (a, b) =>
   a.activity === b.activity &&
   a.focusRequest === b.focusRequest &&
   a.index === b.index &&
-  a.area === b.area
+  a.area === b.area &&
+  a.fontId === b.fontId &&
+  a.fontSize === b.fontSize &&
+  a.cursorStyle === b.cursorStyle &&
+  a.cursorBlink === b.cursorBlink &&
+  a.scrollback === b.scrollback
 )

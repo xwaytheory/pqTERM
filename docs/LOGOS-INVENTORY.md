@@ -86,13 +86,13 @@ All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehu
 
 ## Letter-mark chip plan
 
-**Status:** letter-mark chips wired in Sidebar / TerminalPane / ProvidersModal / NewWorkspaceModal.
+**Status:** letter-mark chips wired in Sidebar / TerminalPane / ProvidersPanel (Settings tab „silniki”) / NewWorkspaceModal.
 Collision disambiguation (two-letter): `Cl` Claude, `Cx` Codex, `Cr` Crush, `Co` Copilot, `Gr` Grok, `Ge` Gemini, `Om` Omp, `Oc` OpenCode.
 Optional `EngineSpec.logo` / `icon` still unused (no per-engine SVG yet — abstract monograms only).
 
 ## Letter-mark chip plan (detail)
 
-1. UI chips (Sidebar / TerminalPane / ProvidersModal) keep color dots as fallback.
+1. UI chips (Sidebar / TerminalPane / ProvidersPanel) keep color dots as fallback.
 2. When `EngineSpec.logo` (or `icon`) is set → render a 16×16 / 20×20 letter-mark or SVG tinted by `color`.
 3. Prefer **abstract monograms** (first letter) over vendor wordmarks (trademark risk).
 4. Optional later: `resources/engines/<id>.svg` monochrome marks.
