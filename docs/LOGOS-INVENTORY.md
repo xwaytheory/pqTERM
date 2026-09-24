@@ -25,7 +25,7 @@ fields were added to `EngineSpec` for future letter-mark chips; no per-engine SV
 
 `scripts/brand-import.py <master>` (Python + Pillow, run by hand — Pillow is not a
 project dependency) crops the mark by content brightness, centres it on a square
-black tile where the mark fills 60% (`PAD = 0.20`, the one knob: raise it for a
+black tile where the mark fills 30% (`PAD = 0.35`, the one knob: raise it for a
 smaller mark, lower it for a bigger one — the tile itself is never scaled, only
 the mark inside it) and writes every asset above: taskbar/exe `.ico`, favicon pair,
 Tauri icon set, and the transparent in-app mark (alpha from luminance). Ship a new

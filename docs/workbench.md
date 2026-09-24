@@ -1,5 +1,18 @@
 # pq workbench (gauntlet live board)
 
+## Ikony: marka o połowę mniejsza (2026-09-24, szósta runda, `dev`)
+
+**Zgłoszenie:** zmniejszyć logo na ikonach co najmniej o 50%.
+
+**Fix:** `PAD = 0.20` → `0.35`, więc marka jest dokładnie o połowę mniejsza:
+30% szerokości i 24% wysokości kafelka zamiast 60% i 48%. Regeneracja
+`python scripts/brand-import.py` odświeżyła 11 wyprowadzonych PNG/ICO; ICO nadal
+zawiera 7 rozmiarów (16/24/32/48/64/128/256).
+
+**Bramki:** pomiar zasady 30/24 na PNG 256/512, favicon 32 i ikonach Tauri;
+`npm run test:unit` 130/130 (oba typechecki), `npm run check:version` i
+`npm run build` — wszystkie zielone.
+
 ## Ikony: logo mniejsze, wokół oddech (2026-09-24, piąta runda, `dev`)
 
 **Zgłoszenie:** podmiana ikon na logo pqTERM jest OK, ale logo jest „zmaksymalizowane” — ma

@@ -22,10 +22,10 @@ MASTER = ROOT / "resources" / "brand" / "pq-master.jpg"
 # the empty banner around the glyphs.
 BRIGHT = 50
 MIN_RUN = 4
-# Breathing room on every icon: the mark fills 1 - 2*PAD of the tile (60% here),
+# Breathing room on every icon: the mark fills 1 - 2*PAD of the tile (30% here),
 # so the taskbar/exe icon reads as a discreet logo, not a full-bleed tile. One
 # knob — raise it for a smaller mark, lower it for a bigger one.
-PAD = 0.20
+PAD = 0.35
 
 
 def content_box(img: Image.Image) -> tuple[int, int, int, int]:
