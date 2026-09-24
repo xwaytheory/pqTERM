@@ -176,6 +176,10 @@ const ptys = new PtyManager(() => mainWindow, {
     }
   },
   onStart: (paneId) => activity.start(paneId),
+  // Type into a pane and the silence heuristic is armed for it; a pane nobody
+  // has asked anything never escalates to "waiting for you" (that was the
+  // false alert on freshly spawned, still-empty CLIs).
+  onInput: (paneId) => activity.input(paneId),
   onOutput: (paneId, data) => {
     activity.output(paneId, data)
     board.onOutput(paneId, data)

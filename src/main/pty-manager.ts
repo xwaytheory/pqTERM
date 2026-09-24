@@ -104,6 +104,8 @@ export class PtyManager {
       onTitle?: (paneId: string, title: string) => void
       /** CLI asked for a desktop notification via OSC 9 / OSC 777. */
       onNotice?: (paneId: string, notice: OscNotice) => void
+      /** Data written to the pane (keystroke / paste / drop / bridge command). */
+      onInput?: (paneId: string) => void
     }
   ) {}
 
@@ -239,6 +241,7 @@ export class PtyManager {
     if (!s?.alive || exitedInternally(s.proc)) return
     try {
       s.proc.write(data)
+      if (data) this.hooks?.onInput?.(paneId)
     } catch {
       s.alive = false
     }

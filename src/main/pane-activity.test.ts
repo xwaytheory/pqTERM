@@ -61,6 +61,7 @@ test('silence after work escalates to waiting and alerts exactly once per stretc
   const alerts: string[] = []
   const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
   tracker.start('p')
+  tracker.input('p')
   tracker.output('p', 'working…')
   now = 30_000
   tracker.tick()
@@ -86,6 +87,30 @@ test('silence after work escalates to waiting and alerts exactly once per stretc
   tracker.tick()
   assert.equal(tracker.get().p.kind, 'waiting')
   assert.deepEqual(alerts, ['waiting', 'waiting']) // new stretch, new alert
+})
+
+test('a fresh pane nobody asked anything stays quiet — silence alone never alerts', () => {
+  let now = 0
+  const alerts: string[] = []
+  const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
+  tracker.start('fresh')
+  // the CLI prints its banner/TUI and then sits at an empty prompt
+  tracker.output('fresh', 'freebuff v1 — start coding for free\r\n')
+  now = 30_000
+  tracker.tick()
+  assert.equal(tracker.get().fresh.kind, 'quiet')
+  now = 60_000
+  tracker.tick()
+  now = 3_600_000
+  tracker.tick()
+  assert.equal(tracker.get().fresh.kind, 'quiet')
+  assert.deepEqual(alerts, [])
+  // once the user types into it, silence after that question does mean waiting
+  tracker.input('fresh')
+  now += 60_000
+  tracker.tick()
+  assert.equal(tracker.get().fresh.kind, 'waiting')
+  assert.deepEqual(alerts, ['waiting'])
 })
 
 test('control string BEL bytes do not alert before a fragmented ST terminator', () => {

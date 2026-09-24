@@ -60,8 +60,9 @@ export default function NotificationsModal({
         <div className="sub" id="notifications-description">
           Alert systemowy dla terminala poza fokusem: sygnał BEL oznacza prośbę CLI o uwagę,
           a zakończenie procesu informuje o wyjściu z sesji. Kliknięcie alertu otwiera właściwy terminal.
-          Cisza w wyjściu CLI nie oznacza ukończenia zadania. Statusy w pqTERM pozostają widoczne
-          także po wyłączeniu alertów.
+          Cisza w wyjściu CLI nie oznacza ukończenia zadania. Alert „czeka na Ciebie” dostajesz
+          tylko z okna, do którego coś wpisałeś — świeże, nietknięte okno nigdy nie alarmuje.
+          Statusy w pqTERM pozostają widoczne także po wyłączeniu alertów.
         </div>
         <label className="check">
           <input type="checkbox" checked={draft.enabled} disabled={saving}
