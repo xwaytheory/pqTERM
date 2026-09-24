@@ -42,8 +42,9 @@ i pokazuje błąd jako istniejący pływający `.pane-alert`.
 się do niej i cała siatka dalej pokrywa ramkę bez nakładania. **Dowód mutacyjny:** wymuszenie
 `largestCellIndex() → 0` daje FAIL tego testu (`22 pass / 1 fail`); po przywróceniu 23/23.
 
-**Bramki:** `npm run typecheck` (oba projekty), `npm run test:unit` (**130/130**) i `npm run build`
-na `dev`; po `merge --ff-only dev` na `test` — te same bramki. Weryfikacja wizualna („+” dodaje
+**Bramki:** `npm run typecheck` (oba projekty), `npm run test:unit` (**130/130**, 9 suit) i
+`npm run build` na `dev`; po `merge --ff-only dev` na `test` ponownie `npm run test:unit`
+(**130/130**), `npm run typecheck` i `npm run check:version` — zielone. Weryfikacja wizualna („+” dodaje
 pusty pane z SPAWN ENGINE, „×” zwija siatkę z 3 do 2) należy do użytkownika.
 
 ## Paski znikają, Settings z zakładkami, theme na szarość (2026-09-24, trzecia runda, `dev`)
