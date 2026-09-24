@@ -24,7 +24,6 @@ import type {
 import {
   ENGINE_ORDER,
   isRawShell,
-  looksLikePathTitle,
   paneCount,
   type SnapZone
 } from '../shared/types'
@@ -47,7 +46,7 @@ import { PaneBridge } from './bridge'
 import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag } from './resume'
 import { shutdownVoiceHost } from './voice-host'
-import { isCliBrandOnly, stripCliPrefix } from './osc-title'
+import { adoptAutoTitle, updatePaneTitle } from './pane-title'
 import { queryActiveOpenCodeTitle } from './opencode-title'
 
 app.setName('pqTERM')
@@ -273,7 +272,7 @@ async function fillPanes(engineRaw: string, prompt: string, skipSlot: number): P
       return touchWorkspace({
         ...w,
         panes: w.panes.map((p) =>
-          ids.has(p.id) ? { ...p, engine, title: spec.name, titleLocked: false } : p
+          ids.has(p.id) ? { ...p, engine, title: p.titleLocked ? p.title : spec.name } : p
         )
       })
     })
@@ -323,7 +322,7 @@ bridge = new PaneBridge({
       return touchWorkspace({
         ...w,
         panes: w.panes.map((p) =>
-          p.id === pane.id ? { ...p, engine, title: spec.name, titleLocked: false } : p
+          p.id === pane.id ? { ...p, engine, title: p.titleLocked ? p.title : spec.name } : p
         )
       })
     })
@@ -513,24 +512,16 @@ function applyAutoTitle(paneId: string, title: string): void {
   let changed = false
   state.workspaces = state.workspaces.map((w) => {
     if (!w.panes.some((p) => p.id === paneId)) return w
-    return touchWorkspace({
-      ...w,
-      panes: w.panes.map((p) => {
-        if (p.id !== paneId || p.titleLocked || !p.engine) return p
-        const spec = specById(p.engine)
-        const cli = { id: spec.id, name: spec.name, mark: spec.mark }
-        const t = stripCliPrefix(title, cli).trim()
-        if (isCliBrandOnly(title, cli)) {
-          if (p.title === spec.name) return p
-          changed = true
-          return { ...p, title: spec.name }
-        }
-        if (!t || looksLikePathTitle(t)) return p
-        if (t === p.title) return p
-        changed = true
-        return { ...p, title: t }
-      })
+    const panes = w.panes.map((p) => {
+      if (p.id !== paneId) return p
+      if (!p.engine) return p
+      const spec = specById(p.engine)
+      const next = adoptAutoTitle(p, title, { id: spec.id, name: spec.name, mark: spec.mark }, spec.name)
+      if (next === p) return p
+      changed = true
+      return next
     })
+    return changed ? touchWorkspace({ ...w, panes }) : w
   })
   if (!changed) return
   pendingTitlePanes.add(paneId)
@@ -833,22 +824,10 @@ function registerIpc(): void {
         ...w,
         panes: w.panes.map((p) => {
           if (p.id !== paneId) return p
-          const engine = patch.engine !== undefined ? patch.engine : p.engine
-          const titleLocked = patch.titleLocked !== undefined ? patch.titleLocked : p.titleLocked
-          let title = p.title
-          if (patch.title !== undefined) {
-            title = patch.title
-          } else if (patch.engine !== undefined && !p.titleLocked) {
-            title = engine ? specById(engine).name : 'idle'
-          }
-          if (patch.title !== undefined) board.paneTitle(paneId, title)
-          return {
-            ...p,
-            engine,
-            model: patch.model !== undefined ? patch.model : p.model,
-            title,
-            titleLocked
-          }
+          const engine = patch.engine ?? p.engine
+          const next = updatePaneTitle(p, patch, engine ? specById(engine).name : 'idle')
+          if (patch.title !== undefined && next.title !== p.title) board.paneTitle(paneId, next.title)
+          return next
         })
       })
     })
@@ -988,12 +967,10 @@ function registerIpc(): void {
           ...w,
           panes: w.panes.map((p) => {
             if (p.id !== input.paneId) return p
-            const keep =
-              p.titleLocked && p.title.trim() && !looksLikePathTitle(p.title) ? p.title : spec.name
             return {
               ...p,
               engine: input.engine,
-              title: keep,
+              title: p.titleLocked ? p.title : spec.name,
               model,
               sessionHandle: resumeHandle
             }

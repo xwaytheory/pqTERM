@@ -36,8 +36,8 @@ Nie usuwaj / nie łam src/, package.json, host/ — Phase 1 ich nie zastępuje.
 3. Sklonuj repo:
 
 ```bat
-git clone https://github.com/xwaytheory/pq.git
-cd pq
+git clone https://github.com/xwaytheory/pqTERM.git
+cd pqTERM
 npm install
 npm run rebuild
 npm run dev

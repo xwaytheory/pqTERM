@@ -390,11 +390,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
       if (allIdle) {
         await window.pq.panes.fill({ engine: p.id })
       } else {
-        await window.pq.workspaces.setPane(workspaceId, pane.id, {
-          engine: p.id,
-          title: p.name,
-          titleLocked: false
-        })
+        await window.pq.workspaces.setPane(workspaceId, pane.id, { engine: p.id })
       }
     })
   }
