@@ -47,8 +47,10 @@ na `color-mix`/zmienne. Paleta ANSI terminala zostaje normalna — znika tylko n
 istniało; jest `--line-2`. `.notification-error` **nie miał żadnej reguły**, więc błędy w
 panelach były kolorystycznie niewidoczne; jest `.notification-error { color: var(--red) }`.
 
-**Bramki:** oba typechecki, `npm run build`, `npm run test:unit` z nowym plikiem testów.
-Weryfikacja wzrokowa (theme, zakładki, brak pasków) należy do użytkownika.
+**Bramki:** na `dev` oba typechecki + `npm run build` + `npm run test:unit` z nowym plikiem
+testów; po `merge --ff-only dev` na `test` ponownie `npm run test:unit` (129/129, 9 suit),
+`npm run typecheck` i `npm run check:version` — zielone. Weryfikacja wzrokowa (theme, zakładki,
+brak pasków) należy do użytkownika.
 
 ## Zgłoszenie użytkownika: fałszywe alerty po starcie, nowe logo, artefakty terminali (2026-09-24, `dev`)
 
