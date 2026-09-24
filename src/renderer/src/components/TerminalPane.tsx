@@ -102,6 +102,10 @@ function TerminalPane({
   // on a clean slate (same trick Windows Terminal does internally).
   const pendingClearRef = useRef(false)
   const lastSentSizeRef = useRef<{ c: number; r: number }>({ c: 0, r: 0 })
+  // Pane is laid out below the geometry floor: the terminal keeps its last good
+  // size, so what you would see is a bigger frame clipped by the pane border —
+  // it reads as corruption. Blank it and say why instead.
+  const [tooSmall, setTooSmall] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [dropStatus, setDropStatus] = useState<string | null>(null)
   const [installing, setInstalling] = useState<Set<string>>(new Set())
@@ -266,6 +270,15 @@ if (pane.engine && !isRawShell(pane.engine)) {
       }
     })
 
+    // A window that comes back from minimize gets no resize callback, and xterm
+    // only repaints when something asked for a refresh while it was paused — so
+    // ask, explicitly. This repaints xterm's own buffer: no reflow, no PTY hop.
+    const onVisibility = () => {
+      const term = termRef.current
+      if (document.visibilityState === 'visible' && term) term.refresh(0, term.rows - 1)
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
     let resizeTimer: ReturnType<typeof setTimeout> | undefined
     const ro = new ResizeObserver(() => {
       try {
@@ -275,12 +288,18 @@ if (pane.engine && !isRawShell(pane.engine)) {
         // A pane smaller than MIN_PANE_* must not drive the PTY: ConPTY reflows
         // to a ~2-column terminal and the TUI comes back as one letter per
         // line. Keep the last good fit; refit when the pane grows again.
-        if (paneUnderMin(host.current.clientWidth, host.current.clientHeight)) return
+        const small = paneUnderMin(host.current.clientWidth, host.current.clientHeight)
+        setTooSmall(small)
+        if (small) return
         fit.fit()
-        if (!spawned.current) return        clearTimeout(resizeTimer)
-          resizeTimer = setTimeout(() => {
-            sendResize(term.cols, term.rows)
-          }, 50)
+        if (!spawned.current) return
+        // Coalesce a burst of layout callbacks (window drag, pane-edge drag,
+        // maximize) into ONE resize to the PTY 50 ms after the layout settles.
+        // Every resize makes ConPTY repaint the whole viewport, and a repaint
+        // racing xterm's own reflow is what smears old frames across the pane -
+        // so fewer, later resizes beat a resize per frame.
+        clearTimeout(resizeTimer)
+        resizeTimer = setTimeout(() => sendResize(term.cols, term.rows), 50)
       } catch {
         /* ignore */
       }
@@ -337,13 +356,22 @@ if (pane.engine && !isRawShell(pane.engine)) {
           } catch {
             /* ignore */
           }
-          sendResize(term.cols, term.rows)
         } catch {
           term.write(res.replay)
         }
       } else if (res.replay) {
         term.write(res.replay)
       }
+      // Align the PTY with the fitted view on EVERY attach, replay or not. The
+      // PTY is not necessarily where we asked it to be: boot spawns the active
+      // workspace at 80x24 (restoreSession) and spawn() then hands back that
+      // live session instead of starting one at our size. An empty replay (the
+      // CLI had not printed yet - the usual race) used to skip the only resize
+      // on this path, so the TUI kept drawing for 80 columns inside a wider
+      // xterm until some later window/pane/zoom event "fixed" it - that jump
+      // plus the stale-width frame is what looks like artifacts. Deduped by
+      // sendResize: nothing is sent when the PTY already sits at this size.
+      sendResize(term.cols, term.rows)
       for (const c of stream.pending) {
         if (!c.s || c.s > stream.dropUntil) term.write(c.d)
       }
@@ -358,6 +386,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
       offData()
       offExit()
       ro.disconnect()
+      document.removeEventListener('visibilitychange', onVisibility)
       clearTimeout(resizeTimer)
       term.dispose()
       termRef.current = null
@@ -698,7 +727,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
       {pane.engine ? (
         <>
           <div
-            className="xterm-host"
+            className={`xterm-host${tooSmall ? ' too-small' : ''}`}
             ref={host}
             onContextMenu={(e) => {
               // Windows-Terminal behavior: selection present → copy it,
@@ -710,6 +739,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
               })
             }}
           />
+          {tooSmall ? <div className="pane-min-hint">okno za małe dla terminala — powiększ</div> : null}
           {dropStatus ? <div className="drop-overlay drop-status">{dropStatus}</div> : null}
           {dragOver ? <div className="drop-overlay">upuść ścieżki</div> : null}
         </>

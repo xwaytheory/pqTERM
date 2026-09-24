@@ -833,6 +833,22 @@ body.pane-resizing * {
 .xterm-host .xterm-viewport {
   height: 100%;
 }
+/* Below the pane floor the terminal keeps its last good size; showing that
+   clipped frame reads as corruption, so hide it behind the hint. */
+.xterm-host.too-small .xterm {
+  visibility: hidden;
+}
+.pane-min-hint {
+  position: absolute;
+  inset: 26px 0 0;
+  display: grid;
+  place-items: center;
+  padding: 0 8px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--dim);
+  pointer-events: none;
+}
 .picker {
   flex: 1;
   min-height: 0;
