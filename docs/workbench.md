@@ -115,6 +115,18 @@ panel ma wyglądać jak `cmd.exe` przy dowolnym z tych zdarzeń.
 **Otwarte (ten sam defekt, inna powierzchnia):** nadal brak `resize` w ścieżce
 `src/phone` (osobny wpis niżej, bez zmian).
 
+### Bramki i dostawa (2026-09-24)
+
+- `dev`: `npm run test:unit` **126 PASS** (w tym nowy test alertów; oba typechecki),
+  `npm run check:version` OK (product 1.3.7; 2 locki, cargo), `npm run build` PASS.
+- `test`: to samo na zmergowanym `dev` — **126 PASS**, check:version OK, build PASS.
+- Commity na `dev` (fast-forward na `test`): `e5aa05b` (alerty), `f9be7cd`
+  (geometria terminali), `10a4b9f` (logo/ikony), `8ae140f` + ten wpis (board).
+  `dev` = `test`; `main` celowo nietknięty (promocja do oficjalnej to decyzja człowieka).
+- Weryfikacja wzrokowa przez `2 - pqTERM DEV` / `START-dev.cmd`: start, max/min/przywróć,
+  zoom, przeciągnięcie krawędzi pane, przełączenie workspace'u + brak toasta
+  „czeka na Ciebie” dla nietkniętych okien. To jedyny krok, którego bramki nie łapią.
+
 ## Release 1.3.7 — update CLIs (2026-09-23)
 
 - Produkt 1.3.6 → 1.3.7. Jedyna zmiana względem 1.3.6: `803958b` — przycisk ↻
