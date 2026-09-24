@@ -8,6 +8,11 @@ const stable = dirname(commonDir)
 const devRoot = join(stable, 'instances', 'dev')
 const testRoot = join(stable, 'instances', 'test')
 const exe = join(stable, 'host', 'pqterm.exe')
+// Icon straight from the brand file, not from the exe: host\pqterm.exe is a
+// build artifact that is regularly locked by a running instance, and shortcuts
+// exported an Electron atom every time the stamp was skipped. Same .ico the
+// stamp puts into the binary.
+const brandIco = join(stable, 'resources', 'brand', 'pq.ico')
 const devCmd = join(devRoot, 'START-dev.cmd')
 const testCmd = join(testRoot, 'START-dev.cmd')
 const desktop = spawnSync('powershell.exe', ['-NoProfile', '-Command', "[Environment]::GetFolderPath('Desktop')"], { encoding: 'utf8' }).stdout.trim()
@@ -25,41 +30,42 @@ $devRoot = ${JSON.stringify(devRoot)}
 $testRoot = ${JSON.stringify(testRoot)}
 $devCmd = ${JSON.stringify(devCmd)}
 $testCmd = ${JSON.stringify(testCmd)}
+$icon = ${JSON.stringify(existsSync(brandIco) ? brandIco : exe + ',0')}
 $w = New-Object -ComObject WScript.Shell
 
-foreach ($name in @('pq-prod.lnk', 'pq-dev.lnk', 'pqTERM-pr.lnk', 'pqTERM-dev.lnk')) {
+foreach ($name in @('pq-prod.lnk', 'pq-dev.lnk', 'pqTERM-pr.lnk', 'pqTERM-dev.lnk', '1 - pqTERM Oficjalna.lnk', '1 - pqTERM Oficialna (START-pr).lnk', '2 - pqTERM DEV.lnk', '3 - pqTERM TEST.lnk')) {
   $old = Join-Path $desktop $name
   if (Test-Path $old) { Remove-Item $old -Force }
 }
 
-$prod = Join-Path $desktop '1 - pqTERM Oficjalna.lnk'
+$prod = Join-Path $desktop '1 - pqTERM pr.lnk'
 $s = $w.CreateShortcut($prod)
 $s.TargetPath = $exe
 $s.Arguments = '"' + $stable + '"'
 $s.WorkingDirectory = $stable
 $s.WindowStyle = 1
-$s.Description = 'pqTERM Oficjalna'
-$s.IconLocation = $exe + ',0'
+$s.Description = 'pqTERM pr — oficjalna (profil pqTERM-pr)'
+$s.IconLocation = $icon
 $s.Save()
 
-$dev = Join-Path $desktop '2 - pqTERM DEV.lnk'
+$dev = Join-Path $desktop '2 - pqTERM dev.lnk'
 $d = $w.CreateShortcut($dev)
 $d.TargetPath = $devCmd
 $d.Arguments = ''
 $d.WorkingDirectory = $devRoot
 $d.WindowStyle = 1
-$d.Description = 'pqTERM DEV'
-$d.IconLocation = $exe + ',0'
+$d.Description = 'pqTERM dev (profil pqTERM-dev)'
+$d.IconLocation = $icon
 $d.Save()
 
-$test = Join-Path $desktop '3 - pqTERM TEST.lnk'
+$test = Join-Path $desktop '3 - pqTERM test.lnk'
 $t = $w.CreateShortcut($test)
 $t.TargetPath = $testCmd
 $t.Arguments = ''
 $t.WorkingDirectory = $testRoot
 $t.WindowStyle = 1
-$t.Description = 'pqTERM TEST'
-$t.IconLocation = $exe + ',0'
+$t.Description = 'pqTERM test (worktree test)'
+$t.IconLocation = $icon
 $t.Save()
 
 Write-Host '[pqTERM] shortcuts ready'

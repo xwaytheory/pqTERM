@@ -130,7 +130,7 @@ pq/
 | `npm run start` | Alias: `npm run preview` |
 | `npm run rebuild` | `electron-builder install-app-deps` + `stamp-host` |
 | `npm run stamp` | Tylko stamp-host (skopiuj electron → host/) |
-| `npm run shortcuts` | Utwórz skróty na pulpicie (pqTERM-dev.lnk, pqTERM-pr.lnk) |
+| `npm run shortcuts` | Utwórz skróty na pulpicie: `1 - pqTERM pr.lnk`, `2 - pqTERM dev.lnk`, `3 - pqTERM test.lnk` (ikona z `resources/brand/pq.ico`) |
 | `npm run dist` | Installery NSIS+MSI → `release/` (nadpisuje target; `build.win.target` zostaje `dir` dla stamp-host) |
 | `npm run test:unit` | Testy jednostkowe (m.in. `quotePath` / DnD) |
 | `npm postinstall` | Automatycznie po `npm install`: `rebuild` + `build` (tworzy `out/`) |
