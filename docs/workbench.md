@@ -123,9 +123,43 @@ panel ma wyglądać jak `cmd.exe` przy dowolnym z tych zdarzeń.
 - Commity na `dev` (fast-forward na `test`): `e5aa05b` (alerty), `f9be7cd`
   (geometria terminali), `10a4b9f` (logo/ikony), `8ae140f` + ten wpis (board).
   `dev` = `test`; `main` celowo nietknięty (promocja do oficjalnej to decyzja człowieka).
-- Weryfikacja wzrokowa przez `2 - pqTERM DEV` / `START-dev.cmd`: start, max/min/przywróć,
+- Weryfikacja wzrokowa przez `2 - pqTERM dev` / `START-dev.cmd`: start, max/min/przywróć,
   zoom, przeciągnięcie krawędzi pane, przełączenie workspace'u + brak toasta
   „czeka na Ciebie” dla nietkniętych okien. To jedyny krok, którego bramki nie łapią.
+
+### Skróty na pulpicie: dopiski pr/dev/test + nowa ikona (2026-09-24, druga runda)
+
+**Zgłoszenie:** na pulpicie cztery ikony z atomem Electrona; „te ikony też zmienią logo?
+zrób tym ikonom dopiski pr, dev, test”.
+
+**Root cause atomu:** `make-shortcuts.cjs` ustawiał `IconLocation = host\pqterm.exe,0`,
+którzy ten exe nigdy nie miał ikony (`stamp-host.cjs` ustawiał tylko wersje), więc
+Explorer pokazywał ikonę Electrona. Fix: `IconLocation` wskazuje wprost
+`<stable>\resources\brand\pq.ico` — ikona skrótu nie zależy już od tego, czy stamp się
+udał, a to istotne, bo `host\pqterm.exe` jest regularnie zablokowany przez działającą
+instancję (`EBUSY`, ten sam problem co przy 1.3.5). `stamp-host.cjs --set-icon` z
+poprzedniego commita stempluje ikonę także w sam binarny.
+
+**Nazwy:** `1 - pqTERM pr`, `2 - pqTERM dev`, `3 - pqTERM test` (numeracja zostaje —
+kolejność na pulpicie); stare `Oficjalna` / `DEV` / `TEST` oraz duplikat
+`Oficjalna (START-pr)` są kasowane przy każdym uruchomieniu skryptu.
+
+**Znalezione przy weryfikacji, nie w kodzie (dwa defekty):**
+1. Skrypt wstawiał ścieżki do PowerShella przez `JSON.stringify`, co dawało
+   `C:\\Users\\...` — PowerShell nie escapuje backslashy, więc każdy `.lnk` niósł
+   podwojone separatory (Windows to toleruje, dlatego nikt tego nie widział).
+   Teraz literały w apostrofach (`psQuote`).
+2. Wpis czyszczący legacy miał literówkę `Oficialna` (zamiast `Oficjalna`), przez co
+   duplikat „Oficjalna (START-pr)” przeżywał czyszczenie. Poprawione.
+
+**Dowód:** odczyt `.lnk` przez `WScript.Shell` po uruchomieniu skryptu — trzy skróty,
+`target` z pojedynczymi separatorami, `icon=C:\Users\pq\pqTERM\resources\brand\pq.ico,0`,
+`Test-Path` tej ikony `True`. Skrypt odpalony na `main` po promocji.
+
+**Otwarte (wymaga zamknięcia aplikacji):** `host\pqterm.exe` w stable **nie** został
+przestemplowany — `rcedit` zwraca EBUSY, bo działa instancja pqTERM. Sama ikona pliku
+`.exe` w Explorerze zostanie stara do `npm run stamp` po zamknięciu pqTERM; ikona okna,
+paska zadań i skrótów jest już nowa (pochodzi z `pq.ico`).
 
 ## Release 1.3.7 — update CLIs (2026-09-23)
 
