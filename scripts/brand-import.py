@@ -22,7 +22,10 @@ MASTER = ROOT / "resources" / "brand" / "pq-master.jpg"
 # the empty banner around the glyphs.
 BRIGHT = 50
 MIN_RUN = 4
-PAD = 0.06
+# Breathing room on every icon: the mark fills 1 - 2*PAD of the tile (60% here),
+# so the taskbar/exe icon reads as a discreet logo, not a full-bleed tile. One
+# knob — raise it for a smaller mark, lower it for a bigger one.
+PAD = 0.20
 
 
 def content_box(img: Image.Image) -> tuple[int, int, int, int]:
@@ -44,15 +47,20 @@ def content_box(img: Image.Image) -> tuple[int, int, int, int]:
 
 
 def square_tile(img: Image.Image, size: int) -> Image.Image:
-    """Mark centred on a square black tile — the app/executable icon."""
+    """Mark centred on a square black tile — the app/executable icon.
+
+    The tile stays `side` square and only the mark scales down to `inner`, so
+    PAD is real padding. (Scaling the tile itself left the mark edge-to-edge.)
+    """
     x0, y0, x1, y1 = content_box(img)
     mark = img.crop((x0, y0, x1, y1))
     side = max(mark.size)
     canvas = Image.new("RGB", (side, side), (0, 0, 0))
     canvas.paste(mark, ((side - mark.width) // 2, (side - mark.height) // 2))
-    inner = int(side * (1 - 2 * PAD))
-    tile = Image.new("RGB", (inner, inner), (0, 0, 0))
-    tile.paste(canvas.resize((inner, inner), Image.LANCZOS), (0, 0))
+    inner = max(1, int(side * (1 - 2 * PAD)))
+    tile = Image.new("RGB", (side, side), (0, 0, 0))
+    offset = (side - inner) // 2
+    tile.paste(canvas.resize((inner, inner), Image.LANCZOS), (offset, offset))
     return tile.resize((size, size), Image.LANCZOS)
 
 

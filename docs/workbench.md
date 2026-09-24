@@ -1,5 +1,34 @@
 # pq workbench (gauntlet live board)
 
+## Ikony: logo mniejsze, wokół oddech (2026-09-24, piąta runda, `dev`)
+
+**Zgłoszenie:** podmiana ikon na logo pqTERM jest OK, ale logo jest „zmaksymalizowane” — ma
+być dyskretniejsze: mniejsze, z dużą ilością czerni/przestrzeni wokół.
+
+**Root cause (błąd w pipeline, nie gust):** `square_tile()` w `scripts/brand-import.py`
+skalowało **kafelek**, a nie markę: `inner = side * (1 - 2*PAD)`, potem tworzyło `tile`
+rozmiaru `inner`, wklejało przeskalowany canvas i dopiero to rozciągało do `size`. Czyli
+`PAD` nie dodawało ani piksela marginesu — tylko skalowało obraz w dół i z powrotem (strata
+jakości), a marka dotykała krawędzi. Pomiar `pq-256.png` przed zmianą: **content 100%
+szerokości**. Zamierzone 6% marginesu nigdy nie istniało.
+
+**Fix:** kafelek zostaje `side × side`, a do `inner` skaluje się wyłącznie marka
+(`tile.paste(canvas.resize((inner, inner)), offset)`), przy `PAD = 0.20` → marka zajmuje
+**60% szerokości i 48% wysokości** kafelka. Pomiar po regeneracji: `pq-256.png`, `pq-512.png`,
+`favicon.png` (32), `src-tauri/icons/icon.png` (512) i `128x128@2x.png` — wszystkie 60/48
+(favicon 62/50 przez zaokrąglenie). Tło zostaje czarne: master to JPEG na czerni, alfa
+wymagałaby un-premultiply, a marka in-app (`brand-mark.png`) i tak jest przezroczysta —
+„czerń albo przeźroczystość” ze zgłoszenia to wybór, nie kompromis.
+
+**Regeneracja:** `python scripts/brand-import.py` → 11 plików: `pq-256/512.png`, `pq.ico`,
+`favicon.png/.ico`, 5× `src-tauri/icons/*`. `.ico` dalej zawiera 7 rozmiarów (16–256).
+`docs/LOGOS-INVENTORY.md` opisuje teraz realne 60% i jeden knob `PAD`.
+
+**Bramki:** `npm run test:unit` (130/130, typecheck w prekroku) na `dev` i po ff na `test`.
+Poza repo: ikona samego `host\pqterm.exe` (stamp) i istniejące `.lnk` na pulpicie sięgają
+`resources/brand/pq.ico` wprost, więc nową kafelkę widać od razu po odświeżeniu ikon;
+sam `pqterm.exe` wymaga `npm run stamp` przy zamkniętym pqTERM (EBUSY — nadal otwarte).
+
 ## Plus w ostatniej kratce, krzyżyk naprawdę zamyka okno (2026-09-24, czwarta runda, `dev`)
 
 **Zgłoszenie:** (1) w ostatnim okienku CLI w gridzie ma być „+” — dodaje kolejne okno, ale
