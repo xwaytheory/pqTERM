@@ -1,5 +1,120 @@
 # pq workbench (gauntlet live board)
 
+## Zgłoszenie użytkownika: fałszywe alerty po starcie, nowe logo, artefakty terminali (2026-09-24, `dev`)
+
+Trzy zgłoszenia z jednej sesji, wszystkie na `dev` (worktree `instances/dev`).
+
+### 1. „CLI zgłasza, że wymaga uwagi” zaraz po uruchomieniu
+
+**Symptom:** po starcie pqTERM (i po doładowaniu workspace'ów) pane dostają toast
+„czeka na Ciebie”, choć zostały tylko uruchomione, są puste i nikt w nich nic nie
+napisał; w rzeczywistości nie wymagają uwagi.
+
+**Root cause (konkretne linie, przed zmianą):** `src/main/pane-activity.ts` —
+`tick()` liczył próg 60 s ciszy od `e.lastOutputAt`, a `start(paneId)` ustawia je na
+moment spawnu. Pane, do którego **nikt nigdy nic nie wpisał**, i tak przechodziło
+running → quiet (30 s) → waiting + alert (60 s). Heurystyka z `b2a1095` nie miała
+żadnego warunku „czy to okno w ogóle o coś pytano”, więc każde świeże CLI (TUI
+milczy po narysowaniu pierwszej klatki) kwalifikowało się do alertu po minucie.
+
+**Fix:** bramka interakcji, jedno miejsce na całą ścieżkę wejścia:
+1. `Entry.asked` (false w `fresh()`), nowa metoda `PaneActivityTracker.input(paneId)`
+   — zeruje stretch ciszy (`lastOutputAt = now`, `waitingAnnounced = false`).
+2. `tick()` eskaluje do `waiting` **tylko** gdy `e.asked`. Quiet (status bez alertu)
+   bez zmian.
+3. Jedno wąskie gardło wejścia: `PtyManager.write()` → nowy hook `onInput` →
+   `activity.input(paneId)` w `src/main/index.ts`. Tędy idą klawiatura, paste,
+   DnD, `term.write` z bridge’a i prompty z `panes.fill` — więc reguła jest jedna,
+   a nie sześć.
+4. Copy w `NotificationsModal` mówi wprost: alert „czeka na Ciebie” tylko z okna,
+   do którego coś wpisałeś; świeże, nietknięte okno nigdy nie alarmuje.
+
+**Dowód (mutacja):** nowy test „a fresh pane nobody asked anything stays quiet —
+silence alone never alerts” (`pane-activity.test.ts`). Usunięcie bramki `e.asked`
+z `tick()` → **FAIL** (`'waiting' !== 'quiet'`, dokładnie zgłoszony objaw);
+z bramką → PASS. Stary test „silence after work escalates…” dostał
+`tracker.input('p')` — cisza po Twoim pytaniu to nadal waiting (celowo).
+
+**Residual (świadomy, nie ukryty):** cisza po Twoim pytaniu jest heurystyką —
+długo milcząca komenda bez wyjścia (np. `npm run build`) może zaalarmować.
+Alternatywa (wyłączenie heurystyki ciszy w całości, tylko BEL/OSC 9/777/exit)
+została podana użytkownikowi do wyboru i nie została wybrana.
+
+### 2. Logo: `pqTERM logo.jpg` → ikony i chrome aplikacji
+
+- Master trafił do repo: `resources/brand/pq-master.jpg` (2670×1780, marka
+  wyśrodkowana na czarnym banerze) + generator `scripts/brand-import.py`
+  (Python/Pillow, świadomie offline — nie jest zależnością projektu). Jeden master
+  i jedna recepta, żeby ikona w exe, favicon i marka w UI nie mogły się rozjechać.
+- Regenerowane (auto-crop po treści z progiem jasności, kwadratowa kafelka, 6% marginesu):
+  `resources/brand/pq-256.png` + `pq-512.png` + `pq.ico` (16/24/32/48/64/128/256),
+  `src/renderer/favicon.png` + `.ico`, `src-tauri/icons/{32x32,128x128,128x128@2x,icon}.png`
+  + `icon.ico`.
+- Nowa marka in-app: `src/renderer/src/assets/brand-mark.png` (glify na przezroczystym,
+  un-premultiply alfy z luminancji) → `<img>` w `Titlebar` (zamiast 9 kropkowego
+  `grid-mark` w CSS) i w `LoginScreen` (zamiast ASCII „pq”). Martwy CSS usunięty.
+- `scripts/stamp-host.cjs` dostaje `--set-icon resources/brand/pq.ico` — skróty
+  na pulpicie mają `IconLocation = host\pqterm.exe`, więc bez ikony w samym binarnym
+  Explorer/pasek zadań pokazywałby ikonę Electrona. `package.json` wyklucza master
+  z paczki (`!resources/brand/pq-master.jpg`).
+- `resources/brand/pq.svg` zostaje jako legacy (nigdzie nie jest renderowany) —
+  opisane w `docs/LOGOS-INVENTORY.md`, żeby nie wyglądał na aktualną markę.
+
+### 3. Terminale „rozjeżdżają się” przy każdej zmianie geometrii
+
+**Repro od użytkownika (wszystkie zaznaczone):** zaraz po starcie, przy zmianie
+rozmiaru okna (max/min/przywróć), przy przeciąganiu krawędzi pane, przy przełączaniu
+workspace'ów, przy zoomie. To wykluczyło wariant „małe pane gęstej siatki”
+(floor 20×8 z `6fcec31` był już naprawiony) i wskazało na ścieżkę attach/resize.
+
+**Root cause A — PTY nigdy nie dostał rozmiaru widoku, gdy replay był pusty**
+(`TerminalPane.start()`): po `spawn()` rozmiar PTY jest zapisywany do dedupe
+(`lastSentSizeRef`) z raportu maina, ale jedyne `sendResize` na tej ścieżce
+siedziało **w gałęzi replay** `if (res.replay && …)`. Boot spawnuje aktywny
+workspace na sztywno **80×24** (`restoreSession`), a `term:spawn` dla żywej sesji
+zwraca `existed: true` i tylko oddaje bufor — więc gdy CLI nie zdążyło nic
+wypisać (zwykły wyścig, attach jest szybszy niż pierwsza klatka TUI), `replay`
+był pusty i **żaden resize nie leciał**: TUI rysowało dla 80 kolumn w szerszym
+xtermie, aż do pierwszego zdarzenia okna/pane/zoom, które „naprawiało” rozmiar.
+Ten skok + klatka w starej szerokości = obraz z zgłoszenia.
+
+**Fix A:** `sendResize(term.cols, term.rows)` wykonuje się teraz na **każdym**
+attachu, po obsłudze replay (dedupe sprawia, że gdy PTY stoi w tym rozmiarze,
+nic nie idzie).
+
+**Root cause B — martwy `clearTimeout`:** linia 280 miała
+`if (!spawned.current) return        clearTimeout(resizeTimer)` — `clearTimeout`
+był po `return`, czyli nieosiągalny, a intencja (coalescing resize'ów do PTY na
+50 ms) nie działała. **Fix B:** rozdzielone instrukcje = debounce działa jak
+w założeniu: burza callbacków ResizeObserver (drag okna, drag krawędzi pane,
+maximize) daje **jeden** resize 50 ms po ustaniu layoutu. Każdy resize wymusza
+pełny repaint ConPTY, a repaint ścigający się z reflow xterm to właśnie rozmazane
+stare klatki — mniej, późniejszych resize'ów zamiast jednego na klatkę.
+
+**Root cause C — pane poniżej flooru pokazywał obcięty stary frame:** guard
+`paneUnderMin` zatrzymuje *produkcję* śmieci (PTY nie schodzi do 2 kolumn), ale
+canvas terminala zostawał w poprzednim rozmiarze i po obcięciu przez
+`.pane { overflow: hidden }` wyglądał jak korupcja (m.in. zrzut użytkownika
+z cienkim pasem). **Fix C:** stan `tooSmall` z ResizeObservera → klasa
+`.xterm-host.too-small` chowa `.xterm` (`visibility: hidden`, więc rozmiar boxu
+nie zmienia się i RO nie wpada w pętlę) + hint „okno za małe dla terminala —
+powiększ”; po powiększeniu RO przywraca fit i PTY sam dostraja rozmiar.
+
+**Hardening D — minimize/przywróć:** xterm nie słucha `visibilitychange`
+(0 wystąpień w `xterm.js`), a jego `RenderService` repaintuje po powrocie tylko
+gdy coś zgłosiło refresh w trakcie pauzy. Na `visibilitychange` w TerminalPane
+leci `term.refresh(0, rows-1)` — pełny repaint z własnego bufora xterm, bez
+reflow i bez wycieczki do PTY.
+
+**Czego nie dało się dowieść bez GUI:** A i B są dowiedzione z kodu (B wprost —
+nieosiągalna instrukcja), C z mechaniki CSS/ConPTY, D z braku `visibilitychange`
+w xterm. Weryfikacja wzrokowa po `2 - pqTERM DEV` (albo `npm run dev`): start,
+max/min/przywróć, przeciągnięcie krawędzi pane, zoom, przełączenie workspace'u —
+panel ma wyglądać jak `cmd.exe` przy dowolnym z tych zdarzeń.
+
+**Otwarte (ten sam defekt, inna powierzchnia):** nadal brak `resize` w ścieżce
+`src/phone` (osobny wpis niżej, bez zmian).
+
 ## Release 1.3.7 — update CLIs (2026-09-23)
 
 - Produkt 1.3.6 → 1.3.7. Jedyna zmiana względem 1.3.6: `803958b` — przycisk ↻
