@@ -600,11 +600,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
       // pane launches on the next click, once the scan actually detects the CLI
       return
     }
-    await window.pq.workspaces.setPane(workspaceId, pane.id, {
-      engine,
-      title: p?.name ?? engine,
-      titleLocked: false
-    })
+    await window.pq.workspaces.setPane(workspaceId, pane.id, { engine })
   }
 
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { isHttpUrl } from './httpUrl.ts'
 
 test('isHttpUrl allows http(s) and rejects about/file/junk', () => {
-  assert.equal(isHttpUrl('https://github.com/xwaytheory/pq'), true)
+  assert.equal(isHttpUrl('https://github.com/xwaytheory/pqTERM'), true)
   assert.equal(isHttpUrl('http://example.com/a'), true)
   assert.equal(isHttpUrl('about:blank'), false)
   assert.equal(isHttpUrl('about:'), false)

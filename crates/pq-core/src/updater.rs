@@ -107,7 +107,7 @@ impl Default for CheckOnLaunchPlan {
     fn default() -> Self {
         Self {
             // Placeholder; real Releases URL decided when first Rust channel ships.
-            manifest_url: "https://github.com/xwaytheory/pq/releases/latest/download/pq-update-manifest.json"
+            manifest_url: "https://github.com/xwaytheory/pqTERM/releases/latest/download/pq-update-manifest.json"
                 .into(),
             current_version: crate::version::WORKSPACE_VERSION.into(),
             check_enabled: true,
