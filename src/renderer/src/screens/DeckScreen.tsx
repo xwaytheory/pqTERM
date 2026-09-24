@@ -54,17 +54,6 @@ const ZONE_LABEL: Record<SnapZone | 'none', string> = {
   none: ''
 }
 
-/**
- * The visually last slot (bottom edge first, then right edge) — that pane owns the
- * "add pane" button. Slot index would do for untouched grids, but a snapped pane
- * keeps its array index while taking another rectangle, so read the geometry.
- */
-function lastPaneId(areas: { id: string; area: PaneArea }[]): string | undefined {
-  return [...areas].sort(
-    (a, b) => b.area.y + b.area.h - (a.area.y + a.area.h) || b.area.x - a.area.x
-  )[0]?.id
-}
-
 function rectStyle(r: PaneArea, rect: DOMRect) {
   return {
     left: rect.left + r.x * rect.width,
@@ -698,7 +687,6 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                 const preview = active && resizePreview?.workspaceId === w.id && resizePreview.layoutKey === layoutKey ? resizePreview : null
                 const wAreas = preview?.areas ?? resolveAreas(w.panes)
                 const wAreaById = new Map(wAreas.map((a) => [a.id, a.area]))
-                const wLastPaneId = lastPaneId(wAreas)
                 return (
                   <div key={w.id} className={`ws-grid${active ? ' active' : ''}`}>
                     <div ref={active ? gridRef : undefined} className={`grid${wZoomed ? ' zoomed' : ''}${preview ? ' resizing' : ''}`}>
@@ -722,7 +710,6 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                           cursorStyle={snap.ui.cursorStyle}
                           cursorBlink={snap.ui.cursorBlink}
                           scrollback={snap.ui.scrollback}
-                          isLast={p.id === wLastPaneId}
                           onAdd={() => addPane(w.id)}
                           onClose={() => closePane(w.id, p.id)}
                           onDragStart={beginDrag}

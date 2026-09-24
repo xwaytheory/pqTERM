@@ -30,9 +30,11 @@ wcale — nowe pane powstawało tylko przez liczbę okien w edytorze workspace (
   tracker czyści stan bez alertu — ta sama droga co przed zmianą (wpis z 2026-09-17 niżej
   opisuje `term:clearPane`, który przestał istnieć).
 
-**Renderer:** w nagłówku pane jest „+” (`isLast`, kolor akcentu na hover) i zawsze obecny „×”.
-`isLast` liczy `DeckScreen.lastPaneId()` po geometrii (dolna krawędź, potem prawa), bo po snapie
-pane trzyma swój indeks w tablicy, a inną kratkę — indeks tablicy nie wystarcza. `×` w sidebarze
+**Renderer:** w nagłówku **każdego** pane jest „+” (kolor akcentu na hover) i zawsze obecny „×”.
+Pierwsze podejście dawało „+” tylko prawemu dolnemu okienku (liczonemu po geometrii, bo po snapie
+pane trzyma swój indeks w tablicy, a inną kratkę) — użytkownik chciał go mieć przy każdym oknie,
+co usunęło pomocnik `lastPaneId()` i prop `isLast` (mniej kodu, żadnej geometrii w tym miejscu).
+`×` w sidebarze
 jest teraz widoczny także dla panes bez silnika (pusty slot też da się posprzątać). Zamknięcie
 sprząta fokus po stronie renderera (`liveRef`, bo memoizowany pane może trzymać starszy handler)
 i pokazuje błąd jako istniejący pływający `.pane-alert`.

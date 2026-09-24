@@ -211,7 +211,7 @@ Stan logowania + konfiguracja Google zapisane w `%AppData%\pq*\pq-state.json`.
 
 Pane może być **zoomed** (rozciągnięty na całą siatkę, reszta w tle).
 
-Liczba okien nie jest przywiązana do tabelki: **`+`** w ostatnim (prawym dolnym) okienku dokłada
+Liczba okien nie jest przywiązana do tabelki: **`+`** w nagłówku każdego okienka dokłada
 kolejne — puste, od razu z SPAWN ENGINE — rozpoławiając największą kratkę bez ruszania reszty.
 **`×`** zamyka okno na prawdę: sesja CLI kończy się, kratka znika, `layout` maleje i pozostałe
 okna dostają nowe rozmiary. Ostatniego okna nie da się usunąć — zostaje jako puste (idle).

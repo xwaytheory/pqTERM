@@ -78,7 +78,6 @@ function TerminalPane({
   cursorStyle,
   cursorBlink,
   scrollback,
-  isLast,
   onAdd,
   onClose,
   onFocus,
@@ -102,8 +101,6 @@ function TerminalPane({
   cursorStyle: CursorStyleId
   cursorBlink: boolean
   scrollback: number
-  /** bottom-right slot of the grid — the one that carries the "add pane" button */
-  isLast: boolean
   onAdd: () => void
   onClose: () => void
   onFocus: () => void
@@ -763,19 +760,17 @@ if (pane.engine && !isRawShell(pane.engine)) {
         >
           {zoomed ? '⊟' : '⛶'}
         </button>
-        {isLast ? (
-          <button
-            className="iconx add"
-            title="dodaj okno CLI — otworzy się puste, z wyborem silnika"
-            aria-label="dodaj okno CLI"
-            onClick={(e) => {
-              e.stopPropagation()
-              onAdd()
-            }}
-          >
-            +
-          </button>
-        ) : null}
+        <button
+          className="iconx add"
+          title="dodaj okno CLI — otworzy się puste, z wyborem silnika"
+          aria-label="dodaj okno CLI"
+          onClick={(e) => {
+            e.stopPropagation()
+            onAdd()
+          }}
+        >
+          +
+        </button>
         <button
           className="iconx"
           title={
@@ -899,6 +894,5 @@ export default memo(TerminalPane, (a, b) =>
   a.fontSize === b.fontSize &&
   a.cursorStyle === b.cursorStyle &&
   a.cursorBlink === b.cursorBlink &&
-  a.scrollback === b.scrollback &&
-  a.isLast === b.isLast
+  a.scrollback === b.scrollback
 )
