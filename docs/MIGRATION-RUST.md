@@ -154,13 +154,13 @@ Example manifest:
   "assets": [
     {
       "platform": "windows-x64",
-      "url": "https://github.com/xwaytheory/pq/releases/download/v1.2.0/pq-work-windows-x64.exe",
+      "url": "https://github.com/xwaytheory/pqTERM/releases/download/v1.2.0/pq-work-windows-x64.exe",
       "sha256": "...",
       "size": 12345678
     },
     {
       "platform": "windows-x64-voice",
-      "url": "https://github.com/xwaytheory/pq/releases/download/v1.2.0/pq-voice-windows-x64.exe",
+      "url": "https://github.com/xwaytheory/pqTERM/releases/download/v1.2.0/pq-voice-windows-x64.exe",
       "sha256": "...",
       "size": 23456789
     }
