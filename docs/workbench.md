@@ -1,5 +1,38 @@
 # pq workbench (gauntlet live board)
 
+## Cisza nigdy nie dzwoni: waiting bez toastu (2026-09-25, `main`)
+
+**Zgłoszenie (zrzut, 6 paneli):** „nadal bezpodstawnie schodzą powiadomienia z okien CLI,
+które w ogóle nic nie robią, a jedynie się załadowały” — toast „czeka na Ciebie” zaraz po
+startcie panelu wypełnionego promptem.
+
+**Root cause:** bramka z `e5aa05b` (alert tylko z okna, do którego coś wpisano) była
+za wąska: `fillPanes()` pisze prompt do PTY przez `ptys.write()` → `onInput` →
+`activity.input()` → `asked = true`. Panel wypełniony promptem jest więc formalnie
+„w rozmowie”, a CLI po pracy milczy → 60 s ciszy → toast. Heurystyka ciszy nie umie
+odróżnić „skończył, czeka na input” od „załadował się i stoi” — bo obie sytuacje wyglądają
+tak samo: brak wyjścia.
+
+**Fix (jedna zasada): cisza nigdy nie wytwarza alertu systemowego.** `tick()` w
+`src/main/pane-activity.ts` eskaluje badge running → quiet → waiting nadal (status w
+sidebarze/pasku pane), ale bez `onAlert` i bez `unread`. Usunięta też bramka `asked`
+(`Entry.asked`, `input()` zostaje jako reset stretchu) — bez alertu w `tick()` nie ma
+czego bramkować. Alerty systemowe zostają wyłącznie dla wyraźnych zdarzeń: BEL,
+OSC 9/777 (`notice`), wyjście procesu (`exit`).
+
+**Copy:** `NotificationsPanel` — „Cisza w wyjściu CLI nigdy nie oznacza ukończenia zadania
+i nie uruchamia alertu… Powiadomienia systemowe przychodzą wyłącznie z wyraźnych zdarzeń:
+BEL, OSC 9/777, wyjście procesu.”
+
+**Testy:** `pane-activity.test.ts` — „silence after work…” i „a fresh pane…” przepisane:
+badge eskaluje do `waiting`, `alerts` zostaje puste w każdym stretchu (z inputem i bez).
+Bramki: `npm run test:unit` **134 PASS** (9 suit) + oba typechecki + `npm run build`;
+w zbudowanym `out/main/index.js` `tick()` nie zawiera `onAlert`.
+
+**Trade-off (świadomy):** CLI, które nie dzwoni BEL-em i nie wysyła OSC 9/777, nie da już
+toastu po skończeniu pracy — tylko badge „czeka na Ciebie”. To świadomie oddane: fałszywe
+alarmy z 6 paneli naraz były gorsze niż brak toastu. CLI z BEL/OSC działają jak dotąd.
+
 ## Ikony: przezroczyste tło i świeży cache (2026-09-24, siódma runda, `dev`)
 
 **Korekta po zgłoszeniu:** marka była wprawdę o połowę mniejsza, ale czarne kafelki i

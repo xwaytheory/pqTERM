@@ -28,9 +28,10 @@ export default function NotificationsPanel({ settings }: { settings: Notificatio
       <div className="sub">
         Alert systemowy dla terminala poza fokusem: sygnał BEL oznacza prośbę CLI o uwagę,
         a zakończenie procesu informuje o wyjściu z sesji. Kliknięcie alertu otwiera właściwy
-        terminal. Cisza w wyjściu CLI nie oznacza ukończenia zadania. Alert „czeka na Ciebie”
-        dostajesz tylko z okna, do którego coś wpisałeś — świeże, nietknięte okno nigdy nie
-        alarmuje. Statusy w pqTERM pozostają widoczne także po wyłączeniu alertów.
+        terminal. Cisza w wyjściu CLI nigdy nie oznacza ukończenia zadania i nie uruchamia
+        alertu — status „czeka na Ciebie” w pasku pane jest tylko informacją, bez toastu.
+        Powiadomienia systemowe przychodzą wyłącznie z wyraźnych zdarzeń: BEL, OSC 9/777,
+        wyjście procesu. Statusy w pqTERM pozostają widoczne także po wyłączeniu alertów.
       </div>
       <label className="check">
         <input type="checkbox" checked={settings.enabled} disabled={busy}
