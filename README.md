@@ -2,7 +2,7 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–9 żywych TUI po prawej.
 
-**Wersja: 1.3.7** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.3.8** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
 
 Na razie **prywatne**. Publicznie wyjdzie dopiero gdy zdecydujesz.
 
