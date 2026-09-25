@@ -56,12 +56,11 @@ test('silence is not completion and resumed output restores activity', () => {
   assert.deepEqual(alerts, ['error'])
 })
 
-test('silence after work escalates to waiting and alerts exactly once per stretch', () => {
+test('silence after work escalates the badge to waiting, never alerts, once per stretch', () => {
   let now = 0
   const alerts: string[] = []
   const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
   tracker.start('p')
-  tracker.input('p')
   tracker.output('p', 'working…')
   now = 30_000
   tracker.tick()
@@ -70,23 +69,23 @@ test('silence after work escalates to waiting and alerts exactly once per stretc
   now = 59_999
   tracker.tick()
   assert.deepEqual(alerts, [])
+  assert.equal(tracker.get().p.kind, 'quiet')
   now = 60_000
   tracker.tick()
   assert.equal(tracker.get().p.kind, 'waiting')
-  assert.deepEqual(alerts, ['waiting'])
+  assert.deepEqual(alerts, []) // silence never alerts
   now = 300_000
   tracker.tick()
-  assert.deepEqual(alerts, ['waiting']) // once per stretch, not per tick
+  assert.deepEqual(alerts, []) // once per stretch
   tracker.output('p', 'more work')
   assert.equal(tracker.get().p.kind, 'running')
   now = 350_000
   tracker.tick()
   assert.equal(tracker.get().p.kind, 'quiet')
-  assert.deepEqual(alerts, ['waiting'])
   now = 360_000
   tracker.tick()
-  assert.equal(tracker.get().p.kind, 'waiting')
-  assert.deepEqual(alerts, ['waiting', 'waiting']) // new stretch, new alert
+  assert.equal(tracker.get().p.kind, 'waiting') // new stretch, still no alert
+  assert.deepEqual(alerts, [])
 })
 
 test('a fresh pane nobody asked anything stays quiet — silence alone never alerts', () => {
@@ -103,14 +102,14 @@ test('a fresh pane nobody asked anything stays quiet — silence alone never ale
   tracker.tick()
   now = 3_600_000
   tracker.tick()
-  assert.equal(tracker.get().fresh.kind, 'quiet')
-  assert.deepEqual(alerts, [])
-  // once the user types into it, silence after that question does mean waiting
+  assert.equal(tracker.get().fresh.kind, 'waiting') // badge escalates…
+  assert.deepEqual(alerts, []) // …but silence never alerts, asked or not
+  // typed input arms nothing alert-worthy either: silence stays silent
   tracker.input('fresh')
   now += 60_000
   tracker.tick()
   assert.equal(tracker.get().fresh.kind, 'waiting')
-  assert.deepEqual(alerts, ['waiting'])
+  assert.deepEqual(alerts, [])
 })
 
 test('control string BEL bytes do not alert before a fragmented ST terminator', () => {

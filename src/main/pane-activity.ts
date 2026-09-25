@@ -13,14 +13,8 @@ interface Entry {
   lastOutputAt: number
   lastBellAt: number
   lastSemantic: PaneActivityKind | null
-  /** Set once per silence stretch: one 'waiting' alert per stretch, not per tick. */
+  /** Set once per silence stretch: one 'waiting' escalation per stretch, not per tick. */
   waitingAnnounced: boolean
-  /**
-   * Someone actually asked this pane for something (typed/pasted/queued input).
-   * Silence only means "waiting for you" once you are in a conversation with it —
-   * a freshly spawned CLI nobody has touched is idle, not waiting.
-   */
-  asked: boolean
 }
 
 
@@ -55,8 +49,7 @@ export class PaneActivityTracker {
       lastOutputAt: at,
       lastBellAt: -Infinity,
       lastSemantic: null,
-      waitingAnnounced: false,
-      asked: false
+      waitingAnnounced: false
     }
   }
 
@@ -150,23 +143,22 @@ export class PaneActivityTracker {
 
   /**
    * Input was written to the pane's PTY (keystroke, paste, drop, bridge/board
-   * command): the silence heuristic is armed from here, because now there is a
-   * question that output can answer.
+   * command). Kept for API completeness and tests: silence after input still
+   * escalates the badge, but never alerts (see `tick`).
    */
   input(paneId: string): void {
     const e = this.entries.get(paneId)
     if (!e || e.ended) return
-    e.asked = true
     e.lastOutputAt = this.now()
     e.waitingAnnounced = false
   }
 
   /**
-   * Silence after activity: 'quiet' at IDLE_MS (status only, no alert), then
-   * 'waiting' at WAITING_MS — alerted once per silence stretch, and only for a
-   * pane you have actually asked something (see `input`). This is what notifies
-   * for CLIs that never ring the bell (freebuff & co.): an agent stopping its
-   * output for a minute after working means it wants input.
+   * Silence after activity: 'quiet' at IDLE_MS, then 'waiting' at WAITING_MS —
+   * status only, never a desktop alert. Output resets the stretch. Silence
+   * cannot know why a CLI stopped writing (working, blocked, done, crashed), so
+   * it never produces a toast; the badge in pqTERM is the whole signal. Alerts
+   * come only from explicit events: BEL, OSC 9/777, process exit.
    */
   tick(): void {
     const t = this.now()
@@ -179,16 +171,12 @@ export class PaneActivityTracker {
           this.set(id, e, 'quiet', false)
         }
         if (
-          e.asked &&
           !e.waitingAnnounced &&
           t - e.lastOutputAt >= WAITING_MS &&
           (e.activity.kind === 'quiet' || (e.activity.kind === 'running' && t - e.lastOutputAt >= WAITING_MS))
         ) {
-          // Semantic-style alert through the same dedupe as agent events.
-          e.lastSemantic = 'waiting'
           e.waitingAnnounced = true
-          this.set(id, e, 'waiting', true)
-          this.onAlert(id, 'waiting')
+          this.set(id, e, 'waiting', false)
         }
       }
     }
