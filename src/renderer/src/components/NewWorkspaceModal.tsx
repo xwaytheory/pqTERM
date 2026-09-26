@@ -134,6 +134,7 @@ export default function NewWorkspaceModal({
               onClick={() => setLayout(n)}
             >
               <LayoutGlyph n={n} />
+              <span className="layout-n">{n}</span>
             </button>
           ))}
         </div>

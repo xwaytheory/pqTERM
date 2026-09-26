@@ -1215,6 +1215,7 @@ textarea.f:focus {
   margin: 8px 0 14px;
 }
 .layouts button {
+  position: relative;
   height: 46px;
   border-radius: 6px;
   border: 1px solid var(--line);
@@ -1227,6 +1228,19 @@ textarea.f:focus {
 .layouts button.on {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent-dim);
+}
+.layout-n {
+  position: absolute;
+  right: 5px;
+  bottom: 3px;
+  font-size: 9px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+  pointer-events: none;
+}
+.layouts button.on .layout-n {
+  color: var(--accent);
 }
 .layout-glyph {
   position: relative;
