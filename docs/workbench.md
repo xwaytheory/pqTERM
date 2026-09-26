@@ -7,7 +7,8 @@ Ma być inny, sprawdzony wybór, aż do 20.
 
 **Fix:** te same dwa dialogi (`NewWorkspaceModal`) rysują 20 miniatur
 `defaultAreas` — ten sam wzór co snap layouts (kształt kratek, nie numer).
-Liczba okien jest w `aria-label` i tooltipie. Telefon zostaje przy `LAYOUTS` 1–9.
+Liczba okien jest drobną cyfrą w rogu miniatury oraz w `aria-label` i tooltipie.
+Telefon zostaje przy `LAYOUTS` 1–9.
 
 ## Plus nie zjada pierwszego okna; limit 20 (2026-09-26, `dev`)
 
