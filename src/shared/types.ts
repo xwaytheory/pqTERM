@@ -17,6 +17,7 @@ export type EngineId =
   | 'cursor'
   | 'freebuff'
   | 'kimi'
+  | 'cline'
   | 'shell'
   | 'cmd'
 
@@ -329,6 +330,7 @@ export const ENGINE_ORDER: EngineId[] = [
   'cursor',
   'freebuff',
   'kimi',
+  'cline',
   'shell',
   'cmd'
 ]
