@@ -2,7 +2,14 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.3.10** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.3.11** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.3.11
+
+- **Plus nie zjada pierwszego okna.** Nowe okno dokłada się na końcu, a cała siatka układa się od nowa równymi rzędami (najwyżej 5 kolumn, 20 = 5×4).
+- **Limit 20.** Dwudzieste pierwsze kliknięcie nic nie dodaje. W rogu pojawia się: „Maksimum to 20 okien. Więcej nie da się otworzyć.”
+- **Wybór gridu to miniatura.** W New Workspace i Edit Workspace zamiast cyfr 1, 2, 3… jest 20 rysunków siatki. Drobna liczba w rogu mówi, ile okien ma dany układ.
+- **Nowe silniki:** Qoder CLI (`qodercli`) i BAI code (`baicode`).
 
 Na razie **prywatne**. Publicznie wyjdzie dopiero gdy zdecydujesz.
 
@@ -212,7 +219,7 @@ Stan logowania + konfiguracja Google zapisane w `%AppData%\pq*\pq-state.json`.
 Pane może być **zoomed** (rozciągnięty na całą siatkę, reszta w tle).
 
 Liczba okien nie jest przywiązana do tabelki: **`+`** w nagłówku każdego okienka dokłada
-kolejne — puste, od razu z SPAWN ENGINE — rozpoławiając największą kratkę bez ruszania reszty.
+puste okno ze SPAWN ENGINE i układa wszystkie od nowa (limit 20).
 **`×`** zamyka okno na prawdę: sesja CLI kończy się, kratka znika, `layout` maleje i pozostałe
 okna dostają nowe rozmiary. Ostatniego okna nie da się usunąć — zostaje jako puste (idle).
 
