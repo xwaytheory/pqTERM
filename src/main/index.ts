@@ -30,6 +30,7 @@ import {
   DEFAULT_UI,
   ENGINE_ORDER,
   isRawShell,
+  MAX_PANES,
   paneCount,
   sanitizeUi,
   type SnapZone,
@@ -42,8 +43,7 @@ import {
   resizePanes,
   RESIZE_EDGES,
   type ResizeEdge,
-  snapAreas,
-  splitFromCells
+  snapAreas
 } from '../shared/grid'
 import { reorderByIds } from '../shared/order'
 import { isHttpUrl } from '../shared/httpUrl'
@@ -736,25 +736,25 @@ function emptyPanes(layout: LayoutId, engines: EngineId[] = []): Workspace['pane
 }
 
 /**
- * Add one idle pane to the end of the grid: `splitFromCells` halves the largest
- * cell and leaves every other rectangle exactly where the user put it. The new
- * pane has no engine, which is what makes it show the SPAWN ENGINE picker.
- * Zoom is dropped so the pane you just asked for is actually visible.
+ * Add one idle pane. The new pane has no engine, so it shows the SPAWN ENGINE
+ * picker. The grid is re-tiled with `defaultAreas`: splitting the largest cell
+ * in place shifted every later pane onto the previous rectangle, and with equal
+ * cells that cell is always the first one — the top-left window collapsed and
+ * looked deleted. Zoom is dropped so the pane you just asked for is visible.
+ * Returns false at MAX_PANES; nothing is added.
  */
 function addPane(workspaceId: string): boolean {
   const ws = state.workspaces.find((w) => w.id === workspaceId)
-  if (!ws) return false
-  const areas = splitFromCells(
-    ws.panes.length + 1,
-    resolveAreas(ws.panes).map((e) => e.area)
-  )
+  if (!ws || ws.panes.length >= MAX_PANES) return false
   const panes = [
     ...ws.panes,
     { id: newId(), engine: null, title: `pane ${ws.panes.length + 1}` }
-  ].map((p, i) => ({ ...p, area: areas[i] }))
+  ]
+  const areas = defaultAreas(panes.length)
+  const placed = panes.map((p, i) => ({ ...p, area: areas[i] }))
   state.workspaces = state.workspaces.map((w) =>
     w.id === workspaceId
-      ? touchWorkspace({ ...w, layout: panes.length, panes, zoomedPaneId: null })
+      ? touchWorkspace({ ...w, layout: placed.length, panes: placed, zoomedPaneId: null })
       : w
   )
   persist()
@@ -1147,7 +1147,9 @@ function registerIpc(): void {
   ipcMain.handle('workspaces:setLayout', (_e, id: string, layout: LayoutId) => {
     const ws = state.workspaces.find((w) => w.id === id)
     if (!ws) return
-    const n = paneCount(layout)
+    const requested = paneCount(layout)
+    if (!Number.isInteger(requested) || requested < 1) return
+    const n = Math.min(requested, MAX_PANES)
     let panes = [...ws.panes]
     if (panes.length > n) {
       const dropped = panes.slice(n)
@@ -1162,7 +1164,7 @@ function registerIpc(): void {
     panes = panes.map((p, i) => ({ ...p, area: areas[i] }))
     const zoomedPaneId = panes.some((p) => p.id === ws.zoomedPaneId) ? ws.zoomedPaneId : null
     state.workspaces = state.workspaces.map((w) =>
-      w.id === id ? touchWorkspace({ ...w, layout, panes, zoomedPaneId }) : w
+      w.id === id ? touchWorkspace({ ...w, layout: n, panes, zoomedPaneId }) : w
     )
     persist()
   })

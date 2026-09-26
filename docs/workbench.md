@@ -1,5 +1,29 @@
 # pq workbench (gauntlet live board)
 
+## Plus nie zjada pierwszego okna; limit 20 (2026-09-26, `dev`)
+
+**Zgłoszenie:** „+” w nagłówku ostatniego CLI dodaje okno, ale pierwsze okno przepada.
+Ma być najwyżej 20 okien, a 21. próba ma pokazać krótki komunikat. Siatka ma zostać równa.
+
+**Root cause:** `addPane` brał prostokąty z `splitFromCells`. Ta funkcja wycina największą
+kratkę i wstawia w jej miejsce dwie połówki, więc każdy późniejszy indeks przesuwa się
+o jeden. Przy równych kratkach największa jest zawsze pierwsza (remis wygrywa indeks 0).
+Dopięcie pane’ów po indeksie kładło okno 2 na połowę okna 1, okno 3 na miejsce okna 2,
+i tak dalej. Nowe okno lądowało w ostatniej kratce, a pierwsze zapadało się w wąski pasek
+(poniżej `MIN_PANE_W` terminal jest chowany — wygląda jak skasowany). Nic nie było
+usuwane z `panes`.
+
+**Fix:** `addPane` dokłada pusty pane (SPAWN ENGINE) i układa **wszystkie** istniejące
+okna przez `defaultAreas` — ta sama re-siatka co zamknięcie i `setLayout`. Kolejność
+pane’ów zostaje, więc pierwsze okno zostaje pierwszym. `defaultAreas` dla 10–20 to
+równe rzędy (najwyżej 5 kolumn; 20 = 5×4). `splitFromCells` zostaje przy snapie.
+21. okno: `addPane` zwraca `false`, nic nie dopisuje. Renderer pokazuje komunikat
+„Maksimum to 20 okien. Więcej nie da się otworzyć.” (`MAX_PANES` w `types.ts`).
+`setLayout` też nie przekroczy 20.
+
+**Test:** `grid.test.ts` → „defaultAreas keeps every cell usable through 20 panes”
+(1..20, każda kratka ≥ 0.2 × 0.2, bez dziur i bez nakładek).
+
 ## Cisza nigdy nie dzwoni: waiting bez toastu (2026-09-25, `main`)
 
 **Zgłoszenie (zrzut, 6 paneli):** „nadal bezpodstawnie schodzą powiadomienia z okien CLI,

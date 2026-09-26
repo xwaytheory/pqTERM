@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type { AppSnapshot, EngineId, PaneActivity, PaneArea, SnapZone, UsageMap } from '../../../shared/types'
-import { isRawShell } from '../../../shared/types'
+import { isRawShell, MAX_PANES } from '../../../shared/types'
 import {
   FULL,
   resolveAreas,
@@ -76,6 +76,8 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
   const [usage, setUsage] = useState<UsageMap>({})
   const [activity, setActivity] = useState<Record<string, PaneActivity>>({})
   const [activityError, setActivityError] = useState('')
+  const [limitNote, setLimitNote] = useState('')
+  const limitTimer = useRef<number | null>(null)
   const [focusRequest, setFocusRequest] = useState<{ workspaceId: string; paneId: string; nonce: number } | null>(null)
   const focusContext = useRef({ snap, modal })
   focusContext.current = { snap, modal }
@@ -218,8 +220,28 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
     toggleZoomFor(ws.id, ws.zoomedPaneId, paneId)
   }
 
+  function showPaneLimit(): void {
+    setLimitNote('Maksimum to 20 okien. Więcej nie da się otworzyć.')
+    if (limitTimer.current !== null) window.clearTimeout(limitTimer.current)
+    limitTimer.current = window.setTimeout(() => {
+      limitTimer.current = null
+      setLimitNote('')
+    }, 4200)
+  }
+
+  useEffect(() => () => {
+    if (limitTimer.current !== null) window.clearTimeout(limitTimer.current)
+  }, [])
+
   function addPane(workspaceId: string): void {
-    void window.pq.workspaces.addPane(workspaceId).catch((error) => {
+    const live = liveRef.current
+    if (live.ws?.id === workspaceId && live.panes.length >= MAX_PANES) {
+      showPaneLimit()
+      return
+    }
+    void window.pq.workspaces.addPane(workspaceId).then((ok) => {
+      if (!ok) showPaneLimit()
+    }).catch((error) => {
       console.error('[pqTERM] add pane failed', error)
       setActivityError('Nie udało się dodać okna CLI.')
     })
@@ -765,7 +787,11 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
       </div>
       {/* The old status footer is gone; only real trouble surfaces, as a floating
           line that stays out of the way of the grid. */}
-      {resizeError || activityError ? (
+      {limitNote ? (
+        <div className="pane-alert note" role="status">
+          {limitNote}
+        </div>
+      ) : resizeError || activityError ? (
         <div className="pane-alert" role="status">
           {resizeError || activityError}
         </div>

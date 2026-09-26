@@ -91,18 +91,49 @@ const UNIFORM: Record<number, [number, number]> = {
   9: [3, 3]
 }
 
+/** Equal-height rows. Each row's cells share that row's full width. */
+function rowsLayout(counts: readonly number[]): Rect[] {
+  const rows = counts.length
+  const h = 1 / rows
+  const out: Rect[] = []
+  for (let r = 0; r < rows; r++) {
+    const count = counts[r]
+    for (let i = 0; i < count; i++) {
+      out.push({ x: i / count, y: r * h, w: 1 / count, h })
+    }
+  }
+  return out
+}
+
 /** Two equal-height rows with `top` and `bottom` equal-width cells. */
 export function rowLayout(top: number, bottom: number): Rect[] {
-  const h = 0.5
-  const out: Rect[] = []
-  for (let i = 0; i < top; i++) out.push({ x: i / top, y: 0, w: 1 / top, h })
-  for (let i = 0; i < bottom; i++) out.push({ x: i / bottom, y: h, w: 1 / bottom, h })
-  return out
+  return rowsLayout([top, bottom])
+}
+
+/**
+ * Even rows for counts the small templates do not cover.
+ * At most five columns, so a cell stays wide enough for a terminal.
+ * 16 is 4×4; a fifth column would leave the last row as one stretched cell.
+ */
+const TILE: Record<number, readonly number[]> = {
+  10: [5, 5],
+  11: [4, 4, 3],
+  12: [4, 4, 4],
+  13: [5, 4, 4],
+  14: [5, 5, 4],
+  15: [5, 5, 5],
+  16: [4, 4, 4, 4],
+  17: [5, 4, 4, 4],
+  18: [5, 5, 4, 4],
+  19: [5, 5, 5, 4],
+  20: [5, 5, 5, 5]
 }
 
 /**
  * Default areas for `count` panes.
- * 5 = 3+2, 7 = 4+3; even grids use uniform cells. Other counts keep big-left.
+ * 5 = 3+2, 7 = 4+3; even grids use uniform cells.
+ * 10–20 use TILE. Anything larger still fills rows of five
+ * (add is capped at 20; this only covers a workspace that already exceeded it).
  */
 export function defaultAreas(count: number): Rect[] {
   const n = Math.max(1, Math.floor(count))
@@ -110,9 +141,18 @@ export function defaultAreas(count: number): Rect[] {
   if (n === 7) return rowLayout(4, 3)
   const u = UNIFORM[n]
   if (u) return uniformGrid(u[0], u[1])
-  const right: Rect = { x: 0.5, y: 0, w: 0.5, h: 1 }
-  const rest = splitInto(n - 1, right)
-  return [{ x: 0, y: 0, w: 0.5, h: 1 }, ...rest]
+  const tile = TILE[n]
+  if (tile) return rowsLayout(tile)
+  const cols = 5
+  const rows = Math.ceil(n / cols)
+  const counts: number[] = []
+  let left = n
+  for (let r = 0; r < rows; r++) {
+    const take = Math.min(cols, left)
+    counts.push(take)
+    left -= take
+  }
+  return rowsLayout(counts)
 }
 
 // ---------------------------------------------------------------------------

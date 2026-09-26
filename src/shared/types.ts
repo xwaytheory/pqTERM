@@ -371,6 +371,9 @@ export interface BoardSnapshot {
 /** Preset buttons shown in layout pickers. Any LayoutId is allowed via +/- stepper. */
 export const LAYOUTS: LayoutId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
+/** Hard cap for panes in one workspace. The 21st add is refused. */
+export const MAX_PANES = 20
+
 export function paneCount(layout: LayoutId): number {
   return layout
 }
