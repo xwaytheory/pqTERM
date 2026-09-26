@@ -48,6 +48,21 @@ test('defaultAreas templates cover the unit grid without overlap', () => {
   }
 })
 
+test('defaultAreas keeps every cell usable through 20 panes', () => {
+  for (let n = 1; n <= 20; n++) {
+    const cells = defaultAreas(n)
+    assert.equal(cells.length, n, `count ${n}`)
+    assert.ok(coversUnit(cells), `count ${n} covers/partitions`)
+    for (const c of cells) {
+      assert.ok(c.w + EPS >= 0.2, `n=${n} width ${c.w}`)
+      assert.ok(c.h + EPS >= 0.2, `n=${n} height ${c.h}`)
+    }
+  }
+  assert.deepEqual(defaultAreas(20)[0], { x: 0, y: 0, w: 0.2, h: 0.25 })
+  assert.deepEqual(defaultAreas(20)[19], { x: 0.8, y: 0.75, w: 0.2, h: 0.25 })
+  assert.deepEqual(defaultAreas(11)[8], { x: 0, y: 2 / 3, w: 1 / 3, h: 1 / 3 })
+})
+
 test('defaultAreas(5/6/7/8) use equal-height rows', () => {
   const five = defaultAreas(5)
   assert.deepEqual(five[0], { x: 0, y: 0, w: 1 / 3, h: 0.5 })

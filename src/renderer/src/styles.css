@@ -965,6 +965,10 @@ body.pane-resizing * {
   color: var(--text);
   font-size: 11px;
 }
+.pane-alert.note {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg));
+}
 
 /* login */
 .login {
