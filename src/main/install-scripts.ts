@@ -20,7 +20,8 @@ export function installCommand(id: EngineId): { exe: string; args: string[]; scr
     copilot: 'npm install -g @github/copilot',
     zcode: 'npm install -g zcode-app-cli',
     freebuff: 'npm install -g freebuff',
-    kimi: 'npm install -g @moonshot-ai/kimi-code'
+    kimi: 'npm install -g @moonshot-ai/kimi-code',
+    cline: 'npm install -g cline'
   }
   const script = scripts[id]
   if (!script) return null

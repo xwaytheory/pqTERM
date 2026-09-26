@@ -298,6 +298,18 @@ export const ENGINE_SPECS: EngineSpec[] = [
     models: []
   },
   {
+    id: 'cline',
+    name: 'Cline CLI',
+    vendor: 'Cline',
+    color: '#3b82f6',
+    binaries: ['cline', 'cline.cmd'],
+    args: [],
+    hint: 'Cline CLI — autonomous coding agent (npm install -g cline)',
+    extraPathDirs: ['%APPDATA%\\npm'],
+    npmPackage: 'cline',
+    models: []
+  },
+  {
     id: 'cursor',
     name: 'Cursor CLI',
     vendor: 'Anysphere',
