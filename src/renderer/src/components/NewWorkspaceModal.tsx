@@ -1,7 +1,28 @@
 import { useState } from 'react'
 import type { EngineId, LayoutId, ProviderInfo, Workspace } from '../../../shared/types'
-import { isRawShell, LAYOUTS } from '../../../shared/types'
+import { isRawShell, MAX_PANES } from '../../../shared/types'
+import { defaultAreas } from '../../../shared/grid'
 import EngineMark from './EngineMark'
+
+const GRID_CHOICES = Array.from({ length: MAX_PANES }, (_, i) => (i + 1) as LayoutId)
+
+function LayoutGlyph({ n }: { n: number }) {
+  return (
+    <span className="layout-glyph" aria-hidden>
+      {defaultAreas(n).map((cell, i) => (
+        <i
+          key={i}
+          style={{
+            left: `calc(${cell.x * 100}% + 1px)`,
+            top: `calc(${cell.y * 100}% + 1px)`,
+            width: `calc(${cell.w * 100}% - 2px)`,
+            height: `calc(${cell.h * 100}% - 2px)`
+          }}
+        />
+      ))}
+    </span>
+  )
+}
 
 export default function NewWorkspaceModal({
   providers,
@@ -100,10 +121,19 @@ export default function NewWorkspaceModal({
           </button>
         </div>
         <label className="f">GRID</label>
-        <div className="layouts">
-          {LAYOUTS.map((n) => (
-            <button key={n} className={layout === n ? 'on' : ''} onClick={() => setLayout(n)}>
-              {n}
+        <div className="layouts" role="listbox" aria-label="układ okien">
+          {GRID_CHOICES.map((n) => (
+            <button
+              key={n}
+              type="button"
+              role="option"
+              aria-selected={layout === n}
+              aria-label={n === 1 ? '1 okno' : `${n} okien`}
+              title={n === 1 ? '1 okno' : `${n} okien`}
+              className={layout === n ? 'on' : ''}
+              onClick={() => setLayout(n)}
+            >
+              <LayoutGlyph n={n} />
             </button>
           ))}
         </div>

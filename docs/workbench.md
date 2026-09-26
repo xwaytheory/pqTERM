@@ -1,5 +1,14 @@
 # pq workbench (gauntlet live board)
 
+## Wybór gridu to miniatura, nie cyfra (2026-09-26, `dev`)
+
+**Zgłoszenie:** w NEW WORKSPACE i EDIT WORKSPACE nie pokazywać `1, 2, 3, …`.
+Ma być inny, sprawdzony wybór, aż do 20.
+
+**Fix:** te same dwa dialogi (`NewWorkspaceModal`) rysują 20 miniatur
+`defaultAreas` — ten sam wzór co snap layouts (kształt kratek, nie numer).
+Liczba okien jest w `aria-label` i tooltipie. Telefon zostaje przy `LAYOUTS` 1–9.
+
 ## Plus nie zjada pierwszego okna; limit 20 (2026-09-26, `dev`)
 
 **Zgłoszenie:** „+” w nagłówku ostatniego CLI dodaje okno, ale pierwsze okno przepada.
