@@ -1209,22 +1209,38 @@ textarea.f:focus {
 .swatch.accent-blue { background: #7aa2ff; }
 .swatch.accent-amber { background: #f5c542; }
 .layouts {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
-  flex-wrap: wrap;
   margin: 8px 0 14px;
 }
 .layouts button {
-  width: 44px;
-  height: 32px;
+  height: 46px;
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--bg);
   color: var(--muted);
+  display: grid;
+  place-items: center;
+  padding: 6px;
 }
 .layouts button.on {
-  border-color: var(--accent-dim);
-  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim);
+}
+.layout-glyph {
+  position: relative;
+  width: 40px;
+  height: 26px;
+}
+.layout-glyph i {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+.layouts button.on .layout-glyph i {
+  background: var(--accent);
 }
 .chips {
   display: flex;
