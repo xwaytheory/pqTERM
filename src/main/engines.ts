@@ -310,6 +310,30 @@ export const ENGINE_SPECS: EngineSpec[] = [
     models: []
   },
   {
+    id: 'qoder',
+    name: 'Qoder CLI',
+    vendor: 'Alibaba / Qoder',
+    color: '#2adb5c',
+    mark: 'Qd',
+    binaries: ['qodercli', 'qodercli.exe'],
+    args: [],
+    hint: 'Qoder CLI — oficjalny instalator: https://qoder.com/install.cmd',
+    extraPathDirs: ['%USERPROFILE%\\.qoder\\bin\\qodercli'],
+    selfUpdate: ['install', '--force'],
+    models: []
+  },
+  {
+    id: 'baicode',
+    name: 'BAI code',
+    vendor: 'B.AI',
+    color: '#cdbd09',
+    binaries: ['baicode', 'baicode.exe'],
+    args: [],
+    hint: 'BAI code — CLI od B.AI (klient OpenAI-compatible; wymaga BAI_API_KEY)',
+    extraPathDirs: [],
+    models: []
+  },
+  {
     id: 'cursor',
     name: 'Cursor CLI',
     vendor: 'Anysphere',

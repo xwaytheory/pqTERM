@@ -46,6 +46,8 @@ It does **not** pass `hostType` today (`PaneState` has no such field).
 | `crush` | Crush | **cmd** | |
 | `aider` | Aider | **cmd** | |
 | `copilot` | Copilot CLI | **cmd** | |
+| `qoder` | Qoder CLI | **cmd** | |
+| `baicode` | BAI code | **cmd** | |
 | `shell` | PowerShell | **pwsh** | Only engine mapped to pwsh without `hostType` |
 | `cmd` | cmd | **cmd** | Raw shell (`cmd.exe`) |
 

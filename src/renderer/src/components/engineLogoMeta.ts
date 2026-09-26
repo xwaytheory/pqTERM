@@ -23,6 +23,8 @@ export const ENGINE_LOGO_IDS = [
   'freebuff',
   'kimi',
   'cline',
+  'qoder',
+  'baicode',
   'shell',
   'cmd'
 ] as const
@@ -49,6 +51,8 @@ export const ENGINE_LOGO_FILES: Record<EngineLogoId, string> = {
   freebuff: 'freebuff.svg',
   kimi: 'kimi.png',
   cline: 'cline.png',
+  qoder: 'qoder.png',
+  baicode: 'baicode.svg',
   shell: 'shell.svg',
   cmd: 'cmd.svg'
 }

@@ -18,6 +18,8 @@ export type EngineId =
   | 'freebuff'
   | 'kimi'
   | 'cline'
+  | 'qoder'
+  | 'baicode'
   | 'shell'
   | 'cmd'
 
@@ -64,6 +66,8 @@ const ids: EngineId[] = [
     'cursor',
     'freebuff',
     'kimi',
+    'qoder',
+    'baicode',
     'cmd'
   ]
   for (const id of ids) {
@@ -331,6 +335,8 @@ export const ENGINE_ORDER: EngineId[] = [
   'freebuff',
   'kimi',
   'cline',
+  'qoder',
+  'baicode',
   'shell',
   'cmd'
 ]

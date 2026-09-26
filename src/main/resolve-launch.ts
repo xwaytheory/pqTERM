@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readdirSync, readFileSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
 import type { EngineId } from '../shared/types'
@@ -17,6 +17,31 @@ function firstExisting(paths: string[]): string | null {
 
 function npmDir(): string {
   return join(homedir(), 'AppData', 'Roaming', 'npm')
+}
+
+/**
+ * pip console scripts land in `<python>\Scripts`, but that folder is versioned
+ * (`Python314`, `Python313`, …). Scan the two roots a normal Windows Python
+ * install uses instead of pinning one version.
+ */
+function pythonScripts(bin: string): string[] {
+  const roots = [
+    join(homedir(), 'AppData', 'Local', 'Programs', 'Python'),
+    join(homedir(), 'AppData', 'Roaming', 'Python')
+  ]
+  const out: string[] = []
+  for (const root of roots) {
+    let names: string[]
+    try {
+      names = readdirSync(root)
+    } catch {
+      continue
+    }
+    for (const n of names.filter((d) => /^Python3\d+$/.test(d))) {
+      out.push(join(root, n, 'Scripts', bin))
+    }
+  }
+  return out
 }
 
 export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: string; args: string[] } | null {
@@ -116,6 +141,14 @@ export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: str
         join(homedir(), 'AppData', 'Local', 'Programs', 'Python', 'Python314', 'Scripts', 'aider.exe'),
         join(npm, 'aider.cmd')
       ])
+      return exe ? { spawnFile: exe, args: extra } : null
+    }
+    case 'qoder': {
+      const exe = firstExisting([join(homedir(), '.qoder', 'bin', 'qodercli', 'qodercli.exe')])
+      return exe ? { spawnFile: exe, args: extra } : null
+    }
+    case 'baicode': {
+      const exe = firstExisting(pythonScripts('baicode.exe'))
       return exe ? { spawnFile: exe, args: extra } : null
     }
     default:
