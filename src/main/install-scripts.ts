@@ -21,16 +21,21 @@ export function installCommand(id: EngineId): { exe: string; args: string[]; scr
     zcode: 'npm install -g zcode-app-cli',
     freebuff: 'npm install -g freebuff',
     kimi: 'npm install -g @moonshot-ai/kimi-code',
-    cline: 'npm install -g cline'
+    cline: 'npm install -g cline',
+    qoder:
+      'irm https://qoder-ide.oss-accelerate.aliyuncs.com/qodercli/install.ps1 | iex',
+    baicode:
+      'iwr -useb https://raw.githubusercontent.com/BAI-labs/BAI-tools/main/scripts/baicode_install.ps1 | iex'
   }
   const script = scripts[id]
   if (!script) return null
-  // pip lives in PowerShell (native Windows); npm needs cmd's /k so the window
-  // stays open when the install fails and the error stays readable.
-  const isPip = script.startsWith('pip ')
+  // pip and the PowerShell installers live in PowerShell (native Windows);
+  // npm needs cmd's /k so the window stays open when the install fails and
+  // the error stays readable.
+  const isPs = /^(pip |irm |iwr )/.test(script)
   return {
-    exe: isPip ? 'powershell.exe' : 'cmd.exe',
-    args: isPip ? ['/NoProfile', '-NoExit', '-Command', script] : ['/d', '/s', '/k', script],
+    exe: isPs ? 'powershell.exe' : 'cmd.exe',
+    args: isPs ? ['/NoProfile', '-NoExit', '-Command', script] : ['/d', '/s', '/k', script],
     script
   }
 }

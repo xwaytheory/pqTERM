@@ -63,6 +63,8 @@ All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehu
 | `zcode` | `zcode.png` (Z.AI / `zai`) | `zai` |
 | `ori` | `ori.png` (OpenRouter) | `openrouter-color` |
 | `cursor` | `cursor.png` | `cursor` |
+| `qoder` | `qoder.png` | `qoder-color` |
+| `baicode` | `baicode.svg` (docs.b.ai mascot) | not on LobeHub |
 | `shell` | `shell.svg` (generic `>_` glyph) | drawn for pq |
 | `cmd` | `cmd.svg` (generic `>_` glyph) | drawn for pq |
 
@@ -84,13 +86,15 @@ All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehu
 | `zcode` | ZCode | Z.AI | `#ff8c1a` | `Zc` + `zcode.png` (LobeHub `zai`) |
 | `ori` | Ori | OpenRouter | `#8b5cf6` | `Or` + `ori.png` |
 | `cursor` | Cursor CLI | Anysphere | `#2563eb` | `Cu` + `cursor.png` |
+| `qoder` | Qoder CLI | Alibaba | `#2adb5c` | `Qd` + `qoder.png` |
+| `baicode` | BAI code | B.AI | `#cdbd09` | `B` + `baicode.svg` |
 | `shell` | PowerShell | Windows | `#5b9fd6` | `PS` |
 | `cmd` | cmd | Windows | `#4ec9b0` | `C` + `cmd.svg` |
 
 ## Letter-mark chip plan
 
 **Status:** letter-mark chips wired in Sidebar / TerminalPane / ProvidersPanel (Settings tab „silniki”) / NewWorkspaceModal.
-Collision disambiguation (two-letter): `Cl` Claude, `Cx` Codex, `Cr` Crush, `Co` Copilot, `Gr` Grok, `Ge` Gemini, `Om` Omp, `Oc` OpenCode.
+Collision disambiguation (two-letter): `Cl` Claude, `Cx` Codex, `Cr` Crush, `Co` Copilot, `Gr` Grok, `Ge` Gemini, `Om` Omp, `Oc` OpenCode, `Qd` Qoder (Qwen keeps the bare `Q`).
 Optional `EngineSpec.logo` / `icon` still unused (no per-engine SVG yet — abstract monograms only).
 
 ## Letter-mark chip plan (detail)
