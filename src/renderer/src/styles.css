@@ -827,6 +827,15 @@ body.pane-resizing * {
 .xterm-host .xterm-viewport {
   height: 100%;
 }
+/* Chromium scroll anchoring sets this box's scrollTop to 0 on focus.
+   xterm reads that as "the user scrolled to the top of the buffer". */
+.xterm-host .xterm-viewport {
+  overflow-anchor: none;
+}
+/* xterm.css parks the helper at left:-9999em. Focusing it scrolls the pane up. */
+.xterm-host .xterm-helper-textarea {
+  left: 0;
+}
 /* Below the pane floor the terminal keeps its last good size; showing that
    clipped frame reads as corruption, so hide it behind the hint. */
 .xterm-host.too-small .xterm {

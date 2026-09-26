@@ -1,5 +1,20 @@
 # pq workbench (gauntlet live board)
 
+## Klik w pane nie zrzuca widoku na górę (2026-09-26, `dev`)
+
+**Zgłoszenie:** klik kursorem w inne okno przewija je na samą górę. Treść jest na dole.
+Nie zależy od CLI.
+
+**Root cause:** `.xterm-viewport` ma `overflow-y: scroll`. Chromium przy fokusie
+kotwiczy scroll i ustawia `scrollTop` na 0. xterm w `Viewport._handleScroll`
+bierze to za gest użytkownika i ustawia `ydisp` na 0 — stąd skok na początek
+bufora. Dodatkowo `left: -9999em` na `.xterm-helper-textarea` (xterm.css)
+przy fokusie też ciągnie przewijanie w górę, a efekt `fit()` na zmianie
+`focused` odpalał ten sam scroll przy każdym kliknięciu.
+
+**Fix:** `overflow-anchor: none` na viewporcie, `left: 0` na helperze,
+`focused` wyjęte z zależności fitu. Zoom dalej przebudowuje rozmiar.
+
 ## Wybór gridu to miniatura, nie cyfra (2026-09-26, `dev`)
 
 **Zgłoszenie:** w NEW WORKSPACE i EDIT WORKSPACE nie pokazywać `1, 2, 3, …`.

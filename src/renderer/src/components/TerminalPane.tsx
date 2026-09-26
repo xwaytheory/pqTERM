@@ -427,7 +427,9 @@ if (pane.engine && !isRawShell(pane.engine)) {
     } catch {
       /* ignore */
     }
-  }, [zoomed, focused, pane.id])
+    // `focused` is not a dep: refitting on every click fired a viewport scroll
+    // at scrollTop 0, which xterm applies as "jump to the top of the buffer".
+  }, [zoomed, pane.id])
 
   // Look settings apply live: cursor options are plain option writes.
   useEffect(() => {
