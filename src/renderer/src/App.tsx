@@ -8,6 +8,7 @@ export default function App() {
   const [snap, setSnap] = useState<AppSnapshot | null>(null)
   const [boot, setBoot] = useState('connecting to main process…')
   const [sync, setSync] = useState<SyncEvent>({ running: false, line: '', done: 0, total: 0 })
+  const [updateText, setUpdateText] = useState<string | null>(null)
 
   useEffect(() => {
     let off: (() => void) | undefined
@@ -39,6 +40,16 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const host = window.pq as PqAPI | undefined
+    if (!host?.update?.check) return
+    let dead = false
+    host.update.check().then((text) => {
+      if (!dead && text) setUpdateText(text)
+    }).catch(() => {})
+    return () => { dead = true }
+  }, [])
+
   // Accent lives on <html> so it reaches every screen (login included) and every
   // modal without threading a class through the tree; styles.css keys off it.
   const accent = snap?.ui?.accent
@@ -62,6 +73,12 @@ export default function App() {
 
   return (
     <div className="app">
+      {updateText ? (
+        <div className="syncbar">
+          <span>{updateText}</span>
+          <button type="button" onClick={() => setUpdateText(null)}>zamknij</button>
+        </div>
+      ) : null}
       {sync.running || sync.line ? (
         <div className={sync.running ? 'syncbar' : 'syncbar dim'}>
           <span>{sync.line || 'pq · idle'}</span>

@@ -51,6 +51,9 @@ const pq = {
     toggleSidebar: () => invoke('app:toggleSidebar') as Promise<void>,
     openUrl: (url: string) => invoke('app:openUrl', url) as Promise<void>
   },
+  update: {
+    check: () => invoke('update:check') as Promise<string | null>
+  },
   remote: {
     info: () => invoke('remote:info') as Promise<RemoteInfo>,
     start: () => invoke('remote:start') as Promise<RemoteInfo>,

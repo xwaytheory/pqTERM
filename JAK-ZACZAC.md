@@ -15,6 +15,16 @@
 
 Kliknij pqTERM-pr. Koniec. Nic się nie zmieniło.
 
+Przy starcie pqTERM raz sprawdza GitHub. Jak ta kopia jest do tyłu, pasek u góry każe wpisać komendę.
+
+## Aktualizacja z drugiego komputera
+
+1. Zamknij pqTERM.
+2. Otwórz nowe okno cmd.
+3. Wpisz `pqterm update` i naciśnij Enter.
+
+Komenda dociąga gałęzie `main`, `dev` i `test`. Lokalnych zmian nie kasuje. `wip` i gałęzie `feat` zostawia.
+
 ## Scenariusz B: chcesz coś zmienić w pq (krok po kroku)
 
 **Krok 1 — otwórz czarne okienko z komendami:**

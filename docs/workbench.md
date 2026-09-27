@@ -1,5 +1,29 @@
 # pq workbench (gauntlet live board)
 
+## pqterm update i pasek „jest nowsze na GitHub” (2026-09-27, `dev`)
+
+**Zgłoszenie:** z cmd `pqterm update` ma dociągnąć przestrzeń pqTERM z GitHuba.
+Przy każdym starcie program ma raz sprawdzić, czy GitHub jest do przodu, i powiedzieć,
+że warto wpisać tę komendę. Drugi komputer ma tak łapać zmiany zrobione tutaj.
+
+**Fix:** `scripts/pqterm-update.cjs`. `pqterm update` robi `git fetch` i fast-forward
+tylko czystych kopii `main`, `dev` i `test`. Brudne drzewo, rozjazd historii, `wip`
+i `feat/*` są pomijane i nazwane w konsoli. Zmiana `package.json` / `package-lock.json`
+odpala `npm install` w tej kopii. Commit na oficjalnym drzewie (albo jedyna kopia
+na drugim komputerze) odpala `npm run build`. Jak `pqterm.exe` jest otwarty, ta kopia
+nie jest ruszana — komenda każe ją zamknąć i wpisać się jeszcze raz. Przerwana
+przebudowa zostaje w `%LOCALAPPDATA%\pqTERM\rebuild.txt`.
+
+Start aplikacji odpala ten sam skrypt z `--check` (fetch jednej gałęzi, bez merge)
+i z `--ensure-cmd` (dopisuje `%LOCALAPPDATA%\pqTERM\bin` do PATH użytkownika i
+kładzie tam `pqterm.cmd`). Pasek nad deckiem pokazuje tekst z `--check`. Origin
+inny niż `github.com/xwaytheory/pqTERM` jest odrzucany.
+
+**Test:** `src/main/pqterm-update.test.ts` — wybór worktree, ff tylko gdy GitHub
+jest ściśle z przodu, install/build, tekst paska, PATH, wiersz przerwanej przebudowy.
+`npm run test:unit` na `dev`: **143 PASS** (oba typechecki w środku).
+`--check` na tej kopii zwraca `{"notice":null}` — GitHub nie jest z przodu.
+
 ## Klik w pane nie zrzuca widoku na górę (2026-09-26, `dev`)
 
 **Zgłoszenie:** klik kursorem w inne okno przewija je na samą górę. Treść jest na dole.

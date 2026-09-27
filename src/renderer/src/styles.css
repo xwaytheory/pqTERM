@@ -106,6 +106,16 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.syncbar button {
+  -webkit-app-region: no-drag;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  padding: 0;
+}
 
 .app {
   height: 100%;

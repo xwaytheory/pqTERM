@@ -1,7 +1,7 @@
 import { execFile, spawn } from 'child_process'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, session, shell } from './host'
 import type { IpcMainInvokeEvent } from 'electron'
-import { join, relative } from 'path'
+import { dirname, join, relative } from 'path'
 import { homedir } from 'os'
 import { stat } from 'fs/promises'
 import {
@@ -885,6 +885,54 @@ function createWindow(): void {
   }
 }
 
+function findUpdateScript(start: string): string | null {
+  let dir = start
+  for (let i = 0; i < 5; i++) {
+    const candidate = join(dir, 'scripts', 'pqterm-update.cjs')
+    if (existsSync(candidate)) return candidate
+    const parent = dirname(dir)
+    if (parent === dir) return null
+    dir = parent
+  }
+  return null
+}
+
+function runUpdateScript(args: string[], timeoutMs: number): Promise<string> {
+  const script = findUpdateScript(app.getAppPath())
+  if (!script) return Promise.resolve('')
+  return new Promise((resolve) => {
+    let out = ''
+    let err = ''
+    let settled = false
+    let timer: ReturnType<typeof setTimeout>
+    const done = (value: string) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const child = spawn(process.execPath, [script, ...args], {
+      cwd: dirname(script),
+      windowsHide: true,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    child.stdout?.on('data', (buf) => { out += buf.toString() })
+    child.stderr?.on('data', (buf) => { err += buf.toString() })
+    timer = setTimeout(() => {
+      if (process.platform === 'win32' && child.pid) {
+        spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true })
+      } else child.kill()
+      done('')
+    }, timeoutMs)
+    child.on('error', () => done(''))
+    child.on('exit', (code) => {
+      if (code && err.trim()) console.error('[pqTERM] update', err.trim())
+      done(out)
+    })
+  })
+}
+
 function registerIpc(): void {
   ipcMain.on('window:minimize', () => mainWindow?.minimize())
   ipcMain.on('window:maximize', () => {
@@ -909,6 +957,19 @@ function registerIpc(): void {
     requireRenderer(event)
     if (!isHttpUrl(url)) return
     return shell.openExternal(url)
+  })
+  ipcMain.handle('update:check', async (event) => {
+    requireRenderer(event)
+    const out = await runUpdateScript(['--check'], 45000)
+    try {
+      const line = out.trim().split(/\n/).filter(Boolean).pop()
+      if (!line) return null
+      const parsed = JSON.parse(line) as { notice?: { text?: string } | null }
+      const text = parsed.notice?.text
+      return typeof text === 'string' && text.length > 0 && text.length < 400 ? text : null
+    } catch {
+      return null
+    }
   })
 
   ipcMain.handle('state:load', () => state)
@@ -1525,6 +1586,7 @@ app.whenReady().then(async () => {
   restoreSessions()
   startTitlePoller()
   activityTimer = setInterval(() => activity.tick(), 1000)
+  void runUpdateScript(['--ensure-cmd'], 15000)
   createWindow()
   usage.start()
   void remote.restore().catch((err) => console.error('[pqTERM] remote', err))
