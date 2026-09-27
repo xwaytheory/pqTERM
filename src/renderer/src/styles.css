@@ -65,6 +65,12 @@ select {
   font-size: inherit;
   color: inherit;
 }
+input,
+textarea,
+select {
+  user-select: text;
+  -webkit-user-select: text;
+}
 button {
   cursor: pointer;
 }
@@ -1151,6 +1157,12 @@ textarea.f:focus {
   display: grid;
   place-items: center;
   z-index: 50;
+  -webkit-app-region: no-drag;
+}
+/* The helper sits at left:0 (see below) and keeps DOM focus after a pane click.
+   While a dialog is up it must not sit on the title/path fields. */
+body.modal-open .xterm-helper-textarea {
+  pointer-events: none;
 }
 .modal {
   width: min(720px, calc(100vw - 48px));

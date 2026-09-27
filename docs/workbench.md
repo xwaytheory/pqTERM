@@ -1,5 +1,21 @@
 # pq workbench (gauntlet live board)
 
+## Pierwsze NEW WORKSPACE nie bierze tytułu ani katalogu (2026-09-27, `dev`)
+
+**Zgłoszenie:** pierwsze otwarcie NEW WORKSPACE nie przyjmuje tytułu ani ścieżki.
+Siatka, silniki i create działają (pusty tytuł kończy się „nadaj tytuł…”).
+Zamknięcie dialogu i drugie otwarcie już działa.
+
+**Root cause:** klik w pane fokusuje ukryty `textarea.xterm-helper-textarea`.
+Ten fokus przeżywa klik „+ new” — `focusRequest` i tak jest 0, więc nic go nie
+zdejmuje. Pierwsze pokazanie dialogu pisze w terminal pod spodem, a systemowy
+wybór folderu wraca od razu jako anulowany. Zamknięcie przenosi fokus na
+przycisk, dlatego drugie otwarcie było czyste.
+
+**Fix:** otwarcie modala bluruje helper, pole tytułu bierze fokus po kliku,
+`body.modal-open` wyłącza helperowi hit-test, `.modal-back` jest `no-drag`,
+inputy mają `user-select: text`. `pickFolder` fokusuje okno zanim pokaże dialog.
+
 ## Nowa kopia z GitHuba startuje bez workspace’ów (2026-09-27, `dev`)
 
 **Zgłoszenie:** pierwsze pobranie pqTERM na inny komputer otwierało się z już

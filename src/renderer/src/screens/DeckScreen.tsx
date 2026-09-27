@@ -196,6 +196,17 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
     reportTerminalFocus()
   }, [snap.activeWorkspaceId, ws?.panes, zoomedId, modal])
 
+  // A pane click focuses xterm's helper textarea, and that focus survives the
+  // click that opens a dialog. The first show then swallows typing and the
+  // folder picker; closing the dialog blurs the textarea, which is why the
+  // second show worked.
+  useEffect(() => {
+    document.body.classList.toggle('modal-open', modal !== null)
+    if (!modal) return
+    document.querySelectorAll<HTMLTextAreaElement>('textarea.xterm-helper-textarea').forEach((node) => node.blur())
+    return () => document.body.classList.remove('modal-open')
+  }, [modal])
+
   function setZoomFor(wId: string, paneId: string | null): void {
     void window.pq.workspaces.update(wId, { zoomedPaneId: paneId })
     if (paneId) requestPaneFocus(wId, paneId)

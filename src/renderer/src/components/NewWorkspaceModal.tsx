@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { EngineId, LayoutId, ProviderInfo, Workspace } from '../../../shared/types'
 import { isRawShell, MAX_PANES } from '../../../shared/types'
 import { defaultAreas } from '../../../shared/grid'
@@ -35,6 +35,7 @@ export default function NewWorkspaceModal({
   onClose: () => void
 }) {
   const editing = workspace !== undefined
+  const titleRef = useRef<HTMLInputElement>(null)
   const [title, setTitle] = useState(workspace?.title ?? '')
   const [cwd, setCwd] = useState(workspace?.cwd ?? '')
   const [layout, setLayout] = useState<LayoutId>(workspace?.layout ?? 2)
@@ -43,6 +44,11 @@ export default function NewWorkspaceModal({
 
   const usable = providers.filter((p) => !isRawShell(p.id) && p.enabled)
   const liveEngines = workspace?.panes.filter((p) => p.engine).length ?? 0
+
+  useEffect(() => {
+    const id = window.setTimeout(() => titleRef.current?.focus(), 0)
+    return () => window.clearTimeout(id)
+  }, [])
 
   function toggle(id: EngineId) {
     setEngines((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))
@@ -107,15 +113,22 @@ export default function NewWorkspaceModal({
         </div>
         <label className="f">TYTUŁ</label>
         <input
+          ref={titleRef}
           className="f"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          onMouseDown={(e) => e.currentTarget.focus()}
           placeholder="np. refactor auth · trading bot · docs rewrite"
-          autoFocus
         />
         <label className="f">KATALOG</label>
         <div className="row2">
-          <input className="f" value={cwd} onChange={(e) => setCwd(e.target.value)} placeholder="C:\…" />
+          <input
+            className="f"
+            value={cwd}
+            onChange={(e) => setCwd(e.target.value)}
+            onMouseDown={(e) => e.currentTarget.focus()}
+            placeholder="C:\…"
+          />
           <button className="ghost" onClick={pick}>
             browse
           </button>

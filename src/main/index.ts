@@ -1103,7 +1103,12 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('workspaces:pickFolder', async () => {
-    const res = await dialog.showOpenDialog(mainWindow!, {
+    const win = mainWindow
+    if (!win || win.isDestroyed()) return null
+    // A hidden xterm textarea can still hold window focus; the first folder
+    // dialog then returns canceled until the dialog is opened again.
+    if (!win.isFocused()) win.focus()
+    const res = await dialog.showOpenDialog(win, {
       title: 'katalog workspace',
       properties: ['openDirectory', 'createDirectory']
     })
