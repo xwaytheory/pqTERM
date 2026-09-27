@@ -21,6 +21,31 @@ test('BEL alerts are per-pane, suppress bursts, and resume at the cooldown bound
   assert.deepEqual(alerts, ['a', 'b', 'a'])
 })
 
+test('BEL attention clears when the CLI keeps writing, and stays when it stops', () => {
+  let now = 1_000
+  const alerts: string[] = []
+  const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
+  tracker.start('p')
+  tracker.output('p', '\x07')
+  assert.equal(tracker.get().p.kind, 'attention')
+  assert.equal(tracker.get().p.unread, true)
+  // the notice chunk itself (same clock) must not eat the bell
+  tracker.output('p', 'prompt redraw')
+  assert.equal(tracker.get().p.kind, 'attention')
+  now = 1_001
+  tracker.output('p', 'still writing the patch')
+  assert.equal(tracker.get().p.kind, 'running')
+  assert.equal(tracker.get().p.unread, false)
+  assert.deepEqual(alerts, ['attention'])
+  tracker.notice('p', 'omp', 'Complete')
+  assert.equal(tracker.get().p.kind, 'attention')
+  tracker.output('p', '\x1b]9;Complete\x07')
+  assert.equal(tracker.get().p.kind, 'attention')
+  now = 5_000
+  tracker.tick()
+  assert.equal(tracker.get().p.kind, 'attention')
+})
+
 test('OSC title terminators do not consume the BEL alert cooldown across chunk splits', () => {
   const alerts: string[] = []
   const tracker = new PaneActivityTracker(() => {}, (id) => alerts.push(id), () => 10000)

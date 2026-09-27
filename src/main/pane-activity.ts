@@ -12,6 +12,8 @@ interface Entry {
   escape: boolean
   lastOutputAt: number
   lastBellAt: number
+  /** Clock value when attention was latched. Later output clears it. */
+  attentionAt: number
   lastSemantic: PaneActivityKind | null
   /** Set once per silence stretch: one 'waiting' escalation per stretch, not per tick. */
   waitingAnnounced: boolean
@@ -21,7 +23,8 @@ interface Entry {
 /**
  * Pure pane-activity state: which panes are running, quiet (silence — NOT
  * completion), semantically ready/waiting (agent events), or exited. BEL =
- * attention; OSC-title BEL terminators are excluded across chunk splits.
+ * attention until the CLI writes again; OSC-title BEL terminators are excluded
+ * across chunk splits.
  */
 export class PaneActivityTracker {
   private entries = new Map<string, Entry>()
@@ -48,6 +51,7 @@ export class PaneActivityTracker {
       escape: false,
       lastOutputAt: at,
       lastBellAt: -Infinity,
+      attentionAt: -Infinity,
       lastSemantic: null,
       waitingAnnounced: false
     }
@@ -63,7 +67,9 @@ export class PaneActivityTracker {
   output(paneId: string, data: string): void {
     const e = this.entries.get(paneId)
     if (!e || e.ended || !data) return
-    e.lastOutputAt = this.now()
+    const now = this.now()
+    const wasAttention = e.activity.kind === 'attention'
+    e.lastOutputAt = now
     e.waitingAnnounced = false
     if (e.activity.kind === 'quiet' || e.activity.kind === 'waiting') {
       this.set(paneId, e, 'running', false)
@@ -89,10 +95,20 @@ export class PaneActivityTracker {
       }
       if (ch === '\x07') bell = true
     }
-    if (bell && e.lastBellAt + BEL_COOLDOWN_MS <= this.now()) {
-      e.lastBellAt = this.now()
+    if (bell && e.lastBellAt + BEL_COOLDOWN_MS <= now) {
+      e.lastBellAt = now
+      e.attentionAt = now
       this.set(paneId, e, 'attention', true)
       this.onAlert(paneId, 'attention')
+      return
+    }
+    // omp (TERM_PROGRAM=pq → trueColor) rings BEL when a turn ends. The next
+    // turn keeps writing, so a latched badge would say "needs attention" the
+    // whole time it is working. Same-millisecond output (the notice chunk
+    // itself) does not clear it; silence after the bell still does not.
+    if (wasAttention && !bell && e.attentionAt < now) {
+      e.activity = { ...e.activity, unread: false }
+      this.set(paneId, e, 'running', false)
     }
   }
 
@@ -106,6 +122,7 @@ export class PaneActivityTracker {
     e.lastOutputAt = this.now()
     e.waitingAnnounced = false
     e.lastSemantic = 'attention'
+    e.attentionAt = this.now()
     this.set(paneId, e, 'attention', true)
     void title
     void body
@@ -117,6 +134,7 @@ export class PaneActivityTracker {
     if (!e || e.ended) return
     if (e.lastSemantic === kind) return
     e.lastSemantic = kind
+    if (kind === 'attention') e.attentionAt = this.now()
     this.set(paneId, e, kind, kind !== 'running')
     if (kind !== 'running') this.onAlert(paneId, kind)
   }

@@ -1,5 +1,25 @@
 # pq workbench (gauntlet live board)
 
+## „CLI wymaga uwagi” zostaje, choć CLI dalej pisze (2026-09-27, `dev`)
+
+**Zgłoszenie:** pane w trakcie pracy (omp pisze kod, woła narzędzia) ma badge
+„CLI wymaga uwagi” i bursztynową ramkę.
+
+**Root cause:** `TERM_PROGRAM=pq` + `COLORTERM=truecolor` → omp bierze profil
+`trueColor`, a jego powiadomienie to surowy BEL (`\x07`) na końcu tury.
+`PaneActivityTracker.output()` ustawiał `attention` i już go nie zdejmował:
+kolejny stdout wracał do `running` tylko z `quiet` i `waiting`. Jedno
+zakończenie tury zostawiało badge na całą następną turę.
+
+**Fix:** BEL / OSC 9 / `signal('attention')` dalej podnoszą badge (cisza go
+trzyma — koniec pracy bez dalszego pisania zostaje „wymaga uwagi”). Następny
+chunk wyjścia, z późniejszym zegarem niż sam dzwonek, wraca do `running` i
+zeruje `unread`. Ten sam chunk co dzwonek (ta sama milisekunda) nie zdejmuje
+go. OSC/DCS BEL bez zmian.
+
+**Test:** `pane-activity.test.ts` — „BEL attention clears when the CLI keeps
+writing, and stays when it stops”.
+
 ## Pierwsze NEW WORKSPACE nie bierze tytułu ani katalogu (2026-09-27, `dev`)
 
 **Zgłoszenie:** pierwsze otwarcie NEW WORKSPACE nie przyjmuje tytułu ani ścieżki.
