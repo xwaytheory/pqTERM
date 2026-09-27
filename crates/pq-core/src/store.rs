@@ -1,13 +1,12 @@
 //! App state persistence (Electron `store.ts` twin) — lean serde snapshot.
 //!
 //! File: `{user_data_dir}/pq-state.json` (see [`crate::env::user_data_dir`]).
-//! When running as `pq-dev` and the dest file is missing, Electron copies from
-//! production `%APPDATA%\pq\pq-state.json`; Rust mirrors that migrate-on-first-load.
+//! A missing file is a fresh profile. Another profile's workspaces are not copied.
 //!
 //! Provider merge: `pq_core::engines::merge_providers` (catalog + saved toggles).
 //! Pane title sanitize similarly deferred — load/save roundtrip preserves JSON fields.
 
-use crate::env::{prod_user_data_dir, user_data_dir};
+use crate::env::user_data_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
@@ -181,48 +180,21 @@ pub fn state_path_in(user_data: impl AsRef<Path>) -> PathBuf {
     user_data.as_ref().join("pq-state.json")
 }
 
-fn prod_state_path() -> PathBuf {
-    prod_user_data_dir().join("pq-state.json")
-}
-
-/// Whether a readable state file exists (current profile, else prod candidate).
+/// Whether this profile already has a state file.
 pub fn exists_state() -> bool {
-    exists_state_at(&state_path()) || exists_state_at(&prod_state_path())
+    exists_state_at(&state_path())
 }
 
 pub fn exists_state_at(path: impl AsRef<Path>) -> bool {
     path.as_ref().is_file()
 }
 
-/// Resolve which file to read: prefer current profile; if missing and we are
-/// `pq-dev`, try migrating a copy from production (Electron behaviour).
-fn resolve_load_path() -> PathBuf {
-    let dest = state_path();
-    if dest.is_file() {
-        return dest;
-    }
-    let from_prod = prod_state_path();
-    if from_prod.is_file() && crate::env::running_dev() {
-        if let Some(parent) = dest.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        let _ = fs::copy(&from_prod, &dest);
-    }
-    if dest.is_file() {
-        dest
-    } else if from_prod.is_file() {
-        from_prod
-    } else {
-        dest
-    }
-}
-
 /// Load snapshot from disk; on any error returns [`empty_snapshot`] (Electron catch behaviour).
 pub fn load_state() -> AppSnapshot {
-    load_state_from(resolve_load_path()).unwrap_or_else(|_| empty_snapshot())
+    load_state_from(state_path()).unwrap_or_else(|_| empty_snapshot())
 }
 
-/// Load from an explicit path (no migrate). Missing/invalid → error.
+/// Load from an explicit path. Missing/invalid → error.
 pub fn load_state_from(path: impl AsRef<Path>) -> Result<AppSnapshot, StoreError> {
     let raw = fs::read_to_string(path)?;
     let mut snap: AppSnapshot = serde_json::from_str(&raw)?;

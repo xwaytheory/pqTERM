@@ -1,5 +1,22 @@
 # pq workbench (gauntlet live board)
 
+## Nowa kopia z GitHuba startuje bez workspace’ów (2026-09-27, `dev`)
+
+**Zgłoszenie:** pierwsze pobranie pqTERM na inny komputer otwierało się z już
+istniejącymi workspace’ami. Ma być puste, jakby nikt ich tam nie zakładał.
+
+**Root cause:** pierwszy start profilu `pqTERM-pr` / `pqTERM-dev`, gdy brakowało
+jego `pq-state.json`, kopiował i czytał stary profil `%AppData%\Roaming\pq`
+(albo `pq-dev`) razem z sesjami. W gicie tego pliku nigdy nie było.
+
+**Fix:** `resolveProfileState` patrzy tylko na plik tego profilu. Brak pliku
+to pusta lista. Istniejący `%AppData%\Roaming\pqTERM-pr\pq-state.json` zostaje.
+`pq-state.json` jest w `.gitignore`, więc nie wjedzie do klona. Bliźniak w
+`crates/pq-core` też czyta tylko swój plik.
+
+**Test:** `profile-state.test.ts` — stary plik `pq\pq-state.json` nie jest
+nawet pytany; jest tylko plik nowego profilu.
+
 ## pqterm update i pasek „jest nowsze na GitHub” (2026-09-27, `dev`)
 
 **Zgłoszenie:** z cmd `pqterm update` ma dociągnąć przestrzeń pqTERM z GitHuba.

@@ -56,7 +56,7 @@ pub fn user_data_dir_for(product: &str) -> PathBuf {
     appdata_roaming().join(product)
 }
 
-/// Production user-data dir (always `pq`), used when migrating state into `pq-dev`.
+/// Old product directory `%APPDATA%\pq`. Startup does not read it.
 pub fn prod_user_data_dir() -> PathBuf {
     user_data_dir_for("pq")
 }

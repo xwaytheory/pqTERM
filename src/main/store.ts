@@ -1,44 +1,13 @@
 import { app } from './host'
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
-import { homedir } from 'os'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import type { AppSnapshot, PaneState, ProviderInfo, Workspace } from '../shared/types'
 import { DEFAULT_NOTIFICATIONS, DEFAULT_UI, looksLikePathTitle, sanitizeUi } from '../shared/types'
 import { defaultProvider, ENGINE_SPECS } from './engines'
-import { runningDev } from './env'
+import { resolveProfileState } from './profile-state'
 
 function saveFile(): string {
   return join(app.getPath('userData'), 'pq-state.json')
-}
-
-/** Pre-rebrand profile dir (pqTERM-pr ← pq, pqTERM-dev ← pq-dev). */
-function legacyDir(): string {
-  return join(homedir(), 'AppData', 'Roaming', runningDev() ? 'pq-dev' : 'pq')
-}
-
-function loadFile(): string {
-  const dest = saveFile()
-  if (!existsSync(dest)) {
-    // First boot under the pqTERM name — carry over workspaces/settings.
-    const fromLegacy = join(legacyDir(), 'pq-state.json')
-    if (existsSync(fromLegacy)) {
-      mkdirSync(dirname(dest), { recursive: true })
-      try {
-        copyFileSync(fromLegacy, dest)
-      } catch {
-        /* ignore */
-      }
-      try {
-        cpSync(join(legacyDir(), 'sessions'), join(dirname(dest), 'sessions'), {
-          recursive: true
-        })
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-  const candidates = [dest, join(legacyDir(), 'pq-state.json')]
-  return candidates.find((p) => existsSync(p)) ?? dest
 }
 
 function empty(): AppSnapshot {
@@ -88,8 +57,10 @@ function sanitizePane(p: PaneState): PaneState {
 }
 
 export function loadState(): AppSnapshot {
+  const file = resolveProfileState(app.getPath('userData'), existsSync)
+  if (!file) return empty()
   try {
-    const raw = readFileSync(loadFile(), 'utf8')
+    const raw = readFileSync(file, 'utf8')
     const parsed = JSON.parse(raw) as AppSnapshot
     const workspaces = (Array.isArray(parsed.workspaces) ? parsed.workspaces : []).map((w) => ({
       ...w,
@@ -127,7 +98,7 @@ export function saveState(state: AppSnapshot): void {
 }
 
 export function existsState(): boolean {
-  return existsSync(loadFile())
+  return resolveProfileState(app.getPath('userData'), existsSync) !== null
 }
 
 export function touchWorkspace(ws: Workspace): Workspace {
