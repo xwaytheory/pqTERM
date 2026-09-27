@@ -2,14 +2,14 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.3.11** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.3.12** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
 
-## Nowości 1.3.11
+## Nowości 1.3.12
 
-- **Plus nie zjada pierwszego okna.** Nowe okno dokłada się na końcu, a cała siatka układa się od nowa równymi rzędami (najwyżej 5 kolumn, 20 = 5×4).
-- **Limit 20.** Dwudzieste pierwsze kliknięcie nic nie dodaje. W rogu pojawia się: „Maksimum to 20 okien. Więcej nie da się otworzyć.”
-- **Wybór gridu to miniatura.** W New Workspace i Edit Workspace zamiast cyfr 1, 2, 3… jest 20 rysunków siatki. Drobna liczba w rogu mówi, ile okien ma dany układ.
-- **Nowe silniki:** Qoder CLI (`qodercli`) i BAI code (`baicode`).
+- **pqterm update.** W nowym oknie cmd wpisz `pqterm update`. Dociąga czyste kopie `main`, `dev` i `test` z GitHuba i przebudowuje oficjalną kopię.
+- **Pasek przy starcie.** Gdy GitHub jest do przodu, u góry widać prośbę, żeby wpisać `pqterm update`.
+- **Nowa kopia jest pusta.** Pierwsze uruchomienie nie wciąga starych workspace’ów ze starego profilu `pq`.
+- **Klik w inne okno zostawia widok na dole.** Terminal nie skacze na początek bufora.
 
 Na razie **prywatne**. Publicznie wyjdzie dopiero gdy zdecydujesz.
 
