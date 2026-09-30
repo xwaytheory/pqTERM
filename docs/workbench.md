@@ -1094,3 +1094,25 @@ Decyzje (potrzebne, bo same skille tego nie rozstrzygają):
 - **Bez zmian w kodzie aplikacji.** To pliki instrukcyjne + skrypty wywoływane przez agenta na żądanie; nic nie odpala się przy instalacji ani przy starcie pqTERM.
 
 Do przemyślenia przy okazji: 15 MB w gicie (głównie fonty TTF i dane CSV katalogów UI). Repozytorium jest prywatne i nie ma zdalnego pushu, więc na razie bez szkody; gdyby kiedyś szło to na GitHuba, fonty i CSV są pierwsze do wyłączenia (`.gitattributes` + LUB usunięcie `ui-styling`).
+
+## Release 1.5.0 + kaskada na wszystkie instancje (2026-09-30)
+
+Wersja produktu **1.3.12 → 1.5.0** (1.4.3 nigdy nie wyszło do `main`, więc powiadomienia i skille to jedna niekommitowana seria; minor ≤ .9 zgodnie z ustaleniem). `--set-file-version` **przestał być zamrożony na 1.1.7** i idzie za produktem (1.5.0) — to był ten „build" z mojego raportu. Build w pasku to wciąż licznik commitów (`git rev-list --count HEAD`) i sam rośnie: **197**.
+
+Pułapka, którą znowu obsadził `check:version` — tym razem w bezpieczną stronę: `lazy_static`, `http` i `byteorder` **naprawdę** mają `1.5.0` w lockach (istniejące wydania crates.io; `cargo metadata --locked` je akceptuje, a diff locków to tylko 3+1 linie lokalnych crate'ów). Wpisane do `STATIC_ALLOWED` w `scripts/check-version-sync.cjs` z komentarzem, że wpisy są martwe, gdy produkt ruszy dalej. Bez tego gate wywalałby każdy bump na `1.5.0`.
+
+| Krok | Dowód |
+|---|---|
+| `dev`: bump 1.5.0 + release commit | `818994d`, `test:unit` 171/171, `check:version` OK |
+| `test`: fast-forward | 171/171 + `check:version` OK, `npm run build` OK (renderer 751 kB / CSS 34 kB) |
+| `main`: fast-forward z `test` (bez merge-commit) | 171/171 + `check:version` OK, HEAD `818994d` |
+| GitHub | `git push origin main test dev` → `d76aec0..818994d` na trzech gałęziach (`xwaytheory/pqTERM`) |
+| Binarka 1.5.0 | `instances\test\host\pqterm.exe`: ProductVersion 1.5.0, FileVersion 1.5.0, manifest `highestAvailable` |
+| Skille globalne | `npx skills add <repo> --global` dla 4 rodzin → `~\.agents\skills` = 33 skille, więc **każdy pane w każdym folderze projektu** je widzi, niezależnie od gałęzi |
+
+**Czego nie zrobiłem celowo, bo to nie moje:**
+
+- `instances\wip` ma na gałęzi `main` **staged rollback całej tej pracy** (`588 plików, −204 707 linii` w indeksie: usunięte skille, wycofane `pane-activity.ts` / `pty-manager.ts` / `NotificationsPanel.tsx`). To cudza, niekommitowana praca z innej sesji — zgodnie z notką z 2026-09-15 **jej nie ruszałem**. `main` jest bezpieczny tylko dlatego, że merge szedł w głównym worktree (worktree ma własny indeks). Do rozstrzygnięcia przez człowieka: `git -C C:\Users\pq\pqTERM\instances\wip diff --cached --stat`, potem `git restore --staged .` albo commit. Dopóki to leży, **żaden commit zrobiony w `wip` nie może wejść na `main`**.
+- `instances\feat\engine-lifecycle` nie jest przodkiem `main` (94 commity do przodu, real merge z ryzykiem konfliktów) — gałąź izolowana, poza kaskadą dev → test → main, więc jej nie scalałem. Skille i tak są globalne.
+- `main\host\pqterm.exe` i `main\out\` **nie odświeżone**: oficjalna aplikacja z `main` trzymała pliki pod rygą, a przy okazji okazało się, że siedzę w pane'ie **tej samej** aplikacji — jej zamknięcie ubija moją sesję (stąd dwa przerwane polecenia w tej sesji). Do domknięcia po zamknięciu pqTERM: `node scripts/stamp-host.cjs` + `npm run build` w `C:\Users\pq\pqTERM`. Stan `main` w gicie i na GitHubie jest kompletny; brakuje tylko lokalnych artefaktów skompilowanych.
+- `AGENTS.md` w `main` miał niezacommitowaną pustą linię dorzuconą przez wstrzykiwacz `<!-- pq:defaults -->` (narzędzie zewnętrzne). Zostawiłem nietknięte, żeby nie mieszać się z narzędziem; to szum, nie zmiana treści.
