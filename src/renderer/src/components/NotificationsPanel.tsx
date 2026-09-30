@@ -27,12 +27,12 @@ export default function NotificationsPanel({ settings }: { settings: Notificatio
     <>
       <div className="sub">
         Alert systemowy dla terminala poza fokusem. Sposoby, w jakie pqTERM dowiaduje się, że
-        potrzebujesz: sygnał BEL, powiadomienia OSC 9 / 99 / 777 wysyłane przez CLI oraz — dla
-        CLI, które nic nie wysyłają albo mają to wyłączone — rozpoznanie zatrzymanego pytania
-        (np. „Do you want to proceed?”, <code>[y/n]</code>) albo pustego pola na końcu tury
-        agenta. Sama cisza w wyjściu CLI oznacza tylko brak aktywności i sama w sobie alertu nie
-        uruchamia. Kliknięcie alertu otwiera właściwy terminal. Statusy w pqTERM pozostają widoczne
-        także po wyłączeniu alertów.
+        potrzebujesz: sygnał BEL — ale tylko jeśli terminal po nim <em>zamilknął</em> (BEL w trakcie
+        pracy CLI to szum, nie prośba), powiadomienia OSC 9 / 99 / 777 wysyłane przez CLI oraz —
+        dla CLI, które nic nie wysyłają albo mają to wyłączone — rozpoznanie zatrzymanego pytania
+        (np. „Do you want to proceed?”, <code>[y/n]</code>). Sama cisza i puste pole na dole
+        ekranu niczego nie znaczą: pracujący agent też je pokazuje. Kliknięcie alertu otwiera
+        właściwy terminal. Statusy w pqTERM pozostają widoczne także po wyłączeniu alertów.
       </div>
       <label className="check">
         <input type="checkbox" checked={settings.enabled} disabled={busy}

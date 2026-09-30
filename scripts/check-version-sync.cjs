@@ -35,7 +35,11 @@ const STATIC_ALLOWED = [
   // the local crates in each lock. Entries are inert once the product moves on.
   'byteorder@1.5.0',
   'http@1.5.0',
-  'lazy_static@1.5.0'
+  'lazy_static@1.5.0',
+  // product 1.5.1: same story (the 1.5.0 → 1.5.1 bump nearly hit this again —
+  // verify the offending package is untouched by the diff before allowing it).
+  'autocfg@1.5.1',
+  'crc32fast@1.5.1'
 ]
 const allowed = new Set([
   ...STATIC_ALLOWED,

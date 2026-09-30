@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { stripControls, visibleLines, isQuestion, isIdleInputBox } from './attention.ts'
+import { stripControls, visibleLines, isQuestion } from './attention.ts'
 
 // Verbatim shapes of the approval prompts the CLIs actually print.
 const SAMPLES: [string, string][] = [
@@ -42,13 +42,10 @@ test('controls and box drawing are stripped so the tail reads like the screen', 
   assert.deepEqual(visibleLines('a\nb\n│ > │\n'), ['a', 'b', '>'])
 })
 
-test('an empty input box is the finished-turn signal, a filled one is not', () => {
-  assert.equal(isIdleInputBox(visibleLines('Answer ready\n│\n│ ❯ │\n│\n')), true)
-  assert.equal(isIdleInputBox(visibleLines('Answer ready\n│ >  jestem w trakcie pisania\n')), false)
-  assert.equal(isIdleInputBox(visibleLines('Answer ready\nstill printing the patch\n')), false)
-})
-
-test('a long answer with a trailing prompt is not read as an idle box', () => {
-  // more than two visible lines: the tail is content, not an input line
-  assert.equal(isIdleInputBox(visibleLines('one\ntwo\nthree\nfour\n> ')), false)
+test('an empty input box is NOT a question — a busy TUI looks exactly the same', () => {
+  // opencode mid-task, 2026-09-30: the TUI keeps an empty prompt above the
+  // status bar while it streams output. Reading that as "turn finished" toasted
+  // the user during normal work, so the rule is gone.
+  assert.equal(isQuestion(visibleLines('streaming…\n\n│\n│ ❯ │\n│\nBuild auto · zen')), false)
+  assert.equal(isQuestion(visibleLines('Answer ready\n│ ❯ │')), false)
 })

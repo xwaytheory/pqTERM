@@ -2,41 +2,66 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PaneActivityTracker } from './pane-activity.ts'
 
-test('BEL alerts are per-pane, suppress bursts, and resume at the cooldown boundary', () => {
+// A BEL is a candidate, not an alert: it is promoted only if the pane then goes
+// quiet (tick, 2.5 s). A CLI that keeps writing after the bell was making noise
+// between tool steps — that toasted the user mid-task (opencode, 2026-09-30).
+
+test('a BEL alerts only after the pane stops, per pane, with burst cooldown', () => {
   let now = 0
   const alerts: string[] = []
   const tracker = new PaneActivityTracker(() => {}, (id) => alerts.push(id), () => now)
   tracker.start('a')
   tracker.start('b')
   tracker.output('a', '\x07')
-  assert.deepEqual(alerts, ['a'])
-  tracker.output('a', '\x07\x07')
   tracker.output('b', '\x07')
+  assert.deepEqual(alerts, []) // candidate, not yet an alert
+  now = 2_500
+  tracker.tick()
   assert.deepEqual(alerts, ['a', 'b'])
-  now = 4999
-  tracker.output('a', '\x07')
+  // burst: a second bell inside the cooldown is ignored entirely
+  now = 3_000
+  tracker.output('a', '\x07\x07')
+  now = 5_500
+  tracker.tick()
   assert.deepEqual(alerts, ['a', 'b'])
-  now = 5000
+  now = 8_000 // cooldown from the first bell elapsed
   tracker.output('a', '\x07')
+  now = 10_500
+  tracker.tick()
   assert.deepEqual(alerts, ['a', 'b', 'a'])
 })
 
-test('BEL attention clears when the CLI keeps writing, and stays when it stops', () => {
+test('a BEL while the CLI keeps working never alerts and never latches a badge', () => {
+  let now = 0
+  const alerts: string[] = []
+  const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
+  tracker.start('p')
+  for (let i = 0; i < 20; i++) {
+    now += 1_000
+    tracker.output('p', `\x07step ${i} of the patch\r\n`)
+    tracker.tick()
+  }
+  assert.deepEqual(alerts, [])
+  assert.equal(tracker.get().p.kind, 'running')
+  assert.equal(tracker.get().p.unread, false)
+})
+
+test('BEL attention latches on silence, and new output clears it', () => {
   let now = 1_000
   const alerts: string[] = []
   const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
   tracker.start('p')
   tracker.output('p', '\x07')
+  assert.equal(tracker.get().p.kind, 'running') // not yet
+  now = 3_500
+  tracker.tick()
   assert.equal(tracker.get().p.kind, 'attention')
   assert.equal(tracker.get().p.unread, true)
-  // the notice chunk itself (same clock) must not eat the bell
-  tracker.output('p', 'prompt redraw')
-  assert.equal(tracker.get().p.kind, 'attention')
-  now = 1_001
-  tracker.output('p', 'still writing the patch')
+  assert.deepEqual(alerts, ['attention'])
+  now = 4_000
+  tracker.output('p', 'the user answered and the agent kept going')
   assert.equal(tracker.get().p.kind, 'running')
   assert.equal(tracker.get().p.unread, false)
-  assert.deepEqual(alerts, ['attention'])
   tracker.notice('p', 'omp', 'Complete')
   assert.equal(tracker.get().p.kind, 'attention')
   tracker.output('p', '\x1b]9;Complete\x07')
@@ -48,14 +73,15 @@ test('BEL attention clears when the CLI keeps writing, and stays when it stops',
 
 test('OSC title terminators do not consume the BEL alert cooldown across chunk splits', () => {
   const alerts: string[] = []
-  const tracker = new PaneActivityTracker(() => {}, (id) => alerts.push(id), () => 10000)
+  const tracker = new PaneActivityTracker(() => {}, (id) => alerts.push(id), () => now0)
+  const now0 = 10_000
   tracker.start('pane')
   tracker.output('pane', '\x1b')
   tracker.output('pane', ']0;title')
   tracker.output('pane', '\x07')
   assert.deepEqual(alerts, [])
   tracker.output('pane', '\x07')
-  assert.deepEqual(alerts, ['pane'])
+  assert.deepEqual(alerts, [])
 })
 
 test('silence is not completion and resumed output restores activity', () => {
@@ -139,20 +165,23 @@ test('a fresh pane nobody asked anything stays quiet — silence alone never ale
 
 test('control string BEL bytes do not alert before a fragmented ST terminator', () => {
   for (const prefix of ['P', 'X', '^', '_']) {
+    let now = 10_000
     const alerts: string[] = []
-    const tracker = new PaneActivityTracker(() => {}, (id) => alerts.push(id), () => 10000)
+    const tracker = new PaneActivityTracker(() => {}, (id) => alerts.push(id), () => now)
     tracker.start('p')
     tracker.output('p', '\x1b' + prefix + 'payload\x07')
     tracker.output('p', '\x07\x1b')
     assert.deepEqual(alerts, [])
     tracker.output('p', '\\\x07')
+    now = 12_500
+    tracker.tick()
     assert.deepEqual(alerts, ['p'])
   }
 })
 
 // ---------------------------------------------- screen-based guess (no OSC, no BEL)
 // The CLIs that ship their notification channel off (or have none) still freeze
-// on a prompt or leave an empty input box — that is the only signal left.
+// on a prompt — that is the only signal left.
 
 test('a blocked prompt in the visible lines alerts once, and the answer clears it', () => {
   let now = 0
@@ -183,30 +212,23 @@ test('a blocked prompt in the visible lines alerts once, and the answer clears i
   assert.deepEqual(alerts, ['attention', 'attention']) // a new question is a new alert
 })
 
-test('an agent pane at an empty input box reports "ready"; a raw shell never does', () => {
+test('an empty agent input box never alerts — that shape is what a busy TUI looks like', () => {
+  // Regression, 2026-09-30: opencode kept streaming while its prompt box sat
+  // empty above the status bar, and the old "finished turn" rule toasted the user
+  // during normal work. Silence plus an empty box proves nothing; only a yes/no
+  // affordance counts.
   let now = 0
   const alerts: string[] = []
   const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
   tracker.start('agent', { agent: true })
-  tracker.output('agent', 'Answer ready — 2 files changed\r\n│\r\n│ ❯ │\r\n')
+  tracker.output('agent', 'streaming…\r\n│\r\n│ ❯ │\r\n│\r\nBuild auto · zen\r\n')
   tracker.input('agent')
-  now = 60_000
-  tracker.tick()
-  assert.deepEqual(alerts, []) // waiting is status only…
-  assert.equal(tracker.get().agent.kind, 'waiting')
-  now = 90_000
-  tracker.tick()
-  assert.deepEqual(alerts, ['ready'])
-  assert.equal(tracker.get().agent.kind, 'ready')
-
-  // the same screen in a bare cmd/powershell pane is just a prompt
-  tracker.start('shell')
-  tracker.output('shell', 'Answer ready\r\n│\r\n│ ❯ │\r\n')
-  tracker.input('shell')
-  now = 200_000
-  tracker.tick()
-  assert.deepEqual(alerts, ['ready'])
-  assert.equal(tracker.get().shell.kind, 'waiting')
+  for (const at of [60_000, 90_000, 300_000, 900_000]) {
+    now = at
+    tracker.tick()
+  }
+  assert.deepEqual(alerts, [])
+  assert.equal(tracker.get().agent.kind, 'waiting') // badge only, no toast
 })
 
 test('a pane nobody typed into, and a latched BEL, are never guessed at', () => {
@@ -220,13 +242,16 @@ test('a pane nobody typed into, and a latched BEL, are never guessed at', () => 
   assert.deepEqual(alerts, []) // nothing was ever asked of this pane
   assert.equal(tracker.get().p.kind, 'waiting')
 
-  // a CLI that rang the bell already got its toast — no second, screen-based one
+  // a CLI that rang the bell and then stopped already got its toast — the
+  // screen-based guess must not add a second one
   tracker.start('b', { agent: true })
   tracker.output('b', 'Do you want to proceed?\r\n❯ 1. Yes\r\n')
   tracker.input('b')
   tracker.output('b', '\x07')
-  assert.deepEqual(alerts, ['attention'])
   now = 130_000
+  tracker.tick()
+  assert.deepEqual(alerts, ['attention'])
+  now = 140_000
   tracker.tick()
   assert.deepEqual(alerts, ['attention'])
 })
