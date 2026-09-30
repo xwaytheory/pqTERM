@@ -26,12 +26,13 @@ export default function NotificationsPanel({ settings }: { settings: Notificatio
   return (
     <>
       <div className="sub">
-        Alert systemowy dla terminala poza fokusem: sygnał BEL oznacza prośbę CLI o uwagę,
-        a zakończenie procesu informuje o wyjściu z sesji. Kliknięcie alertu otwiera właściwy
-        terminal. Cisza w wyjściu CLI nigdy nie oznacza ukończenia zadania i nie uruchamia
-        alertu — status „czeka na Ciebie” w pasku pane jest tylko informacją, bez toastu.
-        Powiadomienia systemowe przychodzą wyłącznie z wyraźnych zdarzeń: BEL, OSC 9/777,
-        wyjście procesu. Statusy w pqTERM pozostają widoczne także po wyłączeniu alertów.
+        Alert systemowy dla terminala poza fokusem. Sposoby, w jakie pqTERM dowiaduje się, że
+        potrzebujesz: sygnał BEL, powiadomienia OSC 9 / 99 / 777 wysyłane przez CLI oraz — dla
+        CLI, które nic nie wysyłają albo mają to wyłączone — rozpoznanie zatrzymanego pytania
+        (np. „Do you want to proceed?”, <code>[y/n]</code>) albo pustego pola na końcu tury
+        agenta. Sama cisza w wyjściu CLI oznacza tylko brak aktywności i sama w sobie alertu nie
+        uruchamia. Kliknięcie alertu otwiera właściwy terminal. Statusy w pqTERM pozostają widoczne
+        także po wyłączeniu alertów.
       </div>
       <label className="check">
         <input type="checkbox" checked={settings.enabled} disabled={busy}
@@ -45,6 +46,12 @@ export default function NotificationsPanel({ settings }: { settings: Notificatio
       </label>
       <p className="hint">
         Wyświetlanie i dźwięk zależą też od ustawień powiadomień i trybu „Nie przeszkadzać” w systemie.
+      </p>
+      <p className="hint">
+        Niektóre CLI mają własny wyłącznik i trzymają go domyślnie na off — wtedy zostaje tylko
+        rozpoznanie pytania z ekranu: <code>attention.enabled</code> w opencode,
+        <code> general.enableNotifications</code> w Gemini, <code>display.bell_on_*</code> w Hermes.
+        Codex dodatkowo <code>notification_condition = &quot;always&quot;</code>, bo pane nigdy nie zgłasza utraty fokusu.
       </p>
       {error ? <p role="alert" className="notification-error">{error}</p> : null}
     </>

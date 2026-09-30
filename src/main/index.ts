@@ -117,28 +117,20 @@ function closePaneNotification(paneId: string): void {
   notification?.close()
 }
 
-const activity = new PaneActivityTracker((paneId, next) => {
-  if (!next || !next.unread) closePaneNotification(paneId)
-  if (next?.unread && paneIsFocused(paneId)) {
-    activity.acknowledge(paneId)
-    return
-  }
-  const win = mainWindow
-  if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-    win.webContents.send('activity:changed', paneId, next)
-  }
-}, (paneId, kind) => {
+/**
+ * One desktop toast per pane: shows it, and clicking it switches to the
+ * workspace, un-zooms if needed, focuses the pane. Every alert source (BEL,
+ * OSC 9/99/777, screen-based guess, process exit) goes through here, so the
+ * guards and the click target can never drift apart.
+ */
+function notifyPane(paneId: string, title: string, body: string): void {
   const win = mainWindow
   const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId && p.engine))
   if (!state.notifications.enabled || paneIsFocused(paneId) || !ws ||
     !win || win.isDestroyed() || win.webContents.isDestroyed() || !Notification.isSupported()) return
   const pane = ws.panes.find((p) => p.id === paneId)!
   closePaneNotification(paneId)
-  const notification = new Notification({
-    title: `${ws.title} · ${pane.title}`,
-    body: ACTIVITY_LABELS[kind],
-    silent: !state.notifications.sound
-  })
+  const notification = new Notification({ title, body, silent: !state.notifications.sound })
   paneNotifications.set(paneId, notification)
   notification.on('click', () => {
     if (paneNotifications.get(paneId) !== notification || mainWindow !== win ||
@@ -162,6 +154,28 @@ const activity = new PaneActivityTracker((paneId, next) => {
   notification.on('close', forget)
   notification.on('failed', forget)
   notification.show()
+}
+
+/** Toast title: workspace + pane, with the CLI's own title when it sent one. */
+function paneAlertTitle(paneId: string, cliTitle?: string): string {
+  const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId && p.engine))
+  const pane = ws?.panes.find((p) => p.id === paneId)
+  if (!ws || !pane) return ''
+  return cliTitle ? `${ws.title} · ${cliTitle}` : `${ws.title} · ${pane.title}`
+}
+
+const activity = new PaneActivityTracker((paneId, next) => {
+  if (!next || !next.unread) closePaneNotification(paneId)
+  if (next?.unread && paneIsFocused(paneId)) {
+    activity.acknowledge(paneId)
+    return
+  }
+  const win = mainWindow
+  if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
+    win.webContents.send('activity:changed', paneId, next)
+  }
+}, (paneId, kind) => {
+  notifyPane(paneId, paneAlertTitle(paneId), ACTIVITY_LABELS[kind])
 })
 
 function requireRenderer(event: IpcMainInvokeEvent): void {
@@ -179,7 +193,11 @@ const ptys = new PtyManager(() => mainWindow, {
       ...(bridge ? bridge.envFor(paneId, slot) : {})
     }
   },
-  onStart: (paneId) => activity.start(paneId),
+  onStart: (paneId) => {
+    const pane = state.workspaces.flatMap((w) => w.panes).find((p) => p.id === paneId)
+    const engine = pane?.engine
+    activity.start(paneId, { agent: engine ? !isRawShell(engine) : false })
+  },
   // Type into a pane and the silence heuristic is armed for it; a pane nobody
   // has asked anything never escalates to "waiting for you" (that was the
   // false alert on freshly spawned, still-empty CLIs).
@@ -195,43 +213,10 @@ const ptys = new PtyManager(() => mainWindow, {
     remote?.pushExit(paneId, code)
   },
   onNotice: (paneId, notice) => {
-    // The CLI itself said "notify the user" (OSC 9 / OSC 777) — trust it over
-    // any silence heuristic and show the toast under the same guards as BELs.
+    // The CLI itself said "notify the user" (OSC 9 / 99 / 777) — trust it over
+    // any screen-based guess and show the toast under the same guards as BELs.
     activity.notice(paneId, notice.title, notice.body)
-    const win = mainWindow
-    const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId && p.engine))
-    if (!state.notifications.enabled || paneIsFocused(paneId) || !ws ||
-      !win || win.isDestroyed() || win.webContents.isDestroyed() || !Notification.isSupported()) return
-    const pane = ws.panes.find((p) => p.id === paneId)!
-    closePaneNotification(paneId)
-    const notification = new Notification({
-      title: notice.title ? `${ws.title} · ${notice.title}` : `${ws.title} · ${pane.title}`,
-      body: notice.body,
-      silent: !state.notifications.sound
-    })
-    paneNotifications.set(paneId, notification)
-    notification.on('click', () => {
-      if (paneNotifications.get(paneId) !== notification || mainWindow !== win ||
-        win.isDestroyed() || win.webContents.isDestroyed()) return
-      const target = state.workspaces.find((w) => w.id === ws.id)
-      if (!target?.panes.some((p) => p.id === paneId && p.engine)) return
-      state.activeWorkspaceId = target.id
-      if (target.zoomedPaneId && target.zoomedPaneId !== paneId) target.zoomedPaneId = null
-      focusedPaneId = null
-      persist()
-      attachBoard()
-      if (win.isMinimized()) win.restore()
-      win.show()
-      win.focus()
-      win.webContents.send('activity:focus', target.id, paneId)
-      closePaneNotification(paneId)
-    })
-    const forget = () => {
-      if (paneNotifications.get(paneId) === notification) paneNotifications.delete(paneId)
-    }
-    notification.on('close', forget)
-    notification.on('failed', forget)
-    notification.show()
+    notifyPane(paneId, paneAlertTitle(paneId, notice.title), notice.body)
   },
   onTitle: (paneId, title) => {
     applyAutoTitle(paneId, title)

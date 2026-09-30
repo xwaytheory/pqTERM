@@ -1,9 +1,16 @@
 ﻿import type { PaneActivity, PaneActivityKind } from '../shared/types'
+import { isIdleInputBox, isQuestion, visibleLines } from './attention.ts'
 
 const IDLE_MS = 30_000
 /** Silence after activity that counts as "waiting for you" (agent finished/prompting). */
 const WAITING_MS = 60_000
 const BEL_COOLDOWN_MS = 5_000
+/** A blocked prompt shows up at once — the toast must not lag behind it. */
+const QUESTION_MS = 15_000
+/** An empty input box is a finished turn: same idea, but far more heuristic. */
+const INPUT_BOX_MS = 90_000
+/** Raw output tail the guess reads (the visible screen is at the end). */
+const RAW_TAIL = 800
 
 interface Entry {
   activity: PaneActivity
@@ -17,6 +24,16 @@ interface Entry {
   lastSemantic: PaneActivityKind | null
   /** Set once per silence stretch: one 'waiting' escalation per stretch, not per tick. */
   waitingAnnounced: boolean
+  /** agent pane (not a bare shell) — only those get the "finished turn" guess. */
+  agent: boolean
+  /** the user typed into this pane in this session */
+  asked: boolean
+  /** the pane produced output at least once */
+  sawOutput: boolean
+  /** tail of raw output, control-free only when guessed (once a second) */
+  raw: string
+  /** one screen-based guess per silence stretch */
+  guessed: boolean
 }
 
 
@@ -42,7 +59,7 @@ export class PaneActivityTracker {
     this.now = now
   }
 
-  private fresh(kind: PaneActivityKind): Entry {
+  private fresh(kind: PaneActivityKind, agent: boolean): Entry {
     const at = this.now()
     return {
       activity: { kind, at, unread: false },
@@ -53,12 +70,17 @@ export class PaneActivityTracker {
       lastBellAt: -Infinity,
       attentionAt: -Infinity,
       lastSemantic: null,
-      waitingAnnounced: false
+      waitingAnnounced: false,
+      agent,
+      asked: false,
+      sawOutput: false,
+      raw: '',
+      guessed: false
     }
   }
 
-  start(paneId: string): void {
-    const e = this.fresh('running')
+  start(paneId: string, opts: { agent?: boolean } = {}): void {
+    const e = this.fresh('running', opts.agent === true)
     this.entries.set(paneId, e)
     this.onChange(paneId, { ...e.activity })
   }
@@ -71,6 +93,9 @@ export class PaneActivityTracker {
     const wasAttention = e.activity.kind === 'attention'
     e.lastOutputAt = now
     e.waitingAnnounced = false
+    e.guessed = false
+    e.sawOutput = true
+    e.raw = (e.raw + data).slice(-RAW_TAIL)
     if (e.activity.kind === 'quiet' || e.activity.kind === 'waiting') {
       this.set(paneId, e, 'running', false)
     }
@@ -169,18 +194,48 @@ export class PaneActivityTracker {
     if (!e || e.ended) return
     e.lastOutputAt = this.now()
     e.waitingAnnounced = false
+    e.guessed = false
+    e.asked = true
+  }
+
+  /**
+   * Screen-based guess for the CLIs that never send a notification of their own:
+   * a yes/no affordance in the visible lines means the pane is blocked on the
+   * user, an empty input box on an agent pane means the turn ended. One guess
+   * per silence stretch, never for a raw shell, never without output, and never
+   * over a latched BEL/OSC attention (that one is already reported).
+   */
+  private guess(paneId: string, e: Entry, t: number): void {
+    if (e.ended || e.guessed || !e.sawOutput) return
+    if (e.activity.kind === 'attention' || e.activity.kind === 'exited' || e.activity.kind === 'error') return
+    const quietFor = t - e.lastOutputAt
+    if (quietFor < QUESTION_MS) return
+    const lines = visibleLines(e.raw)
+    if (e.asked && isQuestion(lines)) {
+      e.guessed = true
+      e.lastSemantic = null // a new prompt is a new event, even if the last one was also a question
+      this.signal(paneId, 'attention')
+      return
+    }
+    if (e.agent && quietFor >= INPUT_BOX_MS && isIdleInputBox(lines)) {
+      e.guessed = true
+      e.lastSemantic = null
+      this.signal(paneId, 'ready')
+    }
   }
 
   /**
    * Silence after activity: 'quiet' at IDLE_MS, then 'waiting' at WAITING_MS —
    * status only, never a desktop alert. Output resets the stretch. Silence
    * cannot know why a CLI stopped writing (working, blocked, done, crashed), so
-   * it never produces a toast; the badge in pqTERM is the whole signal. Alerts
-   * come only from explicit events: BEL, OSC 9/777, process exit.
+   * it never produces a toast on its own; the badge in pqTERM is the status
+   * signal. Alerts come from explicit events: BEL, OSC 9/99/777, process exit,
+   * and the screen-based guess for CLIs that send nothing.
    */
   tick(): void {
     const t = this.now()
     for (const [id, e] of this.entries) {
+      this.guess(id, e, t)
       if (e.ended || e.activity.kind === 'running' || e.activity.kind === 'quiet') {
         if (
           e.activity.kind === 'running' &&

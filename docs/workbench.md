@@ -1036,3 +1036,39 @@ Dowód (w `instances\dev`):
 Weryfikacja przez człowieka: w dowolnym pane `whoami /groups` → linia z `S-1-16-12288` (High; dziś `S-1-16-8192`). W `instances\test` wystarczy `node scripts/stamp-host.cjs`, potem `host\pqterm.exe`. Na tej maszynie `ConsentPromptBehaviorAdmin=0`, więc podniesienie jest **ciche** — bez pytania UAC. `host\pqterm.exe` w `main` jest zablokowany przez działającą aplikację: zastemplować po jej zamknięciu (to i tak krok akceptacji).
 
 Bonus: podniesiony proces może teraz dodać regułę firewalla do `netsh advfirewall` (pairing z telefonem, `src/main/remote.ts:332`) — komentarz „potrzebuje elevation" przestał być aktualny.
+
+## Audyt powiadomień: dla 23 CLI prawie nic nie działało (2026-09-30)
+
+Audyt zapytał: „czy dla wszystkich CLI dobrze działają powiadomienia, gdy okno skończy pracę lub ma do mnie pytanie". Odpowiedź: **nie**. Poniżej co było zepsute, skąd to wiadomo i co naprawione. Metoda: (a) skan źródeł zainstalowanych CLI (`%APPDATA%\npm\node_modules`, `.grok\bin`, `.qoder`, `hermes`) w poszukiwaniu sekwencji `]9;`, `]777;`, `\x07` — wynik: sekwencje mają tylko **gemini, omp, hermes** (JS/TS) oraz w binarnych **claude, codex, opencode, qoder, grok, ori**; (b) research źródeł każdego CLI (warunki emisji + bramki env); (c) odczyt własnego pipeline'u pqTERM.
+
+| CLI | Kanał własny | Co pqTERM robił | Stan przed | Stan po |
+|---|---|---|---|---|
+| claude | OSC 9 / 99 / 777 / BEL, kanał `preferredNotifChannel` | znał tylko OSC 9 + BEL | `TERM_PROGRAM=pq` → `auto` = `no_method_available` → **milczał** | `ITERM_SESSION_ID` → OSC 9 → toast |
+| codex | OSC 9 (tylko ghostty/iTerm2/kitty/warp/wezterm), inaczej BEL | znał BEL | OSC 9 odrzucany, warunek `unfocused` | OSC 9 łapany; `notification_condition` zostaje u użytkownika |
+| opencode | OSC 9/99/777 (OpenTUI) | znał tylko OSC 9 | `attention.enabled=false` w domyśle + protokół nierozpoznany | protokół `osc9` ustawiony; **wymaga** `attention.enabled` w `opencode.json` |
+| omp | OSC 9 (OpenTUI) + OSC 777 Warp (`question_asked`, `permission_request`, `stop`, `stop_failure`) | OSC 777 pokazywał **surowy JSON** pod tytułem `warp://cli-agent` | pakiety JSON w toascie, brak mapy zdarzeń | `WARP_CLI_AGENT_PROTOCOL_VERSION=1` → zdarzenia + mapa na polskie zdania |
+| gemini | OSC 9 / 777 / BEL | znał OSC 9 + BEL | `general.enableNotifications=false` w domyśle | nadal **wymaga** włączenia w `settings.json` |
+| hermes | OSC 9 + BEL (niebramkowane) + Warp | znał OSC 9 + BEL | `display.bell_on_*=false` w domyśle | nadal **wymaga** `~/.hermes/config.yaml` |
+| qwen | **brak** jakiegokolwiek kanału (sprawdzone w bundlu 0.24.7) | — | zero powiadomień | tylko rozpoznanie pytania z ekranu |
+| copilot, cline, crush, kimi, cursor, dsh, zcode, freebuff, codebuff, aider, grok, antigravity, baicode, ori | brak | — | zero powiadomień | tylko rozpoznanie pytania z ekranu |
+| shell / cmd | brak (to powłoka) | — | cisza = „czeka na Ciebie”, bez toastu | bez zmian — świadomie |
+
+Naprawy (wszystkie w `dev`, bramki zielone):
+
+1. **`src/main/pty-manager.ts` — env shim.** Trzy zmienne, wszystkie z udokumentowanym override'em w źródle CLI: `ITERM_SESSION_ID` (claude + codex → OSC 9), `OPENTUI_NOTIFICATION_PROTOCOL=osc9` (opencode + omp), `WARP_CLI_AGENT_PROTOCOL_VERSION=1` (omp, jego zdarzenia; bramka to tylko ta zmienna — potwierdzone w `node_modules/@oh-my-pi/pi-coding-agent/src/modes/warp-events.ts`). Wszystkie przez `??=`, więc uruchomienie wewnątrz Warpa/iTerm nie nadpisuje własnych wartości. **Ryzyko świadome:** to jest kłamstwo o tożsamości terminala (potencjalny zły rendering inline image w CLI, które uzna pqTERM za iTerm). Wyłączenie = usunięcie trzech linii; alternatywa (zapis do `settings.json` każdego CLI) łamie zasadę repo „pqTERM nie pisze konfiguracji CLI".
+2. **`src/main/osc-notify.ts` — dwa nowe kanały.** OSC 99 (kitty: metadane + treść) oraz rozpakowanie pakietu Warp `warp://cli-agent;{json}` na czytelny toast (`question_asked` → pytanie, `permission_request` → prośba o zgodę + nazwa narzędzia, `stop` → odpowiedź, `stop_failure` → przerwane). Nieznane zdarzenie lub zepsuty JSON wracają do surowych pól, a nie znikają.
+3. **`src/main/attention.ts` (nowy, czysty) — rozpoznanie pytania z ekranu.** Ostatnie 4 widoczne linie po usunięciu sekwencji sterujących i ramek: `[y/n]`, `1. Yes / 2. No`, `Do you want to proceed?`, `Needs your permission`, polskie odpowiedniki. Osobno: puste pole agenta na końcu tury (`❯` / `>` / `prompt`). To jedyny sposób, żeby usłyszeć qwen/copilot/cline/crush/kimi/cursor/dsh/zcode/freebuff/aider/grok/antigravity/baicode/ori.
+4. **`src/main/pane-activity.ts` — podpięcie do `signal()`.** `signal()` było martwe: wołane tylko z własnego testu, więc statusy `ready` („odpowiedź gotowa") i `waiting` nigdy nie występowały, a jedyne alerty szły z BEL/OSC/wyjścia. Teraz zgadywanie z ekranu woła `signal('attention')` po 15 s ciszy przy pytaniu i `signal('ready')` po 90 s przy pustym polu. Zabezpieczenia przed fałszywym alarmem (blokada, na którą repo już raz nadepnęło): tylko gdy użytkownik **coś wpisał** w tym pane, tylko gdy CLI **coś wypisało**, **jeden** zgadnięty alert na odcinek ciszy, nigdy dla surowego shella, nigdy przez już zatrzymany BEL/OSC, a każde nowe wyjście czyta resetuje zgadnięcie. Pułapka znaleziona w trakcie: `signal()` deduplikuje po `lastSemantic`, więc drugie pytanie w tym samym pane nie dawało alertu — zgadnięcie czyści detektor.
+5. **`src/main/index.ts` — jedna ścieżka alertu.** Dwa identyczne bloki ~30 linii (BEL/wyjście i OSC notice) scalone w `notifyPane()` + `paneAlertTitle()`; pilnowane są te same warunki (focus, `notifications.enabled`, `Notification.isSupported()`), a kliknięcie zawsze skupia właściwy pane. Przy okazji: `onStart` przekazuje `agent: !isRawShell(engine)`.
+6. **`src/renderer/src/components/NotificationsPanel.tsx`** — tekst pomocy mówił wprost, że cisza nigdy nie daje alertu; teraz opisuje cztery źródła i wymienia trzy wyłączniki, które pqTERM nie rusza (`attention.enabled`, `general.enableNotifications`, `display.bell_on_*`, `notification_condition`).
+
+Dowody i bramki:
+
+| Sprawdzenie | Wynik |
+|---|---|
+| `src/main/attention.test.ts` (nowy) | 18/18 — 10 prawdziwych promptów (claude, codex, gemini, qwen, copilot, opencode, omp, hermes) + 5 negatywów (odpowiedź z „?", spinner, `PS C:\...>`, diff) |
+| `src/main/osc-notify.test.ts` | 10/10 — OSC 99, 4 zdarzenia Warp, nieznane zdarzenie, zepsuty JSON |
+| `src/main/pane-activity.test.ts` | 10/10 — alert raz na odcinek, wyczyszczenie po odpowiedzi, drugie pytanie znów alarmuje, shell nigdy, świeży pane nigdy, BEL nie dubluje |
+| `npm run test:unit` (`dev`) | 171/171 (było 146) + oba typechecki |
+
+Czego ten audyt **nie** zrobił: nie zapisuje niczyjej konfiguracji CLI (opencode `attention.enabled`, Gemini `general.enableNotifications`, Hermes `display.bell_on_*`, Codex `notification_condition = "always"`) — to decyzja człowieka, opisana w Ustawieniach → Powiadomienia. `qwen` da się załatwić kodem (hook z `terminalSequence`), ale to zapis do `~/.qwen/settings.json`, więc świadomie odłożone. Zgadywanie z ekranu jest heurystyką na surowym strumieniu, nie na buforze xterm: `// ponytail: zgaduje z ostatnich 800 bajtów wyjścia, nie z renderowanego bufora — przy TUI z pełnym repaint-em wiersz pytania bywa wyżej w strumieniu; upgrade = renderer czyta `xterm.buffer.active` i wysyła kandydata przez IPC (wymaga walidacji paneId w main)`.

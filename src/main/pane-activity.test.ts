@@ -149,3 +149,96 @@ test('control string BEL bytes do not alert before a fragmented ST terminator', 
     assert.deepEqual(alerts, ['p'])
   }
 })
+
+// ---------------------------------------------- screen-based guess (no OSC, no BEL)
+// The CLIs that ship their notification channel off (or have none) still freeze
+// on a prompt or leave an empty input box — that is the only signal left.
+
+test('a blocked prompt in the visible lines alerts once, and the answer clears it', () => {
+  let now = 0
+  const alerts: string[] = []
+  const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
+  tracker.start('q', { agent: true })
+  tracker.output('q', '╭──────────────────────────────╮\r\n│ Do you want to proceed? │\r\n╰──────────────────────────────╯\r\n❯ 1. Yes\r\n  2. No\r\n')
+  tracker.input('q')
+  now = 14_999
+  tracker.tick()
+  assert.deepEqual(alerts, []) // not yet — the prompt is fresh
+  now = 15_000
+  tracker.tick()
+  assert.deepEqual(alerts, ['attention'])
+  assert.equal(tracker.get().q.kind, 'attention')
+  assert.equal(tracker.get().q.unread, true)
+  now = 40_000
+  tracker.tick()
+  assert.deepEqual(alerts, ['attention']) // once per silence stretch
+  now = 40_001
+  tracker.output('q', 'yes\r\n')
+  assert.equal(tracker.get().q.kind, 'running')
+  assert.equal(tracker.get().q.unread, false)
+  tracker.output('q', 'Do you want to proceed?\r\n❯ 1. Yes\r\n')
+  tracker.input('q')
+  now = 60_000
+  tracker.tick()
+  assert.deepEqual(alerts, ['attention', 'attention']) // a new question is a new alert
+})
+
+test('an agent pane at an empty input box reports "ready"; a raw shell never does', () => {
+  let now = 0
+  const alerts: string[] = []
+  const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
+  tracker.start('agent', { agent: true })
+  tracker.output('agent', 'Answer ready — 2 files changed\r\n│\r\n│ ❯ │\r\n')
+  tracker.input('agent')
+  now = 60_000
+  tracker.tick()
+  assert.deepEqual(alerts, []) // waiting is status only…
+  assert.equal(tracker.get().agent.kind, 'waiting')
+  now = 90_000
+  tracker.tick()
+  assert.deepEqual(alerts, ['ready'])
+  assert.equal(tracker.get().agent.kind, 'ready')
+
+  // the same screen in a bare cmd/powershell pane is just a prompt
+  tracker.start('shell')
+  tracker.output('shell', 'Answer ready\r\n│\r\n│ ❯ │\r\n')
+  tracker.input('shell')
+  now = 200_000
+  tracker.tick()
+  assert.deepEqual(alerts, ['ready'])
+  assert.equal(tracker.get().shell.kind, 'waiting')
+})
+
+test('a pane nobody typed into, and a latched BEL, are never guessed at', () => {
+  let now = 0
+  const alerts: string[] = []
+  const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
+  tracker.start('p', { agent: true })
+  tracker.output('p', 'Do you want to proceed?\r\n❯ 1. Yes\r\n')
+  now = 120_000
+  tracker.tick()
+  assert.deepEqual(alerts, []) // nothing was ever asked of this pane
+  assert.equal(tracker.get().p.kind, 'waiting')
+
+  // a CLI that rang the bell already got its toast — no second, screen-based one
+  tracker.start('b', { agent: true })
+  tracker.output('b', 'Do you want to proceed?\r\n❯ 1. Yes\r\n')
+  tracker.input('b')
+  tracker.output('b', '\x07')
+  assert.deepEqual(alerts, ['attention'])
+  now = 130_000
+  tracker.tick()
+  assert.deepEqual(alerts, ['attention'])
+})
+
+test('a pane that never produced output is not guessed at', () => {
+  let now = 0
+  const alerts: string[] = []
+  const tracker = new PaneActivityTracker(() => {}, (_id, kind) => alerts.push(kind), () => now)
+  tracker.start('empty', { agent: true })
+  tracker.input('empty')
+  now = 500_000
+  tracker.tick()
+  assert.deepEqual(alerts, [])
+  assert.equal(tracker.get().empty.unread, false)
+})
