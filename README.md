@@ -2,14 +2,13 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.3.12** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.4.3** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
 
-## Nowości 1.3.12
+## Nowości 1.4.3
 
-- **pqterm update.** W nowym oknie cmd wpisz `pqterm update`. Dociąga czyste kopie `main`, `dev` i `test` z GitHuba i przebudowuje oficjalną kopię.
-- **Pasek przy starcie.** Gdy GitHub jest do przodu, u góry widać prośbę, żeby wpisać `pqterm update`.
-- **Nowa kopia jest pusta.** Pierwsze uruchomienie nie wciąga starych workspace’ów ze starego profilu `pq`.
-- **Klik w inne okno zostawia widok na dole.** Terminal nie skacze na początek bufora.
+- **Terminale startują jako Administrator.** `host\pqterm.exe` ma manifest `highestAvailable`, więc każde okno (shell, cmd, dowolny CLI) wchodzi podniesione. Na maszynie z `ConsentPromptBehaviorAdmin=0` podniesienie jest ciche — bez pytania UAC. Sprawdź w dowolnym oknie: `whoami /groups` → linia `S-1-16-12288`.
+- **Pułapka przy uruchamianiu z node.** Bramkowanego exe nie odpali `node` ani .NET (`ERROR_ELEVATION_REQUIRED`), więc `npm run dev` / `npm start` celowo zostają niepodniesione — podniesiona jest tylko kopia `host\`, którą uruchamia `START-pr.cmd`, skrót i podwójne kliknięcie.
+- **Bonus: pairing z telefonem.** Podniesiony proces może dodać regułę firewalla (`netsh advfirewall`), więc parowanie działa bez ręcznej reguły.
 
 Na razie **prywatne**. Publicznie wyjdzie dopiero gdy zdecydujesz.
 
