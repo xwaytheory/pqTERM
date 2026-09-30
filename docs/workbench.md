@@ -1013,3 +1013,26 @@ Po co ta notka: w opisanej sesji ścieżki **relatywne** trafiały właśnie tam
 
 - Nietknięte: cała ta kopia drzewa z 2026-09-14 (`AGENTS.md`, `README.md`, `android/`, `crates/`, `docs/*`, `host/`, `src/` …) — nie moja, **do decyzji człowieka**.
 - Usunięte: wyłącznie **mój** plik zapisany tam przez pomyłkę (porzucony szkic `docs/workbench.md`, 12 716 B, 18:07). Prawdziwy board = ten plik (24 kB+).
+
+## Terminale na najwyższym poziomie uprawnień (2026-09-30)
+
+`host\pqterm.exe` startuje **podniesiony** → każdy pane (shell, cmd, dowolny CLI) dziedziczy token aplikacji i wchodzi jako Administrator. Wpis siedzi w `scripts/stamp-host.cjs`: `mt.exe` z Windows SDK wstrzykuje manifest **po** `rcedit`, poziom wypisany jawnie, więc powtórny stamp jest idempotentny.
+
+**Dlaczego cała aplikacja, a nie tylko pane:** pane to dziecko ConPTY, dziedziczy token procesu i nie da się go podnieść samodzielnie — elevation wymaga `ShellExecute` z czasownikiem `runas`, a ten nie oddaje uchwytu pty. Manifest na exe to jedyne miejsce, gdzie podniesienie może nastąpić. Cena: podniesiony jest cały proces (renderer, serwer pairingowy), nie tylko terminale.
+
+**Pułapka, którą trzeba znać:** `node` i .NET **nie umieją** odpalić bramkowanego exe — `CreateProcess` kończy się `ERROR_ELEVATION_REQUIRED` (`EACCES`). Dlatego `node_modules\electron\dist\pqterm.exe` i `electron.exe` zostają `asInvoker` (`npm run dev` / `npm start` odpalają je z node), a podniesiony jest tylko `host\pqterm.exe` — czyli to, co klient uruchamia z `START-pr.cmd`, ze skrótu i podwójnym kliknięciem (Explorer i `cmd start` bramkę przechodzą).
+
+Dowód (w `instances\dev`):
+
+| Sprawdzenie | Wynik |
+|---|---|
+| `mt.exe -inputresource:host\pqterm.exe;1` | `requestedExecutionLevel level="highestAvailable"` |
+| to samo dla `dist\pqterm.exe`, `electron.exe`, `instances\test\host\pqterm.exe` | `asInvoker` (linia startowa bez zmian) |
+| `node -e "spawnSync('…\\host\\pqterm.exe',['--version'])"` | `EACCES` → Windows naprawdę egzekwuje bramkę |
+| `node -e "spawnSync('…\\dist\\pqterm.exe',['--version'])"` | `v33.4.11` → `npm run dev` nietknięty |
+| drzewo odpalone jak w `START-pr.cmd` (15 procesów, pane'y w środku) | `taskkill` z powłoki o średniej integralności: *Odmowa dostępu* → `High Mandatory Level`; zbite jednym podniesionym `taskkill` |
+| `npm run test:unit` + `npm run check:version` na `dev` | 146/146 OK, wersja OK |
+
+Weryfikacja przez człowieka: w dowolnym pane `whoami /groups` → linia z `S-1-16-12288` (High; dziś `S-1-16-8192`). W `instances\test` wystarczy `node scripts/stamp-host.cjs`, potem `host\pqterm.exe`. Na tej maszynie `ConsentPromptBehaviorAdmin=0`, więc podniesienie jest **ciche** — bez pytania UAC. `host\pqterm.exe` w `main` jest zablokowany przez działającą aplikację: zastemplować po jej zamknięciu (to i tak krok akceptacji).
+
+Bonus: podniesiony proces może teraz dodać regułę firewalla do `netsh advfirewall` (pairing z telefonem, `src/main/remote.ts:332`) — komentarz „potrzebuje elevation" przestał być aktualny.
