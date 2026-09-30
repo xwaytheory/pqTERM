@@ -2,9 +2,9 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.4.3** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.5.0** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
 
-## Nowości 1.4.3
+## Nowości 1.5.0
 
 - **Powiadomienia działają dla wszystkich CLI.** BEL, OSC 9, OSC 99 i OSC 777 (łącznie z pakietem Warp od omp/hermes) trafiają do alertu; dodatkowo pqTERM rozpoznawa zatrzymane pytanie („Do you want to proceed?”, `[y/n]`, `❯ 1. Yes`) albo puste pole na końcu tury agenta — działa też dla CLI, które w ogóle nic nie wysyłają (qwen, copilot, cline, crush, kimi, cursor…). Sama cisza nadal nie uruchamia alertu, tylko zmienia status w pasku pane.
 - **CLI wreszcie gadają.** Pane podaje im terminal, który potrafi powiadamiać: claude i codex dostają OSC 9, opencode i omp swój protokół, omp dodatkowo bogate zdarzenia (pytanie, zgoda, koniec tury). Trzy CLI mają jeszcze własny wyłącznik domyślnie na off — opisane w Ustawieniach → Powiadomienia.

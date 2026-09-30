@@ -25,7 +25,18 @@ const root = join(__dirname, '..')
 const LOCAL_CRATES = new Set(['pq', 'pq-core', 'pq-work', 'pq-voice'])
 // Registry deps that genuinely sit on the product version (checksums verified
 // against crates.io via cargo itself).
-const STATIC_ALLOWED = ['scopeguard@1.2.0', 'downcast-rs@1.2.1', 'stable_deref_trait@1.2.1', 'uds_windows@1.2.1']
+const STATIC_ALLOWED = [
+  'scopeguard@1.2.0',
+  'downcast-rs@1.2.1',
+  'stable_deref_trait@1.2.1',
+  'uds_windows@1.2.1',
+  // product 1.5.0 (2026-09-30): real crates.io versions, not a replace scar —
+  // `cargo metadata --locked` passes with them, and the bump diff touches only
+  // the local crates in each lock. Entries are inert once the product moves on.
+  'byteorder@1.5.0',
+  'http@1.5.0',
+  'lazy_static@1.5.0'
+]
 const allowed = new Set([
   ...STATIC_ALLOWED,
   ...String(process.env.PQ_VERSION_ALLOW || '')

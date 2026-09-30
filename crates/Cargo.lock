@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "pq-core"
-version = "1.4.3"
+version = "1.5.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -123,14 +123,14 @@ dependencies = [
 
 [[package]]
 name = "pq-voice"
-version = "1.4.3"
+version = "1.5.0"
 dependencies = [
  "pq-core",
 ]
 
 [[package]]
 name = "pq-work"
-version = "1.4.3"
+version = "1.5.0"
 dependencies = [
  "portable-pty",
  "pq-core",
