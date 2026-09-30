@@ -1072,3 +1072,25 @@ Dowody i bramki:
 | `npm run test:unit` (`dev`) | 171/171 (było 146) + oba typechecki |
 
 Czego ten audyt **nie** zrobił: nie zapisuje niczyjej konfiguracji CLI (opencode `attention.enabled`, Gemini `general.enableNotifications`, Hermes `display.bell_on_*`, Codex `notification_condition = "always"`) — to decyzja człowieka, opisana w Ustawieniach → Powiadomienia. `qwen` da się załatwić kodem (hook z `terminalSequence`), ale to zapis do `~/.qwen/settings.json`, więc świadomie odłożone. Zgadywanie z ekranu jest heurystyką na surowym strumieniu, nie na buforze xterm: `// ponytail: zgaduje z ostatnich 800 bajtów wyjścia, nie z renderowanego bufora — przy TUI z pełnym repaint-em wiersz pytania bywa wyżej w strumieniu; upgrade = renderer czyta `xterm.buffer.active` i wysyła kandydata przez IPC (wymaga walidacji paneId w main)`.
+
+## Cztery rodziny skilli zainstalowane na stałe (2026-09-30)
+
+`npx skills add <repo> --yes` w każdym worktree (nie w `main`), pliki skopiowane do `.agents/skills/`, hashe w `skills-lock.json`. Wszystkie instalacje **unmodified**, zgodnie z istniejącym wzorcem repo (paton `THIRD-PARTY.md`).
+
+| Rodzina | Skills | Licencja | Rozmiar |
+|---|---|---|---|
+| `dietrichgebert/ponytail` | 6 (było, hashe bez zmian) | MIT | — |
+| `ayghri/i-have-adhd` | 1 (było) | MIT | — |
+| `obra/superpowers` | 15 (brainstorming, writing-plans, TDD, systematic-debugging, worktrees, executing-plans, subagent-driven-development, code review ×2, verification-before-completion, dispatching-parallel-agents, finishing-a-development-branch, diagnosing-superpowers, writing-skills, using-superpowers) | MIT | 0,4 MB |
+| `nextlevelbuilder/ui-ux-pro-max-skill` | 7 (ui-ux-pro-max, ui-styling, design, design-system, brand, slides, banner-design) | MIT + OFL fonty + Apache-2.0 narzędzia | 13,6 MB (35 plików TTF) |
+| `Graphify-Labs/graphify` | 1 (graf wiedzy repo, `graphify-out/`) | Apache-2.0 | 1,0 MB (pakiet Pythona, 60+ extractors) |
+
+Razem **572 pliki / ~15 MB** w `.agents/skills/`. Nic poza `.agents/` nie powstało (agenty bez swojego katalogu w projekcie pominięte, `.claude/` i tak gitignorowane), `skills-lock.json` dostał 138 linii i zero usunięć — stare skille nietknięte.
+
+Decyzje (potrzebne, bo same skille tego nie rozstrzygają):
+
+- **`AGENTS.md` ma pierwszeństwo nad skillami.** `using-superpowers` odpala się na każdej wiadomości, a `brainstorming` przed każdym kodem — zastosowane dosłownie wygrywałyby z kaskadą dev → test → main i z bramkami. Nowa sekcja „Superpowers, UI/UX and graphify — installed, opt-in per task" mówi wprost: skile są opt-in per zadanie, a metoda mapuje się na repo (`using-git-worktrees` → `scripts/new-work.cjs`, TDD/weryfikacja → `npm run test:unit` w boardzie, code review → protokół boardu). Skil, który strzela w złą stronę, usuwa się przez `npx skills remove <skill>`.
+- **`graphify-out/` w `.gitignore`** — skill pisze tam wynik swojego przebiegu, więc bez tego jedno uruchomienie zaśmieciłoby status w gicie.
+- **Bez zmian w kodzie aplikacji.** To pliki instrukcyjne + skrypty wywoływane przez agenta na żądanie; nic nie odpala się przy instalacji ani przy starcie pqTERM.
+
+Do przemyślenia przy okazji: 15 MB w gicie (głównie fonty TTF i dane CSV katalogów UI). Repozytorium jest prywatne i nie ma zdalnego pushu, więc na razie bez szkody; gdyby kiedyś szło to na GitHuba, fonty i CSV są pierwsze do wyłączenia (`.gitattributes` + LUB usunięcie `ui-styling`).
