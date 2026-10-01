@@ -216,6 +216,17 @@ export interface PaneActivity {
   unread: boolean
 }
 
+/** A CLI that is working *right now* — the sidebar's animated rail/dot show
+ *  exactly this. Only `running` counts: quiet, waiting, attention, exited and
+ *  error are states a session passes through, not work in progress, and an empty
+ *  input box proves nothing (a busy TUI looks identical — see pane-activity). */
+export function isPaneWorking(
+  pane: Pick<PaneState, 'id' | 'engine'>,
+  activity: Record<string, PaneActivity>
+): boolean {
+  return Boolean(pane.engine) && activity[pane.id]?.kind === 'running'
+}
+
 export interface NotificationSettings {
   enabled: boolean
   sound: boolean

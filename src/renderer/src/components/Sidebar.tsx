@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ACTIVITY_LABELS, type AppSnapshot, type BoardSnapshot, type PaneActivity, type Workspace } from '../../../shared/types'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { ACTIVITY_LABELS, isPaneWorking, type AppSnapshot, type BoardSnapshot, type PaneActivity, type Workspace } from '../../../shared/types'
 import { moveId } from '../../../shared/order'
 import EngineMark from './EngineMark'
+
+/** Motion phase per row: eight evenly spaced steps inside one 1.5 s loop, so a
+ *  list of busy rows reads as one travelling shimmer instead of N blinkers. */
+function phase(i: number): CSSProperties {
+  return { '--phase': i % 8 } as CSSProperties
+}
 
 export default function Sidebar({
   snap,
@@ -42,6 +48,13 @@ export default function Sidebar({
         w.panes.some((p) => p.title.toLowerCase().includes(s))
     )
   }, [q, snap.workspaces])
+  // How many panes work at once across the whole list — drives the motion ramp:
+  // many busy rows mean the shimmer says nothing, so it stops (styles.css
+  // `.ws-list.busy-3`) and the shapes alone carry the state.
+  const busy = useMemo(
+    () => list.reduce((n, w) => n + w.panes.filter((p) => isPaneWorking(p, activity)).length, 0),
+    [list, activity]
+  )
 
   function providerFor(engine: string | null) {
     return snap.providers.find((p) => p.id === engine)
@@ -84,7 +97,10 @@ export default function Sidebar({
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
-      <div className="ws-list" title={searching ? undefined : 'przeciągnij, żeby zamienić kolejność'}>
+      <div
+        className={`ws-list${busy === 0 ? '' : busy < 3 ? ` busy-${busy}` : ' busy-3'}`}
+        title={searching ? undefined : 'przeciągnij, żeby zamienić kolejność'}
+      >
         {list.length === 0 ? (
           <div className="empty-side">
             brak workspace.
@@ -92,17 +108,19 @@ export default function Sidebar({
             utwórz pierwszy — nadaj tytuł pracy, którą chcesz odwalić z agentami.
           </div>
         ) : (
-          list.map((w) => {
+          list.map((w, wi) => {
             const expanded = open[w.id] ?? w.id === snap.activeWorkspaceId
             const live = w.panes.filter((p) => p.engine).length
             const unread = w.panes.filter((p) => activity[p.id]?.unread).length
+            const working = w.panes.filter((p) => isPaneWorking(p, activity)).length
             const dropClass = drop && drop.id === w.id ? ` drop-${drop.place}` : ''
             return (
               <div
                 key={w.id}
                 className={`${w.id === snap.activeWorkspaceId ? 'ws active' : 'ws'}${
                   draggingId === w.id ? ' dragging' : ''
-                }${!searching ? ' movable' : ''}${dropClass}`}
+                }${!searching ? ' movable' : ''}${working ? ' busy' : ''}${dropClass}`}
+                style={phase(wi)}
                 draggable={!searching}
                 onDragStart={(e) => {
                   if (searching || (e.target as HTMLElement).closest('button')) {
@@ -163,7 +181,7 @@ export default function Sidebar({
                   </span>
                   <span className="name">{w.title}</span>
                   {unread ? <span className="activity-count" title={`${unread} nieprzeczytanych statusów`} aria-label={`${unread} nieprzeczytanych statusów`}>{unread}</span> : null}
-                  <span className="meta">
+                  <span className="meta" title={working ? `${working} z ${live} okien pracuje teraz` : undefined}>
                     {live}/{w.layout}
                   </span>
                   <button
@@ -208,12 +226,13 @@ export default function Sidebar({
                   <span title={w.cwd}>{w.cwd}</span>
                 </div>
                 {expanded &&
-                  w.panes.map((p) => (
+                  w.panes.map((p, pi) => (
                     <div
                       key={p.id}
                       className={`${p.engine ? 'pane-link' : 'pane-link idle'}${
                         w.zoomedPaneId === p.id ? ' zoomed' : ''
-                      }${activity[p.id]?.unread ? ' unread' : ''}`}
+                      }${activity[p.id]?.unread ? ' unread' : ''}${isPaneWorking(p, activity) ? ' busy' : ''}`}
+                      style={phase(pi)}
                       role="button"
                       tabIndex={0}
                       onClick={() => void select(w, p.id)}

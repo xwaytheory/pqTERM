@@ -302,11 +302,40 @@ button {
   overflow: auto;
   padding: 0 8px 12px;
 }
+/* Motion ramp for the "pracuje" indicators below. 1-2 busy rows breathe plainly;
+   7+ has no information left in the animation, so it stops and the shapes alone
+   carry the state (a shimmer that says the same thing 13 times is just noise). */
+.ws-list.busy-1 {
+  --motion-lo: 0.35;
+  --motion-hi: 0.95;
+}
+.ws-list.busy-2 {
+  --motion-lo: 0.4;
+  --motion-hi: 0.8;
+}
+.ws-list.busy-3 {
+  --motion-lo: 0.45;
+  --motion-hi: 0.7;
+}
+@keyframes pq-breathe {
+  0%,
+  100% {
+    opacity: var(--motion-lo, 0.35);
+  }
+  50% {
+    opacity: var(--motion-hi, 0.9);
+  }
+}
+.ws-list.busy-3 .ws.busy > .row::before,
+.ws-list.busy-3 .pane-link.busy::before {
+  animation: none;
+}
 .ws {
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 8px 8px 6px;
   margin-bottom: 4px;
+  position: relative;
 }
 .ws.movable .row {
   cursor: grab;
@@ -329,6 +358,7 @@ button {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  position: relative;
 }
 .ws .chev {
   color: var(--dim);
@@ -345,6 +375,25 @@ button {
 .ws .meta {
   color: var(--dim);
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+/* A CLI in this workspace is working: a rail on the workspace edge. Shape, not
+   colour, carries the state — the amber number next to it already means
+   "needs you", and under the amber accent those two would be the same colour. */
+.ws.busy > .row::before {
+  content: '';
+  position: absolute;
+  /* -6px from the row's content box = 2px inside the card's left edge, so the
+     rail hugs the border next to the title instead of the folder line below. */
+  left: -6px;
+  top: 50%;
+  width: 2px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: pq-breathe 1500ms cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  animation-delay: calc(var(--phase, 0) * 180ms);
 }
 .ws .cwd {
   display: flex;
@@ -384,6 +433,26 @@ button {
   color: var(--muted);
   border-radius: 4px;
   cursor: pointer;
+  position: relative;
+}
+/* This pane's CLI is producing output: a dot in the 18px gutter, breathing in
+   its own phase so a grid of busy rows reads as one shimmer field. Hover below
+   still wins (same specificity, later in the file) — no specificity war. */
+.pane-link.busy {
+  background: var(--wash);
+}
+.pane-link.busy::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pq-breathe 1500ms cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  animation-delay: calc(var(--phase, 0) * 180ms);
 }
 .pane-link > .pane-label {
   flex: 1;
@@ -393,7 +462,9 @@ button {
 .pane-label .activity-badge {
   display: block;
   font-size: 10px;
-  color: var(--dim);
+  /* --muted, not --dim: this text is the non-motion fallback for the dot above,
+     so it has to clear 3:1 on --bg-2 (--dim is 2.69:1). */
+  color: var(--muted);
 }
 .activity-badge.unread, .activity-count {
   color: var(--amber);
@@ -1413,4 +1484,15 @@ body.modal-open .xterm-helper-textarea {
   text-transform: uppercase;
   z-index: 5;
   border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* motion: the "pracuje" indicators (`.ws.busy` rail, `.pane-link.busy` dot) are
+   the only animation in pqTERM. Opacity only, so it stays on the compositor.
+   Reduced motion keeps the shapes and drops the loop — state is never carried by
+   motion alone (the dot has the "aktywność CLI" label under it, the rail a title). */
+@media (prefers-reduced-motion: reduce) {
+  .ws.busy > .row::before,
+  .pane-link.busy::before {
+    animation: none;
+  }
 }

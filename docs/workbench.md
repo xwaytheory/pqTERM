@@ -1129,3 +1129,42 @@ Dwie rzeczy były zepsute i obie naprawione:
 **Pułapka z wersją po drodze:** ślepy replace `1.5.0` → `1.5.1` w `package-lock.json` i obu `Cargo.lock` trafiłby w `lazy_static`, `http`, `byteorder` (prawdziwe wydania 1.5.0) — dokładnie ten incydent, na który istnieje `check-version-sync`. Cofnięte, zrobione precyzyjnie (diff = 3+1+2 linie, tylko lokalne craty i dwa wpisy root). `check-version-sync` złapał kolejne kolizje na **1.5.1**: `autocfg` i `crc32fast` też mają tę wersję; zweryfikowane (nietknięte w diffie, `cargo metadata --locked` OK) i dopisane do `STATIC_ALLOWED` z komentarzem.
 
 Bramki na `dev`: `test:unit` 171/171, `check:version` OK (product 1.5.1). Wersja 1.5.1 idzie do `test` i `main`; **binarka oficjalna wymaga tego samego domknięcia co 1.5.0** (`stamp-host.cjs` + `npm run build` po zamknięciu aplikacji) — w trakcie pisania tego wpisu siedzę w pane'ie tej aplikacji.
+
+## Sidebar: widać, co pracuje (2026-09-30)
+
+Prośba: widać w `workspaces`, że dany workspace właśnie coś wykonuje, a po rozwinięciu — które **konkretne okna CLI** pracują. Stanowiąca część prac (4 agenty równolegle: spis danych i przepływu `activity`, spis CSS/tokenów, research wzorców z vendored `ui-ux-pro-max`, audyt spójności z resztą UI).
+
+**Reguła — jedna, wspólna, testowalna:** `isPaneWorking()` w `src/shared/types.ts` (obok `isRawShell`) = `pane.engine && activity[id].kind === 'running'`. Tylko `running`. `quiet`/`waiting`/`attention`/`exited`/`error` to **stany**, przez które sesja przechodzi, a nie praca w toku — a puste pole wejścia dowodzi tyleż, co cisza (dowód z 1.5.1: pracujący TUI wygląda tak samo). Zero zmian w IPC, zero nowych stanów, zero timerów JS.
+
+**Co widać:**
+
+| Miejsce | Sygnał | Dlaczego tak |
+|---|---|---|
+| wiersz workspace (zwinięty) | **szyna** 2×18 px przy lewej krawędzi karty, oddychająca | kształt, nie kolor: bursztyn jest już zarezerwowany dla „nieprzeczytane / potrzebujesz” (`.activity-count`, `.activity-badge.unread`, `.pane.activity-unread`, `.iconx.lock`), a przy akcencie amber oba sygnały byłyby tym samym kolorem |
+| wiersz pane (po rozwinięciu) | **kropka** 4 px w 18 px gutterze + tło `var(--wash)` | gutter jest wolny (padding 18 px, logo 16 px), więc zero shiftu i zero ucisku na tytuł |
+| oba | `title`/`aria-label` po polsku + istniejąca etykieta `aktywność CLI` | stan nigdy nie jest niesiony samym ruchem ani samym kolorem |
+
+**Ruch — pierwsza animacja w pqTERM, zgodnie z wynikami researchu:**
+
+- tylko `opacity` (kompozytor, zero repaintu), pętla 1500 ms (limit z `motion.csv` #16), easing `cubic-bezier(.37,0,.63,1)`, amplituda nigdy nie spada poniżej 0.35 (próg „nie migać”).
+- **8 faz** (`--phase: index % 8`, 180 ms offsetu) — lista pracujących wierszy czyta się jako jedno przesuwające się pole, nie N niezależnych miganek; limit ~8 dzieci z `motion.csv` #8. Faza to stała z renderu, **nie** timer.
+- **Rampa anty-hałas na `.ws-list`:** `busy-1`/`busy-2` zwężają amplitudę, a `busy-3` (7+ pracujących pane'ów) **wyłącza animację** — gdy wszystko pracuje, shimmer nie niesie informacji, a 13 pulsujących kropek to szum. Zostają kształty + tekst. To jest ten zawór, który chroni przed najgorszym przypadkiem zgłoszonym wprost (`Pine2cTrader 13/13`).
+- **Odrzucone po researchu:** trójkąt „typing pulse” (3×13 = 39 niezależnych węzłów, wyciera 12 px z 18 px guttera) i pasek „sweep” (sugerowałby postęp/ETA, których pqTERM nie zna — mylący ruch).
+- **`@media (prefers-reduced-motion: reduce)`** — pierwszy blok `@media` w repo: pętla pada, kształty i tekst zostają. Accessibility jest na liście „nigdy nie okrój” w `AGENTS.md`, więc wchodzi w tym samym diffie.
+
+**Wklejone w trakcie (a11y, 1 linia):** `.activity-badge` był `--dim` (2.69:1 na `--bg-2`). Teraz, gdy ta etykieta jest **zastępczym** nośnikiem stanu dla kropki bez animacji, musi mieć `--muted` (5.11:1). Przy okazji `.ws .meta` dostał `tabular-nums`, żeby `1/2` nie drgał.
+
+Świadomie **nie** ruszałem: obramowania pane'a w siatce (`--focus` = fokus, `--amber` = nieprzeczytane; trzeci stan animowany wymagałby nowego tokenu), czatu w telefonie i badge'a w nagłówku pane'a (ten sam kształt `activity-${kind}` działa w obu miejscach, gdyby kiedyś trzeba było to rozszerzyć).
+
+Dowód:
+
+| Sprawdzenie | Wynik |
+|---|---|
+| `src/shared/ui.test.ts` — 2 nowe testy `isPaneWorking` | `running` → true; 6 pozostałych kindów → false; brak engine / brak wpisu → false |
+| `npm run test:unit` (`dev`) | **173/173** + oba typechecki |
+| `npm run build` (`dev`) | OK, `index-*.css` 34.1 → 36.9 kB |
+| build artefaktów | `pq-breathe`, `.pane-link.busy`, `.ws.busy`, `.busy-3`, `prefers-reduced-motion`, `--phase` — wszystko w `out/renderer/assets` |
+
+Pułapka procesowa: `Set-Content` na `Sidebar.tsx` **podwójnie zakodował polskie znaki** (`ó` → `Ăł`, `×` → `Ă—`) — PowerShell 5.1 czyta UTF-8 jako Windows-1252. Plik cofnięty i zrobiony narzędziem edycji; lekcja: w tym repo wszystkie pliki UTF-8 bez BOM zapisywać wyłącznie przez narzędzia plikowe, nigdy przez `Set-Content`. Uwaga też dla porządku: `.claude/skills/` w `main` zawiera linki absolutne (gitignorowane) — przy promowaniu do `main` instalator skilla trzeba puścić ponownie w każdym worktree.
+
+Ograniczenie świadome: `// ponytail: CSS nie umie sprawdzić document.visibilityState, więc pętla kompozytorowa kręci dalej w zminimalizowanym oknie; upgrade = jeden listener visibilitychange togglujący klasę na .ws-list`.
