@@ -1168,3 +1168,23 @@ Dowód:
 Pułapka procesowa: `Set-Content` na `Sidebar.tsx` **podwójnie zakodował polskie znaki** (`ó` → `Ăł`, `×` → `Ă—`) — PowerShell 5.1 czyta UTF-8 jako Windows-1252. Plik cofnięty i zrobiony narzędziem edycji; lekcja: w tym repo wszystkie pliki UTF-8 bez BOM zapisywać wyłącznie przez narzędzia plikowe, nigdy przez `Set-Content`. Uwaga też dla porządku: `.claude/skills/` w `main` zawiera linki absolutne (gitignorowane) — przy promowaniu do `main` instalator skilla trzeba puścić ponownie w każdym worktree.
 
 Ograniczenie świadome: `// ponytail: CSS nie umie sprawdzić document.visibilityState, więc pętla kompozytorowa kręci dalej w zminimalizowanym oknie; upgrade = jeden listener visibilitychange togglujący klasę na .ws-list`.
+
+## Pulso zamiast migania — szyna i kropka dostaja „bicie serca" (2026-09-30)
+
+Feedback po pierwszej wersji: „fajnie byłoby, gdyby to coś pulsowało — dyskretnie, ze smakiem i dobrą tonacją". Diagnoza z researchu (4 agenci, w tym `motion.csv`): poprzednia kropka **gasła do 0.35** i znikała w dolnej części pętli, więc przy szybkim spojrzeniu na sidebar była ledwo widoczna — a przy 7+ pracujących pane'ach zgasła całkowicie (zawór anty-hałos). Ruch był, ale nie było go *czuć*.
+
+Przeprojektowanie — zasada: **kształt jest stały, porusza się tylko obwódka.**
+
+| Element | Przed | Po |
+|---|---|---|
+| kropka (`.pane-link.busy::before`) | opacity 0.35 → 0.95, znikała w dołku | **stała**, pełne `--accent` + miękki glow `box-shadow 0 0 5px -1px` — stan czytelny w każdej chwili pętli |
+| halo (`.pane-link.busy::after`, nowe) | — | **jedna miękka fala** na cykl: `scale(0.45) → 2.5`, `opacity 0.5 → 0`, z `70% → 100%` na zerze, żeby fala nie wracała gwałtownie (jeden czysty puls, nie miganie) |
+| szyna (`.ws.busy > .row::before`) | opacity 0.35 → 0.95 | 0.5 → 1 + glow `0 0 6px -1px` (tonacja), pętla wolniejsza |
+| pętla | 1500 ms | **2000 ms** — wolniejszy puls czyta się jako spokojny, nie alarmowy; krok faz 200 ms |
+| amplituda (rampa) | .35/.95 → .45/.7 | .5/1 → .6/.85 (więcej obecności w każdym stopniu) |
+
+Nadal tylko `opacity` + `transform: scale` (kompozytor, zero repaintu), nadal 8 faz (`--phase`), nadal **w zaworze anty-hałas przy 7+** (teraz także `::after`), nadal `--accent` (nigdy bursztyn). `prefers-reduced-motion`: kropka i szyna zostają statyczne, a **halo znika całkowicie** (`display: none`) — statyczna obwódka wyglądałaby jak druga kropka, więc lepiej jej nie ma niż udawać ruch.
+
+Halo dobrane celowo w 18 px guttera: 4 px + 1 px obwódka × 2.5 ≈ 12 px średnicy, centrum w x = 9 px → mieści się w 3–15 px, nie dotyka logo silnika (18 px) i nie pcha tytułu.
+
+Dowód: `npm run test:unit` 173/173 + typecheck, `npm run build` OK (CSS 36.9 → 38.1 kB), w zminifikowanym artefakcie `pq-breathe`, `pq-ping`, `scale(2.5)`, `.busy-3 … ::after` i cały blok `prefers-reduced-motion` z `display: none`. Wersja zostaje **1.5.1** — to dopracowanie tej samej, jeszcze niezbudowanej paczki.
