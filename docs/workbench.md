@@ -1188,3 +1188,28 @@ Nadal tylko `opacity` + `transform: scale` (kompozytor, zero repaintu), nadal 8 
 Halo dobrane celowo w 18 px guttera: 4 px + 1 px obwódka × 2.5 ≈ 12 px średnicy, centrum w x = 9 px → mieści się w 3–15 px, nie dotyka logo silnika (18 px) i nie pcha tytułu.
 
 Dowód: `npm run test:unit` 173/173 + typecheck, `npm run build` OK (CSS 36.9 → 38.1 kB), w zminifikowanym artefakcie `pq-breathe`, `pq-ping`, `scale(2.5)`, `.busy-3 … ::after` i cały blok `prefers-reduced-motion` z `display: none`. Wersja zostaje **1.5.1** — to dopracowanie tej samej, jeszcze niezbudowanej paczki.
+
+## Pi w SPAWN ENGINE — nowy silnik z pi.dev (2026-10-06)
+
+Zgłoszenie: „dodaj Pi cli do Spawn Engine" + logo z podanego URL-a (`lobehub/lobe-icons` → `packages/static-png/dark/pi.png`: biały glyph na przezroczystym, wersja dark) i strona `https://pi.dev/`.
+
+| Plik | Zmiana |
+|---|---|
+| `src/shared/types.ts` | `'pi'` w `EngineId`, `ENGINE_ORDER` i `parseGridIntent` |
+| `src/main/engines.ts` | spec: binarki `pi`/`pi.cmd`, npm `@earendil-works/pi-coding-agent`, `selfUpdate: ['update']`, `extraPathDirs` = `%APPDATA%\npm` + `%LOCALAPPDATA%\pi-node\current` (instalator bez systemowego Node kładzie prywatny runtime — potwierdzone w wątku herdr#3428), kolor `#4d9abf` z oficjalnego marka `pi.dev/logo-auto.svg` (biały glyph z LobeHub nie daje koloru) |
+| `src/main/resolve-launch.ts` | `knownLaunch` case `pi` — npm shim albo `pi-node\current\pi.cmd`; dzięki temu `installed()` jest prawdziwy i start nie powtarza `npm install` dla zainstalowanego pi |
+| `src/main/install-scripts.ts` | kliknięcie w kafelek = oficjalny Windows installer `irm https://pi.dev/install.ps1 | iex` (okno PowerShell zostaje), a nie npm — npm wymaga Node ≥22.19, instalator sam dowozi runtime |
+| `src/renderer/src/components/engineLogoMeta.ts` | slot `pi: 'pi.png'` (strażnik `engineLogoMeta.test.ts` pilnuje: plik ↔ slot ↔ `ENGINE_ORDER`) |
+| `src/main/install-scripts.test.ts` | kontrakt: dokładny oficjalny URL installera w oknie PowerShell |
+
+Świadomie **nie**: `--yolo` w `args` (Pi nie ma systemu uprawnień — README: „Pi does not include a built-in permission system", nie ma czego pomijać), lista `models` (katalog modeli pi ciągnie z pi.dev w runtime, a `--model` akceptuje fuzzy — statyczna lista w pqTERM zardzewiałaby; wybór zostaje w `/model`), `mark` (grafika `pi.png` zawsze wygrywa z monogramem), probe auth w `providers.ts` (default `authed: true` jak dla pozostałych nowych silników).
+
+Logo: `src/renderer/src/assets/engines/pi.png` — 640×640 PNG paletowy, 1918 B, **bitowo identyczne** z podanym URL-em (`cmp` OK).
+
+Dowód:
+
+| Sprawdzenie | Wynik |
+|---|---|
+| `npm run test:unit` (`dev`) | **174/174** + oba typechecki (173 stare + 1 nowy test instalatora pi) |
+| `npm run check:version` | OK (product 1.5.1; 2 locki, cargo) |
+| `engineLogoMeta.test.ts` | `pi` w `ENGINE_ORDER` ↔ slot ↔ plik na dysku |

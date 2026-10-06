@@ -6,6 +6,7 @@
 export const ENGINE_LOGO_IDS = [
   'grok',
   'omp',
+  'pi',
   'hermes',
   'opencode',
   'codex',
@@ -34,6 +35,7 @@ export type EngineLogoId = (typeof ENGINE_LOGO_IDS)[number]
 export const ENGINE_LOGO_FILES: Record<EngineLogoId, string> = {
   grok: 'grok.png',
   omp: 'omp.svg',
+  pi: 'pi.png',
   hermes: 'hermes.png',
   opencode: 'opencode.png',
   codex: 'codex.png',

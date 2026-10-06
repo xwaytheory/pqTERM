@@ -1,6 +1,7 @@
 export type EngineId =
   | 'grok'
   | 'omp'
+  | 'pi'
   | 'hermes'
   | 'opencode'
   | 'codex'
@@ -50,6 +51,7 @@ export function parseGridIntent(
 const ids: EngineId[] = [
     'grok',
     'omp',
+    'pi',
     'hermes',
     'opencode',
     'codex',
@@ -329,6 +331,7 @@ export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
 export const ENGINE_ORDER: EngineId[] = [
   'grok',
   'omp',
+  'pi',
   'hermes',
   'opencode',
   'codex',
