@@ -1212,4 +1212,5 @@ Dowód:
 |---|---|
 | `npm run test:unit` (`dev`) | **174/174** + oba typechecki (173 stare + 1 nowy test instalatora pi) |
 | `npm run check:version` | OK (product 1.5.1; 2 locki, cargo) |
+| `npm run build` (`dev`) | OK — `out/renderer/assets/pi-CPXFu7bI.png` + `"pi"` w bundle |
 | `engineLogoMeta.test.ts` | `pi` w `ENGINE_ORDER` ↔ slot ↔ plik na dysku |
