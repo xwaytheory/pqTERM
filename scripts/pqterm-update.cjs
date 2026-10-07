@@ -71,7 +71,7 @@ function wantsInstall(files) {
 
 // ponytail: any commit on the official tree triggers a full build, even docs-only — split when build time hurts
 function treeAction(files, isAppRoot) {
-  if (wantsInstall(files)) return 'install'
+  if (wantsInstall(files)) return isAppRoot ? 'rebuild' : 'install'
   if (isAppRoot) return 'build'
   return 'git'
 }
@@ -107,7 +107,7 @@ function parsePending(text) {
     if (tab < 1) return null
     const action = line.slice(0, tab)
     const dir = line.slice(tab + 1).trim()
-    if ((action !== 'install' && action !== 'build') || !dir) return null
+    if ((action !== 'install' && action !== 'build' && action !== 'rebuild') || !dir) return null
     return { action, dir }
   }).filter(Boolean)
 }
@@ -185,13 +185,16 @@ function npmBin() {
 }
 
 function runCmd(file, args, cwd) {
-  const r = spawnSync(file, args, { cwd, stdio: 'inherit', windowsHide: true })
+  // Node ≥21 refuses bare .cmd/.bat in spawnSync (CVE-2024-27980) — route through the shell
+  const viaShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(file)
+  const r = spawnSync(file, args, { cwd, stdio: 'inherit', windowsHide: true, shell: viaShell })
   if (r.error) throw r.error
   if (r.status) throw new Error(`${file} ${args.join(' ')} zakończył się kodem ${r.status}`)
 }
 
 function inspect(entry) {
-  const dirty = git(entry.path, ['status', '--porcelain']).length > 0
+  // -uno: untracked files don't block a ff-merge (git still refuses to overwrite them)
+  const dirty = git(entry.path, ['status', '--porcelain', '-uno']).length > 0
   let hasUpstream = false
   try {
     git(entry.path, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${entry.branch}`])
@@ -289,7 +292,7 @@ function check() {
     if (!originOk(url)) throw new Error('origin')
     const branch = git(root, ['rev-parse', '--abbrev-ref', 'HEAD'])
     if (!branch || branch === 'HEAD') throw new Error('detached')
-    git(root, ['fetch', 'origin', branch])
+    git(root, ['fetch', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`])
     const parts = git(root, ['rev-list', '--left-right', '--count', `HEAD...origin/${branch}`])
       .split(/\s+/)
       .map(Number)
@@ -314,21 +317,22 @@ function check() {
 
 function finishTree(dir, action, pending) {
   const rest = pending.filter((row) => !samePath(row.dir, dir))
+  // remember the job BEFORE building — a killed build recovers on the next run
+  writePending(rest.concat([{ action, dir }]))
   try {
-    if (action === 'install') {
+    if (action === 'install' || action === 'rebuild') {
       console.log(`[pqterm] npm install w ${dir}`)
       runCmd(npmBin(), ['install'], dir)
-    } else {
+    }
+    if (action === 'build' || action === 'rebuild') {
       console.log(`[pqterm] przebudowuję ${dir}`)
       runCmd(npmBin(), ['run', 'build'], dir)
     }
     writePending(rest)
     return { pending: rest, ok: true }
   } catch (err) {
-    const next = rest.concat([{ action, dir }])
-    writePending(next)
     console.error(`[pqterm] ${err instanceof Error ? err.message : err}`)
-    return { pending: next, ok: false }
+    return { pending: rest.concat([{ action, dir }]), ok: false }
   }
 }
 
@@ -354,7 +358,7 @@ function update() {
   }
   console.log('[pqterm] pobieram z GitHuba')
   try {
-    git(root, ['fetch', 'origin', '--prune'])
+    git(root, ['fetch', 'origin', '+refs/heads/*:refs/remotes/origin/*', '--prune'])
   } catch (err) {
     console.error('[pqterm]', err instanceof Error ? err.message : err)
     return 1
@@ -369,7 +373,9 @@ function update() {
   }
   const single = selected.length <= 1
   const running = pqtermRunning()
-  let pending = readPending()
+  // drop pending rows for folders that no longer exist in this layout
+  let pending = readPending().filter((row) => selected.some((e) => samePath(e.path, row.dir)))
+  writePending(pending)
   let failed = false
   let locked = false
   const queued = []
@@ -395,7 +401,10 @@ function update() {
         if (running) {
           console.log(`[pqterm] ${label} — pomijam: zamknij pqTERM i uruchom jeszcze raz (została przebudowa)`)
           locked = true
-        } else queued.push({ dir: entry.path, action: remembered.action })
+        } else {
+          const act = remembered.action === 'install' && appRoot ? 'rebuild' : remembered.action
+          queued.push({ dir: entry.path, action: act })
+        }
       } else console.log(`[pqterm] ${label} — ${plan.reason}`)
       continue
     }
@@ -408,7 +417,8 @@ function update() {
       continue
     }
     let action = treeAction(files, appRoot)
-    if (remembered?.action === 'install') action = 'install'
+    if (remembered?.action === 'install') action = appRoot ? 'rebuild' : 'install'
+    else if (remembered?.action === 'rebuild') action = 'rebuild'
     if (running && action !== 'git') {
       console.log(`[pqterm] ${label} — pomijam: zamknij pqTERM i uruchom jeszcze raz (trzeba przebudować)`)
       locked = true

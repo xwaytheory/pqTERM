@@ -1214,3 +1214,32 @@ Dowód:
 | `npm run check:version` | OK (product 1.5.1; 2 locki, cargo) |
 | `npm run build` (`dev`) | OK — `out/renderer/assets/pi-CPXFu7bI.png` + `"pi"` w bundle |
 | `engineLogoMeta.test.ts` | `pi` w `ENGINE_ORDER` ↔ slot ↔ plik na dysku |
+
+## pqterm update — naprawa martwego self-updatera (2026-10-06)
+
+Zgłoszenie: „sprawdź pqterm update, czy działa w 100% prawidłowo”. Audyt wykazał, że **komenda była w 100% martwa**: `--check` zawsze `null` (banner o aktualizacji nigdy się nie pokazuje), `update` zawsze „gotowe” bez zaktualizowania czegokolwiek.
+
+| # | Błąd | Skutek | Naprawa |
+|---|---|---|---|
+| 1 | bare hub `repo.git` miał `remote.origin.url` **bez refspec** `remote.origin.fetch` | brak `refs/remotes/origin/*` → `fetch` zapisywał tylko `FETCH_HEAD`, `rev-list HEAD...origin/main` wywalał się i catch go połykał | jednorazowo: `git config --add remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"` w `repo.git` (bez commita) + skrypt przestał polegać na konfiguracji (pkt 2) |
+| 2 | `fetch origin <branch>` / `fetch origin --prune` polegały na konfigurowanym refspec | w setupie z pkt 1 refsy nigdy nie powstają → skip „brak origin/main” zamiast błędu | jawne refspecy: `+refs/heads/<b>:refs/remotes/origin/<b>` w `check()`, `+refs/heads/*:refs/remotes/origin/*` w `update()` |
+| 3 | `status --porcelain` liczył pliki nieśledzone jako „lokalne zmiany” | każde śmieciowe `tmp-*.cjs`/`__pycache__` w oficjalnej kopii **na zawsze** blokowało ff-merge (cichy skip, exit 0) | `--porcelain -uno`; git sam odmówi nadpisania kolidującego pliku nieśledzonego przy merge |
+| 4 | `finishTree` zapisywał wiersz `rebuild.txt` **dopiero po porażce** buildu | update zabity w trakcie buildu (Ctrl+C) → merge już zrobił się, „aktualne” na zawsze → `out\\` przestarzały bez odzysku | wiersz zapisywany **przed** startem install/build, kasowany po sukcesie |
+| 5 | akcja `install` dla korzenia aplikacji **nie budowała** | commit ze zmianą zależności → `npm install` tak, `npm run build` nie → oficjalna kopia odpala stary kod z nowymi depsami | nowa akcja `rebuild` = install + build (tylko app root; dev/test dalej samo install) |
+| 6 | `spawnSync('npm.cmd')` bez `shell` → **EINVAL** na Node ≥21 (CVE-2024-27980) | nawet po naprawie refs build/instalacja nigdy nie ruszyłby | `runCmd` przepuszcza `.cmd/.bat` przez `shell: true` |
+| 7 | wiersze `rebuild.txt` dla folderów, których już nie ma | przeniesiona kopia → nieśmiertelny wiersz → wieczny notice „przerwana przebudowa” | przycięcie do worktree wyselekcjonowanych na starcie `update()` |
+
+Dowód integracyjny (piaskownica: klon `repo.git`, 1 commit za `origin/main`, plik nieśledzony, Node 25.7):
+
+| Faza | Oczekiwane | Wynik |
+|---|---|---|
+| `--check` przy 1 za (live stable, po naprawie refs) | notice z liczbą commitów i komendą | `GitHub ma 1 nowszy commit (main). Zamknij pqTERM i w cmd wpisz: pqterm update` |
+| update z działającym pqterm.exe | blokada przed merge/build, exit 2 | „zamknij pqTERM i uruchom jeszcze raz (trzeba przebudować)”, exit 2 |
+| update bez blokady | merge mimo pliku nieśledzonego + próba build + wiersz pending | „dociągnięte 1” → „przebudowuję” → błąd buildu (brak node_modules) → `rebuild.txt` ma wiersz, exit 1 |
+| ponowny update | remembered row restarczuje build mimo „aktualne” | „przebudowuję” bez merge, exit 1 (recover działa) |
+| `--check` z pending | notice o przerwanej przebudowie | PENDING_TEXT zwrócony (banner w aplikacji zadziała) |
+| runCmd po naprawie EINVAL | npm realnie startuje | npm → `node scripts/pq.cjs build` → „host binary missing — npm install first”, kod 1 |
+
+Dowód bramek: `npm run test:unit` **174/174** + oba typechecki (8 testów updatera, nowe asserty `rebuild`), `npm run check:version` OK (1.5.1). Higiena stable bez commita: usunięty pusty plik `nul` (artefakt przekierowania), przywrócone `AGENTS.md` (zewnętrzne narzędzie dopisuje pustą linię — obserwowane, patrz ryzyka).
+
+Ryzyka/limity pozostawione świadomie: `pqtermRunning()` widzi tylko `pqterm.exe` (dev/test jako `electron.exe` nie blokują — istniejący marker ponytail), docs-only commit na app root nadal wywołuje pełny build (świadomy koszt, marker ponytail), wersja w `host\\pqterm.exe` po bumpie odświeża dopiero `stamp-host.cjs` (kosmetyka Explorera — bump i tak wymaga ludzkiej promocji), zewnętrzne narzędzie cyklicznie brudzi `AGENTS.md` w stable (jeśli wróci `M`: `git checkout -- AGENTS.md`).

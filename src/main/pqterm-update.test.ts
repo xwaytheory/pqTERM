@@ -77,6 +77,8 @@ test('install follows the root lockfile, build follows the official tree', () =>
   assert.equal(treeAction(['src/main/index.ts'], true), 'build')
   assert.equal(treeAction(['src/main/index.ts'], false), 'git')
   assert.equal(treeAction(['package.json'], false), 'install')
+  assert.equal(treeAction(['package.json'], true), 'rebuild')
+  assert.equal(treeAction(['package-lock.json'], true), 'rebuild')
 })
 
 test('launch notice names the command only when a fast-forward exists', () => {
@@ -107,5 +109,6 @@ test('PATH gains the shim directory once', () => {
 test('a failed rebuild is remembered as one row', () => {
   const text = formatPending([{ action: 'build', dir: root }])
   assert.deepEqual(parsePending(text), [{ action: 'build', dir: root }])
+  assert.deepEqual(parsePending(formatPending([{ action: 'rebuild', dir: root }])), [{ action: 'rebuild', dir: root }])
   assert.deepEqual(parsePending('nope\n'), [])
 })
