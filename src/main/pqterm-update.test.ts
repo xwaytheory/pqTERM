@@ -12,7 +12,8 @@ import {
   pathWithBin,
   shimBody,
   parsePending,
-  formatPending
+  formatPending,
+  inTree
 } from '../../scripts/pqterm-update.cjs'
 
 const root = resolve('pqterm-root')
@@ -111,4 +112,11 @@ test('a failed rebuild is remembered as one row', () => {
   assert.deepEqual(parsePending(text), [{ action: 'build', dir: root }])
   assert.deepEqual(parsePending(formatPending([{ action: 'rebuild', dir: root }])), [{ action: 'rebuild', dir: root }])
   assert.deepEqual(parsePending('nope\n'), [])
+})
+
+test('pending rows only count inside this install tree', () => {
+  assert.equal(inTree(root, join(root, 'instances', 'dev')), true)
+  assert.equal(inTree(root, root), true)
+  assert.equal(inTree(root, join(root, '..', 'other-pqTERM')), false)
+  assert.equal(inTree(root, 'C:\\Users\\pq\\AppData\\Local\\Temp\\pq-sandbox'), false)
 })
