@@ -22,13 +22,6 @@ test('pip CLI gets a PowerShell window that stays open', () => {
   assert.deepEqual(aider.args, ['/NoProfile', '-NoExit', '-Command', 'pip install -U aider-chat'])
 })
 
-test('pi gets the official Windows installer in a PowerShell window', () => {
-  const pi = installCommand('pi')
-  assert.ok(pi)
-  assert.equal(pi.exe, 'powershell.exe')
-  assert.deepEqual(pi.args, ['/NoProfile', '-NoExit', '-Command', 'irm https://pi.dev/install.ps1 | iex'])
-})
-
 test('native-only engines have no scripted install', () => {
   for (const id of ['grok', 'hermes', 'antigravity', 'ori', 'cursor', 'shell', 'cmd'] as const) {
     assert.equal(installCommand(id), null, `${id} must not fake a scripted install`)

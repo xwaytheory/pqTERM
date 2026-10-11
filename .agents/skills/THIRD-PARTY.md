@@ -1,24 +1,4 @@
-# Third-party: vendored skills
-
-Everything under `.agents/skills/` is an unmodified vendored copy installed with the `skills` CLI
-(`npx skills add <repo> --yes`); `skills-lock.json` pins the SHA-256 of every skill, so
-`npx skills update` is the only supported way to refresh them. Re-install with
-`npx skills experimental_install` to restore from the lock file.
-
-| Skills | Source | License | Installed with |
-|---|---|---|---|
-| `ponytail`, `ponytail-*` | https://github.com/DietrichGebert/ponytail | MIT | `npx skills add dietrichgebert/ponytail --yes` |
-| `i-have-adhd` | https://github.com/ayghri/i-have-adhd | MIT | `npx skills add ayghri/i-have-adhd --skill i-have-adhd --agent codex --yes` |
-| `brainstorming`, `writing-plans`, `test-driven-development`, `systematic-debugging`, `using-git-worktrees`, `executing-plans`, `subagent-driven-development`, `requesting-code-review`, `receiving-code-review`, `verification-before-completion`, `dispatching-parallel-agents`, `finishing-a-development-branch`, `diagnosing-superpowers`, `writing-skills`, `using-superpowers` | https://github.com/obra/superpowers | MIT | `npx skills add obra/superpowers --yes` |
-| `ui-ux-pro-max`, `ui-styling`, `design`, `design-system`, `brand`, `slides`, `banner-design` | https://github.com/nextlevelbuilder/ui-ux-pro-max-skill | MIT (`ui-styling` bundles OFL fonts + Apache-2.0 tooling, both files shipped) | `npx skills add nextlevelbuilder/ui-ux-pro-max-skill --yes` |
-| `graphify` | https://github.com/Graphify-Labs/graphify | Apache-2.0 | `npx skills add Graphify-Labs/graphify --yes` |
-
-Skills run with the agent's full permissions. `graphify` ships a Python package and writes
-`graphify-out/` into the project; that directory is gitignored. The design/visual skills
-(`brand`, `design`, `slides`, `banner-design`) invoke external image/model APIs when the skill is
-actually used — nothing runs on install.
-
-## ponytail
+# Third-party: ponytail skills
 
 The skill files under `.agents/skills/ponytail*/` are vendored, unmodified copies installed with
 `npx skills add dietrichgebert/ponytail --yes` (see `skills-lock.json` for the pinned hashes).

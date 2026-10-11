@@ -1,3 +1,0 @@
-# autocrlf=true would check out the vendored skills' shell scripts with CRLF,
-# which bash refuses to run ("$'\r': command not found"). Keep them LF.
-*.sh text eol=lf

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DEFAULT_UI, sanitizeUi, UI_FONT_MAX, UI_FONT_MIN, UI_SCROLLBACK_MAX, isPaneWorking, type PaneActivity } from './types.ts'
+import { DEFAULT_UI, sanitizeUi, UI_FONT_MAX, UI_FONT_MIN, UI_SCROLLBACK_MAX } from './types.ts'
 
 test('a patch keeps everything it does not mention', () => {
   const next = sanitizeUi({ accent: 'blue' }, DEFAULT_UI)
@@ -29,20 +29,4 @@ test('numbers are clamped and rounded, never trusted', () => {
   assert.equal(sanitizeUi({ fontSize: Infinity }).fontSize, DEFAULT_UI.fontSize)
   assert.equal(sanitizeUi({ scrollback: -5 }).scrollback, 0)
   assert.equal(sanitizeUi({ scrollback: 1e9 }).scrollback, UI_SCROLLBACK_MAX)
-})
-
-// The sidebar's animated "pracuje" rail/dot keys off exactly this rule.
-const pane = (id: string, engine: string | null = 'opencode') => ({ id, engine })
-const at = (kind: PaneActivity['kind']): PaneActivity => ({ kind, at: 0, unread: false })
-
-test('only a producing session counts as working', () => {
-  assert.equal(isPaneWorking(pane('a'), { a: at('running') }), true)
-  for (const kind of ['quiet', 'ready', 'waiting', 'attention', 'exited', 'error'] as const) {
-    assert.equal(isPaneWorking(pane('a'), { a: at(kind) }), false, kind)
-  }
-})
-
-test('no engine, no activity entry — never working', () => {
-  assert.equal(isPaneWorking(pane('a', null), { a: at('running') }), false)
-  assert.equal(isPaneWorking(pane('a'), {}), false)
 })

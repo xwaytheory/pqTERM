@@ -165,11 +165,6 @@ function samePath(a, b) {
   return resolve(a).toLowerCase() === resolve(b).toLowerCase()
 }
 
-// ponytail: rebuild.txt jest współdzielony — obce kopii (np. sandbox w Temp) obsłuży tylko jej własny update
-function inTree(stable, dir) {
-  return !normRel(stable, dir).startsWith('..')
-}
-
 // ponytail: tasklist image name only — a renamed host exe would skip the lock check
 function pqtermRunning() {
   if (process.platform !== 'win32') return false
@@ -312,11 +307,7 @@ function check() {
   } catch {
     notice = null
   }
-  if (!notice) {
-    let own = root
-    try { own = stableRoot(root) } catch { /* this folder is the install */ }
-    if (readPending().some((row) => inTree(own, row.dir))) notice = { text: PENDING_TEXT }
-  }
+  if (!notice && readPending().length) notice = { text: PENDING_TEXT }
   process.stdout.write(JSON.stringify({ notice }) + '\n')
   return 0
 }
@@ -378,12 +369,7 @@ function update() {
   }
   const single = selected.length <= 1
   const running = pqtermRunning()
-  const foreign = []
-  let pending = []
-  for (const row of readPending()) {
-    if (inTree(stable, row.dir)) pending.push(row)
-    else foreign.push(row)
-  }
+  let pending = readPending()
   let failed = false
   let locked = false
   const queued = []
@@ -444,7 +430,6 @@ function update() {
     pending = result.pending
     if (!result.ok) failed = true
   }
-  if (foreign.length) writePending(foreign.concat(pending))
   if (failed) return 1
   if (locked) {
     console.log('[pqterm] część kopii czeka. Zamknij pqTERM i wpisz jeszcze raz: pqterm update')
@@ -475,7 +460,6 @@ module.exports = {
   shimBody,
   parsePending,
   formatPending,
-  inTree,
   PENDING_TEXT
 }
 

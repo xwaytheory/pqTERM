@@ -9,7 +9,6 @@ import type { EngineId } from '../shared/types'
 export function installCommand(id: EngineId): { exe: string; args: string[]; script: string } | null {
   const scripts: Partial<Record<EngineId, string>> = {
     omp: 'npm install -g @oh-my-pi/pi-coding-agent',
-    pi: 'irm https://pi.dev/install.ps1 | iex',
     opencode: 'npm install -g opencode-ai',
     codex: 'npm install -g @openai/codex',
     claude: 'npm install -g @anthropic-ai/claude-code',

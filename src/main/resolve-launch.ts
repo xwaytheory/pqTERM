@@ -116,15 +116,6 @@ export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: str
       ])
       return exe ? { spawnFile: exe, args: extra } : null
     }
-    case 'pi': {
-      // npm shim, or the installer's private Node runtime when no system Node.
-      const exe = firstExisting([
-        join(npm, 'pi.cmd'),
-        join(npm, 'pi.exe'),
-        join(homedir(), 'AppData', 'Local', 'pi-node', 'current', 'pi.cmd')
-      ])
-      return exe ? { spawnFile: exe, args: extra } : null
-    }
     case 'antigravity': {
       const exe = firstExisting([join(homedir(), 'AppData', 'Local', 'agy', 'bin', 'agy.exe')])
       return exe ? { spawnFile: exe, args: extra } : null
