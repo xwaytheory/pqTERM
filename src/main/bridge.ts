@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { randomBytes, timingSafeEqual } from 'crypto'
-import { runningDev } from './env'
+import { runningDev } from './env.ts'
+import { CTL } from './pqterm-ctl.ts'
 
 /** Bridge bodies are tiny JSON commands — anything bigger is junk (or a local DoS). */
 const BRIDGE_MAX_BODY = 65536
@@ -33,117 +34,24 @@ function findNode(): string {
   return existsSync(fallback) ? fallback : 'node'
 }
 
-const CTL = `const { readFileSync, existsSync } = require('fs')
-const { join } = require('path')
 
-function loadBridge() {
-  if (process.env.PQ_BRIDGE && process.env.PQ_TOKEN) {
-    return { origin: process.env.PQ_BRIDGE, token: process.env.PQ_TOKEN }
-  }
-  const f = join(__dirname, 'bridge.json')
-  if (!existsSync(f)) {
-    console.error('pq: brak mostka — odpal najpierw aplikację pq')
-    process.exit(1)
-  }
-  return JSON.parse(readFileSync(f, 'utf8'))
+type PaneBridgeHooks = {
+  list: () => { slot: number; paneId: string; engine: string | null; title: string }[]
+  spawn: (slot: number, engine: string) => Promise<string | null>
+  write: (slot: number, text: string) => Promise<boolean>
+  fill: (engine: string, prompt: string, skipSlot: number) => Promise<number[]>
+  updaterSource?: string
 }
-
-async function call(method, path, body) {
-  const b = loadBridge()
-  const res = await fetch(b.origin + path, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-PQ-Token': b.token
-    },
-    body: body ? JSON.stringify(body) : undefined
-  })
-  const text = await res.text()
-  let json
-  try { json = JSON.parse(text) } catch { json = { raw: text } }
-  if (!res.ok) {
-    console.error(json.error || text)
-    process.exit(1)
-  }
-  return json
-}
-
-function help() {
-  console.log(\`pqterm — sterowanie siatką z wnętrza CLI
-
-  pqterm list
-  pqterm fill [engine]              idle sloty → silnik (domyślnie grok)
-  pqterm fill grok --send Siemanko  fill + ten sam prompt w nowych oknach
-  pqterm spawn <slot> [engine]      slot 1..N
-  pqterm send <slot> <tekst...>     wyślij prompt + Enter
-\`)
-}
-
-async function main() {
-  const argv = process.argv.slice(2)
-  const cmd = argv[0]
-  if (!cmd || cmd === '-h' || cmd === '--help' || cmd === 'help') {
-    help()
-    return
-  }
-  if (cmd === 'list') {
-    const data = await call('GET', '/v1/panes')
-    for (const p of data.panes) {
-      const st = p.engine ? p.engine : 'idle'
-      console.log(String(p.slot).padStart(2) + '  ' + st.padEnd(10) + '  ' + (p.title || ''))
-    }
-    return
-  }
-  if (cmd === 'fill') {
-    const rest = argv.slice(1)
-    const sendAt = rest.indexOf('--send')
-    let engine = 'grok'
-    let prompt = ''
-    if (sendAt >= 0) {
-      engine = rest[0] && rest[0] !== '--send' ? rest[0] : 'grok'
-      prompt = rest.slice(sendAt + 1).join(' ')
-    } else if (rest[0]) engine = rest[0]
-    const skip = process.env.PQ_SLOT ? Number(process.env.PQ_SLOT) : 0
-    const data = await call('POST', '/v1/fill', { engine, prompt, skipSlot: skip })
-    console.log(data.ok ? 'ok  ' + (data.spawned || []).join(',') : 'fail')
-    return
-  }
-  if (cmd === 'spawn') {
-    const slot = Number(argv[1])
-    const engine = argv[2] || 'grok'
-    if (!slot) { console.error('pqterm spawn <slot> [engine]'); process.exit(1) }
-    await call('POST', '/v1/panes/' + slot + '/spawn', { engine })
-    console.log('ok')
-    return
-  }
-  if (cmd === 'send') {
-    const slot = Number(argv[1])
-    const text = argv.slice(2).join(' ')
-    if (!slot || !text) { console.error('pqterm send <slot> <tekst>'); process.exit(1) }
-    await call('POST', '/v1/panes/' + slot + '/write', { text })
-    console.log('ok')
-    return
-  }
-  help()
-  process.exit(1)
-}
-
-main().catch((e) => { console.error(String(e && e.message ? e.message : e)); process.exit(1) })
-`
 
 export class PaneBridge {
   token = randomBytes(16).toString('hex')
   origin = ''
   private server: Server | null = null
 
-  constructor(
-    private hooks: {
-      list: () => { slot: number; paneId: string; engine: string | null; title: string }[]
-      spawn: (slot: number, engine: string) => Promise<string | null>
-      write: (slot: number, text: string) => Promise<boolean>
-      fill: (engine: string, prompt: string, skipSlot: number) => Promise<number[]>
-    }
-  ) {}
+  private hooks: PaneBridgeHooks
+  constructor(hooks: PaneBridgeHooks) {
+    this.hooks = hooks
+  }
 
   install(): void {
     const dir = binDir()
@@ -200,7 +108,7 @@ export class PaneBridge {
         const dir = binDir()
         mkdirSync(dir, { recursive: true })
         writeFileSync(join(dir, 'bridge.json'),
-          JSON.stringify({ origin: this.origin, token: this.token }, null, 2), 'utf8')
+          JSON.stringify({ origin: this.origin, token: this.token, updater: this.hooks.updaterSource }, null, 2), 'utf8')
       } catch (err) {
         console.error('pqTERM bridge:', err)
         this.stop()
