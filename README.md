@@ -2,7 +2,12 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.5.1** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.5.2** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.5.2
+
+- **`pqterm update` w końcu aktualizuje.** Bez `remote.origin.fetch` w configu `git fetch` nie pobierał gałęzi, więc check zawsze mówił „brak zmian” — teraz fetch używa jawnych refspeców. Brudne pliki nieblokujące (untracked) nie blokują fast-forward, a wstrzymana przebudowa (np. ubity build) wznawia się przy następnym uruchomieniu. `.cmd`/`.bat` odpalane przez shell (Node ≥21 EINVAL), przebudowa wyzwalana zmianą lockfilea w korzeniu aplikacji.
+- **Nag o przebudowie tylko dla swojego drzewa.** `pqterm update --check` przypomina o zaległej przebudowie tylko w obrębie instalacji, w której pracujesz — nie o śmieciach w obcych kopiach.
 
 ## Nowości 1.5.1
 
