@@ -71,17 +71,6 @@ function envFor(
   env.TERM = 'xterm-256color'
   env.COLORTERM = 'truecolor'
   env.TERM_PROGRAM = 'pq'
-  // Every agent CLI gates its own notification channel on terminal identity and
-  // ships the switch off: claude resolves `auto` to "no_method_available" for an
-  // unknown terminal, codex only speaks OSC 9 to ghostty/iTerm2/kitty/warp/wezterm,
-  // opencode + omp (OpenTUI) pick their protocol from the same identity. pqTERM
-  // parses BEL + OSC 9/99/777, so naming a terminal that can notify is the whole
-  // fix. `??=` — if pqTERM itself runs inside Warp/iTerm/wezterm, its own values win.
-  env.ITERM_SESSION_ID = env.ITERM_SESSION_ID ?? 'pq-term'
-  env.OPENTUI_NOTIFICATION_PROTOCOL = env.OPENTUI_NOTIFICATION_PROTOCOL ?? 'osc9'
-  // omp's structured events (question_asked, permission_request, stop,
-  // stop_failure) ride on this one env var — no TERM_PROGRAM check involved.
-  env.WARP_CLI_AGENT_PROTOCOL_VERSION = env.WARP_CLI_AGENT_PROTOCOL_VERSION ?? '1'
   env.PQ = '1'
   env.PWD = cwd
   env.FORCE_COLOR = '1'

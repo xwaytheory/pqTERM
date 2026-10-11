@@ -49,7 +49,6 @@ All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehu
 |----|-------|--------------|
 | `grok` | `grok.png` (xAI mark) | `grok` |
 | `omp` | `omp.svg` | `omp` (not on LobeHub) |
-| `pi` | `pi.png` (white glyph, dark variant) | `pi` — user-supplied URL: `lobehub/lobe-icons` `static-png/dark/pi.png` |
 | `hermes` | `hermes.png` (NousResearch) | `nousresearch` |
 | `opencode` | `opencode.png` | `opencode` |
 | `codex` | `codex.png` | `codex-color` |
@@ -73,7 +72,6 @@ All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehu
 |----|------|--------|-------|-------|
 | `grok` | Grok CLI | xAI | `#39ffb6` | `Gr` + `grok.png` |
 | `omp` | Omp | oh-my-pi | `#c084fc` | `Om` |
-| `pi` | Pi | Earendil | `#4d9abf` (from pi.dev mark) | `pi.png` |
 | `hermes` | Hermes | Nous / Hermes | `#f5c542` | `H` + `hermes.png` (NousResearch) |
 | `opencode` | OpenCode | OpenCode | `#7aa2ff` | `Oc` + `opencode.png` |
 | `codex` | Codex | OpenAI | `#9ae6b4` | `Cx` + `codex.png` |

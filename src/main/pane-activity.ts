@@ -1,16 +1,9 @@
 ﻿import type { PaneActivity, PaneActivityKind } from '../shared/types'
-import { isQuestion, visibleLines } from './attention.ts'
 
 const IDLE_MS = 30_000
 /** Silence after activity that counts as "waiting for you" (agent finished/prompting). */
 const WAITING_MS = 60_000
 const BEL_COOLDOWN_MS = 5_000
-/** A blocked prompt shows up at once — the toast must not lag behind it. */
-const QUESTION_MS = 15_000
-/** Silence after a BEL before it counts as "the CLI stopped and wants you". */
-const BEL_CONFIRM_MS = 2_500
-/** Raw output tail the guess reads (the visible screen is at the end). */
-const RAW_TAIL = 800
 
 interface Entry {
   activity: PaneActivity
@@ -19,31 +12,16 @@ interface Entry {
   escape: boolean
   lastOutputAt: number
   lastBellAt: number
-  /** Clock of the newest BEL candidate; tick() promotes it if the pane stops. */
-  bellAt: number
-  /** Clock value when attention was latched. Later output clears it. */
-  attentionAt: number
   lastSemantic: PaneActivityKind | null
   /** Set once per silence stretch: one 'waiting' escalation per stretch, not per tick. */
   waitingAnnounced: boolean
-  /** agent pane (not a bare shell) — only those get the "finished turn" guess. */
-  agent: boolean
-  /** the user typed into this pane in this session */
-  asked: boolean
-  /** the pane produced output at least once */
-  sawOutput: boolean
-  /** tail of raw output, control-free only when guessed (once a second) */
-  raw: string
-  /** one screen-based guess per silence stretch */
-  guessed: boolean
 }
 
 
 /**
  * Pure pane-activity state: which panes are running, quiet (silence — NOT
  * completion), semantically ready/waiting (agent events), or exited. BEL =
- * attention until the CLI writes again; OSC-title BEL terminators are excluded
- * across chunk splits.
+ * attention; OSC-title BEL terminators are excluded across chunk splits.
  */
 export class PaneActivityTracker {
   private entries = new Map<string, Entry>()
@@ -61,7 +39,7 @@ export class PaneActivityTracker {
     this.now = now
   }
 
-  private fresh(kind: PaneActivityKind, agent: boolean): Entry {
+  private fresh(kind: PaneActivityKind): Entry {
     const at = this.now()
     return {
       activity: { kind, at, unread: false },
@@ -70,20 +48,13 @@ export class PaneActivityTracker {
       escape: false,
       lastOutputAt: at,
       lastBellAt: -Infinity,
-      bellAt: -Infinity,
-      attentionAt: -Infinity,
       lastSemantic: null,
-      waitingAnnounced: false,
-      agent,
-      asked: false,
-      sawOutput: false,
-      raw: '',
-      guessed: false
+      waitingAnnounced: false
     }
   }
 
-  start(paneId: string, opts: { agent?: boolean } = {}): void {
-    const e = this.fresh('running', opts.agent === true)
+  start(paneId: string): void {
+    const e = this.fresh('running')
     this.entries.set(paneId, e)
     this.onChange(paneId, { ...e.activity })
   }
@@ -92,13 +63,8 @@ export class PaneActivityTracker {
   output(paneId: string, data: string): void {
     const e = this.entries.get(paneId)
     if (!e || e.ended || !data) return
-    const now = this.now()
-    const wasAttention = e.activity.kind === 'attention'
-    e.lastOutputAt = now
+    e.lastOutputAt = this.now()
     e.waitingAnnounced = false
-    e.guessed = false
-    e.sawOutput = true
-    e.raw = (e.raw + data).slice(-RAW_TAIL)
     if (e.activity.kind === 'quiet' || e.activity.kind === 'waiting') {
       this.set(paneId, e, 'running', false)
     }
@@ -123,24 +89,10 @@ export class PaneActivityTracker {
       }
       if (ch === '\x07') bell = true
     }
-    if (bell && e.lastBellAt + BEL_COOLDOWN_MS <= now) {
-      // A BEL is only a *candidate*: opencode rings it between tool steps while
-      // it is still working, and alerting on that told the user "needs attention"
-      // mid-task. It turns into real attention only if the pane actually stops
-      // (tick, after BEL_CONFIRM_MS of silence) — which is what a turn-end or
-      // permission bell looks like from here.
-      e.lastBellAt = now
-      e.bellAt = now
-      return
-    }
-    e.bellAt = -Infinity
-    // omp (TERM_PROGRAM=pq → trueColor) rings BEL when a turn ends. The next
-    // turn keeps writing, so a latched badge would say "needs attention" the
-    // whole time it is working. Same-millisecond output (the notice chunk
-    // itself) does not clear it; silence after the bell still does not.
-    if (wasAttention && !bell && e.attentionAt < now) {
-      e.activity = { ...e.activity, unread: false }
-      this.set(paneId, e, 'running', false)
+    if (bell && e.lastBellAt + BEL_COOLDOWN_MS <= this.now()) {
+      e.lastBellAt = this.now()
+      this.set(paneId, e, 'attention', true)
+      this.onAlert(paneId, 'attention')
     }
   }
 
@@ -154,7 +106,6 @@ export class PaneActivityTracker {
     e.lastOutputAt = this.now()
     e.waitingAnnounced = false
     e.lastSemantic = 'attention'
-    e.attentionAt = this.now()
     this.set(paneId, e, 'attention', true)
     void title
     void body
@@ -166,7 +117,6 @@ export class PaneActivityTracker {
     if (!e || e.ended) return
     if (e.lastSemantic === kind) return
     e.lastSemantic = kind
-    if (kind === 'attention') e.attentionAt = this.now()
     this.set(paneId, e, kind, kind !== 'running')
     if (kind !== 'running') this.onAlert(paneId, kind)
   }
@@ -201,55 +151,18 @@ export class PaneActivityTracker {
     if (!e || e.ended) return
     e.lastOutputAt = this.now()
     e.waitingAnnounced = false
-    e.guessed = false
-    e.asked = true
-  }
-
-  /**
-   * Promote a BEL candidate to real attention — but only once the pane has been
-   * silent for BEL_CONFIRM_MS. A CLI that keeps writing after the bell was just
-   * making noise between tool steps, and its badge must not say "needs you".
-   */
-  private confirmBell(paneId: string, e: Entry, t: number): void {
-    if (e.ended || e.bellAt === -Infinity) return
-    if (t - e.lastOutputAt < BEL_CONFIRM_MS) return
-    e.bellAt = -Infinity
-    e.attentionAt = t
-    this.set(paneId, e, 'attention', true)
-    this.onAlert(paneId, 'attention')
-  }
-
-  /**
-   * Screen-based guess for the CLIs that never send a notification of their own:
-   * a yes/no affordance in the visible lines means the pane is blocked on the
-   * user. One guess per silence stretch, never for a raw shell, never without
-   * output, and never over a latched BEL/OSC attention (that one is already
-   * reported).
-   */
-  private guess(paneId: string, e: Entry, t: number): void {
-    if (e.ended || e.guessed || !e.sawOutput) return
-    if (e.activity.kind === 'attention' || e.activity.kind === 'exited' || e.activity.kind === 'error') return
-    const quietFor = t - e.lastOutputAt
-    if (quietFor < QUESTION_MS) return
-    if (!e.asked || !isQuestion(visibleLines(e.raw))) return
-    e.guessed = true
-    e.lastSemantic = null // a new prompt is a new event, even if the last one was also a question
-    this.signal(paneId, 'attention')
   }
 
   /**
    * Silence after activity: 'quiet' at IDLE_MS, then 'waiting' at WAITING_MS —
    * status only, never a desktop alert. Output resets the stretch. Silence
    * cannot know why a CLI stopped writing (working, blocked, done, crashed), so
-   * it never produces a toast on its own; the badge in pqTERM is the status
-   * signal. Alerts come from explicit events: BEL, OSC 9/99/777, process exit,
-   * and the screen-based guess for CLIs that send nothing.
+   * it never produces a toast; the badge in pqTERM is the whole signal. Alerts
+   * come only from explicit events: BEL, OSC 9/777, process exit.
    */
   tick(): void {
     const t = this.now()
     for (const [id, e] of this.entries) {
-      this.confirmBell(id, e, t)
-      this.guess(id, e, t)
       if (e.ended || e.activity.kind === 'running' || e.activity.kind === 'quiet') {
         if (
           e.activity.kind === 'running' &&
