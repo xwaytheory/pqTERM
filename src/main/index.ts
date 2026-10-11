@@ -448,7 +448,8 @@ bridge = new PaneBridge({
     ptys.write(pane.id, payload)
     return true
   },
-  fill: fillPanes
+  fill: fillPanes,
+  updaterSource: findUpdateScript(app.getAppPath()) ?? undefined
 })
 bridge.start()
 

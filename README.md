@@ -2,7 +2,11 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.5.2** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.5.3** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.5.3
+
+- **`pqterm update` z poziomu zainstalowanej komendy.** `pqterm` w `bin/` (pqTERM-pr/pqTERM-dev) zna `update` i `--check` — odpala skrypt aktualizacji z korzenia aplikacji (ścieżka zapisana w `bridge.json` przy starcie), a nie tylko steruje siatką. Instalator zawiera `scripts/pqterm-update.cjs`.
 
 ## Nowości 1.5.2
 
