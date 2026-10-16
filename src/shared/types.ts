@@ -48,31 +48,7 @@ export function parseGridIntent(
   if (quoted) prompt = quoted[1].trim()
   else if (labeled) prompt = labeled[1].replace(/^[„""]|[”""]$/g, '').trim()
   let engine: EngineId | undefined
-const ids: EngineId[] = [
-    'grok',
-    'omp',
-    'pi',
-    'hermes',
-    'opencode',
-    'codex',
-    'claude',
-    'qwen',
-    'dsh',
-    'gemini',
-    'crush',
-    'aider',
-    'copilot',
-    'antigravity',
-    'zcode',
-    'ori',
-    'cursor',
-    'freebuff',
-    'kimi',
-    'qoder',
-    'baicode',
-    'cmd'
-  ]
-  for (const id of ids) {
+  for (const id of ENGINE_ORDER) {
     if (new RegExp(`\\b${id}\\b`, 'i').test(t)) {
       engine = id
       break
