@@ -302,11 +302,56 @@ button {
   overflow: auto;
   padding: 0 8px 12px;
 }
+/* Motion for the "pracuje" indicators below — the only animation in pqTERM.
+   Opacity + scale only, so it stays on the compositor. One 2 s beat: the shape
+   itself never disappears (the state is always legible), the halo is what moves.
+   1-2 busy rows get the full amplitude; 7+ have no information left in the
+   animation, so it stops and the shapes alone carry it (a shimmer that says the
+   same thing 13 times is just noise). */
+.ws-list.busy-1 {
+  --motion-lo: 0.5;
+  --motion-hi: 1;
+}
+.ws-list.busy-2 {
+  --motion-lo: 0.55;
+  --motion-hi: 0.92;
+}
+.ws-list.busy-3 {
+  --motion-lo: 0.6;
+  --motion-hi: 0.85;
+}
+@keyframes pq-breathe {
+  0%,
+  100% {
+    opacity: var(--motion-lo, 0.5);
+  }
+  50% {
+    opacity: var(--motion-hi, 1);
+  }
+}
+/* One soft halo leaving the dot per beat — a resting pulse, not a blink. */
+@keyframes pq-ping {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.45);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(2.5);
+  }
+}
+.ws-list.busy-3 .ws.busy > .row::before,
+.ws-list.busy-3 .pane-link.busy::before,
+.ws-list.busy-3 .pane-link.busy::after {
+  animation: none;
+}
 .ws {
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 8px 8px 6px;
   margin-bottom: 4px;
+  position: relative;
 }
 .ws.movable .row {
   cursor: grab;
@@ -329,6 +374,7 @@ button {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  position: relative;
 }
 .ws .chev {
   color: var(--dim);
@@ -345,6 +391,26 @@ button {
 .ws .meta {
   color: var(--dim);
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+/* A CLI in this workspace is working: a rail on the workspace edge. Shape, not
+   colour, carries the state — the amber number next to it already means
+   "needs you", and under the amber accent those two would be the same colour. */
+.ws.busy > .row::before {
+  content: '';
+  position: absolute;
+  /* -6px from the row's content box = 2px inside the card's left edge, so the
+     rail hugs the border next to the title instead of the folder line below. */
+  left: -6px;
+  top: 50%;
+  width: 2px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 6px -1px color-mix(in srgb, var(--accent) 65%, transparent);
+  animation: pq-breathe 2000ms cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  animation-delay: calc(var(--phase, 0) * 200ms);
 }
 .ws .cwd {
   display: flex;
@@ -384,6 +450,42 @@ button {
   color: var(--muted);
   border-radius: 4px;
   cursor: pointer;
+  position: relative;
+}
+/* This pane's CLI is producing output: a dot in the 18px gutter that stays put
+   and glows, plus one halo leaving it per beat. Constant shape = the state is
+   legible even at the trough of the pulse; the motion only says "alive". Hover
+   below still wins (same specificity, later in the file) — no specificity war. */
+.pane-link.busy {
+  background: var(--wash);
+}
+.pane-link.busy::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 5px -1px color-mix(in srgb, var(--accent) 70%, transparent);
+  animation: pq-breathe 2000ms cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  animation-delay: calc(var(--phase, 0) * 200ms);
+}
+.pane-link.busy::after {
+  content: '';
+  position: absolute;
+  /* same box as the dot above, so the halo grows from its centre */
+  left: 7px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  animation: pq-ping 2000ms cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  animation-delay: calc(var(--phase, 0) * 200ms);
 }
 .pane-link > .pane-label {
   flex: 1;
@@ -393,7 +495,9 @@ button {
 .pane-label .activity-badge {
   display: block;
   font-size: 10px;
-  color: var(--dim);
+  /* --muted, not --dim: this text is the non-motion fallback for the dot above,
+     so it has to clear 3:1 on --bg-2 (--dim is 2.69:1). */
+  color: var(--muted);
 }
 .activity-badge.unread, .activity-count {
   color: var(--amber);
@@ -1413,4 +1517,19 @@ body.modal-open .xterm-helper-textarea {
   text-transform: uppercase;
   z-index: 5;
   border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* motion: the "pracuje" indicators (`.ws.busy` rail, `.pane-link.busy` dot and
+   halo) are the only animation in pqTERM. Opacity + scale only, so they stay on
+   the compositor. Reduced motion keeps the dot and the rail and drops both loops —
+   the state is never carried by motion alone (the dot has the "aktywność CLI"
+   label under it, the rail a title), and the halo would only add a second dot. */
+@media (prefers-reduced-motion: reduce) {
+  .ws.busy > .row::before,
+  .pane-link.busy::before {
+    animation: none;
+  }
+  .pane-link.busy::after {
+    display: none;
+  }
 }

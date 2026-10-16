@@ -69,6 +69,19 @@ export const ENGINE_SPECS: EngineSpec[] = [
     ]
   },
   {
+    id: 'pi',
+    name: 'Pi',
+    vendor: 'Earendil',
+    color: '#4d9abf',
+    binaries: ['pi', 'pi.cmd'],
+    args: [],
+    hint: 'Pi — minimalny, rozszerzalny agent terminalowy (pi.dev). Instalacja: powershell -c "irm https://pi.dev/install.ps1 | iex" albo npm i -g --ignore-scripts @earendil-works/pi-coding-agent (Node ≥22.19). Login: /login w środku.',
+    extraPathDirs: ['%APPDATA%\\npm', '%LOCALAPPDATA%\\pi-node\\current'],
+    npmPackage: '@earendil-works/pi-coding-agent',
+    selfUpdate: ['update'],
+    models: []
+  },
+  {
     id: 'hermes',
     name: 'Hermes',
     vendor: 'Nous / Hermes',

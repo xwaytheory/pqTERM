@@ -69,6 +69,47 @@ Source: https://github.com/ayghri/i-have-adhd (MIT). Project install:
 `npx skills add ayghri/i-have-adhd --skill i-have-adhd --agent codex --yes`.
 Agents without automatic `.agents/skills` discovery use the file path above.
 
+## Superpowers, UI/UX and graphify — installed, opt-in per task
+
+Three more skill families are vendored in `.agents/skills/` and pinned in
+`skills-lock.json` (sources, licenses and install commands:
+`.agents/skills/THIRD-PARTY.md`; refresh with `npx skills update`):
+
+- **obra/superpowers** (15 skills) — a full development methodology:
+  `brainstorming`, `writing-plans`, `test-driven-development`,
+  `systematic-debugging`, `using-git-worktrees`, `executing-plans`,
+  `subagent-driven-development`, `requesting-code-review`,
+  `receiving-code-review`, `verification-before-completion`,
+  `dispatching-parallel-agents`, `finishing-a-development-branch`,
+  `diagnosing-superpowers`, `writing-skills`, `using-superpowers`.
+- **nextlevelbuilder/ui-ux-pro-max-skill** (7 skills) — interface design and
+  design-system work: `ui-ux-pro-max`, `ui-styling`, `design`, `design-system`,
+  `brand`, `slides`, `banner-design`. It ships searchable catalogs (styles,
+  palettes, UX guidelines, per-stack recipes) plus scripts; the design/visual
+  skills call external model APIs *when used*.
+- **Graphify-Labs/graphify** (1 skill) — turns a repo into a knowledge graph
+  (`graphify-out/`, gitignored) and answers architecture questions from it.
+  Useful for "who calls what" across `src/main` before touching IPC.
+
+**Precedence — this repo wins over any skill default.** Superpowers ships
+aggressive auto-triggers (`using-superpowers` fires on *every* message,
+`brainstorming` before any code); applied literally they would fight the
+workflow below. So:
+
+1. `AGENTS.md` decides where work happens, how it is verified and when it
+   lands. A skill never overrides the dev → test → main cascade, the
+   `scripts/new-work.cjs` worktree layout, or the gates in Golden commands.
+2. Skills are **opt-in per task**. Use them when the task is big enough to
+   benefit (a feature, a plan, a design, a graph question). For a one-line fix,
+   read the code, change it, run the gate — that is still the whole job.
+3. Map the methodology onto this repo instead of importing it verbatim:
+   `using-git-worktrees` → `node scripts/new-work.cjs create <branch>`;
+   `test-driven-development` / `verification-before-completion` →
+   `npm run test:unit` output quoted in the board entry;
+   `requesting-code-review` → the board protocol in `docs/workbench.md`.
+4. `npx skills remove <skill>` if one keeps misfiring; the lock file makes the
+   removal auditable.
+
 ## Promoting changes (dev → test → main)
 
 Work in `C:\Users\pq\pqTERM\instances\dev` (branch `dev`). When a fix is ready for verification:
