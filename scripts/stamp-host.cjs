@@ -4,6 +4,9 @@ const { tmpdir } = require('os')
 const { spawnSync } = require('child_process')
 
 const root = join(__dirname, '..')
+// Version comes from package.json — one source of truth (audit C12: the
+// literals here had drifted from the release version in the past).
+const appVersion = require(join(root, 'package.json')).version || '0.0.0'
 const dist = join(root, 'node_modules', 'electron', 'dist')
 const srcExe = join(dist, 'electron.exe')
 const rcedit = join(root, 'node_modules', 'rcedit', 'bin', 'rcedit-x64.exe')
@@ -80,8 +83,10 @@ function stamp(exe) {
     '--set-version-string', 'OriginalFilename', 'pqterm.exe',
     '--set-version-string', 'CompanyName', 'pqTERM',
     '--set-version-string', 'LegalCopyright', 'pq',
-    '--set-product-version', '1.5.3',
-    '--set-file-version', '1.5.3'
+    // Wersja z package.json — jedno źródło prawdy; release bump nie musi
+    // pamiętać o literałach tutaj (check:version akceptuje oba warianty).
+    '--set-product-version', appVersion,
+    '--set-file-version', appVersion
   ]
   const r = spawnSync(rcedit, args, { stdio: 'inherit' })
   if (r.status !== 0) throw new Error('stamp failed for ' + exe)

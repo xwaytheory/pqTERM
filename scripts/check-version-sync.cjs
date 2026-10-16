@@ -95,8 +95,25 @@ function parseLock(rel) {
 }
 
 // ---------------------------------------------------------------- product version
+const productJson = readJson('package.json')
+const product = productJson?.version ?? null
+if (!product) {
+  problems.push('package.json: brak pola "version"')
+}
+
+/** stamp-host niesie wersję albo dosłownie (`--set-product-version', '1.2.3'`),
+ *  albo od C12 przez `require('.../package.json').version` — ten kształt jest
+ *  z definicji zsynchronizowany z package.json, więc go akceptujemy. Plik bez
+ *  żadnej z tych form to problem. */
+function stampHostVersion(raw, product) {
+  if (raw === null) return null
+  const literal = raw.match(/--set-product-version', '([^']+)'/)
+  if (literal) return literal[1]
+  return raw.includes("'--set-product-version', appVersion") && product ? product : null
+}
+
 const places = {
-  'package.json': readJson('package.json')?.version ?? null,
+  'package.json': productJson?.version ?? null,
   'package-lock.json (root)': readJson('package-lock.json')?.version ?? null,
   'package-lock.json (packages[""])':
     readJson('package-lock.json')?.packages?.['']?.version ?? null,
@@ -107,13 +124,8 @@ const places = {
     'crates/pq-core/src/version.rs',
     /WORKSPACE_VERSION: &str = "([^"]+)"/
   ),
-  'scripts/stamp-host.cjs': grab('scripts/stamp-host.cjs', /--set-product-version', '([^']+)'/),
+  'scripts/stamp-host.cjs': stampHostVersion(read('scripts/stamp-host.cjs'), product),
   'README.md': grab('README.md', /\*\*Wersja: ([\d.]+)\*\*/)
-}
-
-const product = places['package.json']
-if (!product) {
-  problems.push('package.json: brak pola "version"')
 }
 
 for (const [where, version] of Object.entries(places)) {
