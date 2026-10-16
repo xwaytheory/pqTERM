@@ -3,6 +3,7 @@ import type { AppSnapshot, EngineId, PaneActivity, PaneArea, SnapZone, UsageMap 
 import { isRawShell, MAX_PANES } from '../../../shared/types'
 import {
   FULL,
+  areaStyle,
   resolveAreas,
   resizePanes,
   RESIZE_EDGES,
@@ -15,6 +16,7 @@ import {
 import Titlebar from '../components/Titlebar'
 import Sidebar from '../components/Sidebar'
 import TerminalPane from '../components/TerminalPane'
+import ErrorBoundary from '../components/ErrorBoundary'
 import NewWorkspaceModal from '../components/NewWorkspaceModal'
 import SettingsModal from '../components/SettingsModal'
 
@@ -723,33 +725,60 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                 return (
                   <div key={w.id} className={`ws-grid${active ? ' active' : ''}`}>
                     <div ref={active ? gridRef : undefined} className={`grid${wZoomed ? ' zoomed' : ''}${preview ? ' resizing' : ''}`}>
-                      {w.panes.map((p, i) => (
-                        <TerminalPane
-                          key={p.id}
-                          pane={p}
-                          workspaceId={w.id}
-                          cwd={w.cwd}
-                          providers={snap.providers}
-                          focused={active && focus === p.id}
-                          zoomed={wZoomed === p.id}
-                          renameNonce={active && focus === p.id ? renameNonce : 0}
-                          usage={p.engine ? usage[p.engine] : undefined}
-                          activity={activity[p.id]}
-                          focusRequest={active && !modal && (!wZoomed || wZoomed === p.id) && focusRequest?.workspaceId === w.id && focusRequest.paneId === p.id ? focusRequest.nonce : 0}
-                          index={i + 1}
-                          area={wZoomed === p.id ? FULL : wAreaById.get(p.id)}
-                          fontId={snap.ui.fontId}
-                          fontSize={snap.ui.fontSize}
-                          cursorStyle={snap.ui.cursorStyle}
-                          cursorBlink={snap.ui.cursorBlink}
-                          scrollback={snap.ui.scrollback}
-                          onAdd={() => addPane(w.id)}
-                          onClose={() => closePane(w.id, p.id)}
-                          onDragStart={beginDrag}
-                          onFocus={() => setFocus(p.id)}
-                          onZoom={() => toggleZoomFor(w.id, wZoomed, p.id)}
-                        />
-                      ))}
+                      {w.panes.map((p, i) => {
+                        const paneArea = wZoomed === p.id ? FULL : wAreaById.get(p.id)
+                        return (
+                          // Per-pane boundary: crash render jednego pane'a
+                          // zostawia resztę siatki interaktywną.
+                          <ErrorBoundary
+                            key={p.id}
+                            fallback={
+                              <div
+                                style={{
+                                  ...areaStyle(paneArea),
+                                  position: 'absolute',
+                                  zIndex: 5,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 12,
+                                  background: '#161a1d',
+                                  color: '#c8c8c8',
+                                  fontFamily: 'Consolas, monospace'
+                                }}
+                              >
+                                <span>Render pane'u się wywalił</span>
+                                <button onClick={() => closePane(w.id, p.id)}>Zamknij pane</button>
+                              </div>
+                            }
+                          >
+                            <TerminalPane
+                              pane={p}
+                              workspaceId={w.id}
+                              cwd={w.cwd}
+                              providers={snap.providers}
+                              focused={active && focus === p.id}
+                              zoomed={wZoomed === p.id}
+                              renameNonce={active && focus === p.id ? renameNonce : 0}
+                              usage={p.engine ? usage[p.engine] : undefined}
+                              activity={activity[p.id]}
+                              focusRequest={active && !modal && (!wZoomed || wZoomed === p.id) && focusRequest?.workspaceId === w.id && focusRequest.paneId === p.id ? focusRequest.nonce : 0}
+                              index={i + 1}
+                              area={paneArea}
+                              fontId={snap.ui.fontId}
+                              fontSize={snap.ui.fontSize}
+                              cursorStyle={snap.ui.cursorStyle}
+                              cursorBlink={snap.ui.cursorBlink}
+                              scrollback={snap.ui.scrollback}
+                              onAdd={() => addPane(w.id)}
+                              onClose={() => closePane(w.id, p.id)}
+                              onDragStart={beginDrag}
+                              onFocus={() => setFocus(p.id)}
+                              onZoom={() => toggleZoomFor(w.id, wZoomed, p.id)}
+                            />
+                          </ErrorBoundary>
+                        )
+                      })}
                       {active && !wZoomed && w.panes.length > 1 ? wAreas.flatMap(({ id, area }) => {
                         const internal = {
                           n: area.y > 1e-5, s: area.y + area.h < 1 - 1e-5,

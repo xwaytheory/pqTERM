@@ -333,20 +333,28 @@ if (pane.engine && !isRawShell(pane.engine)) {
       } catch {
         /* ignore */
       }
-      let res = await window.pq.terminals.spawn({
-        paneId: pane.id,
-        workspaceId,
-        engine: pane.engine as EngineId,
-        model: pane.model,
-        cols: term.cols,
-        rows: term.rows
-      })
-      if (stream.overflowed) {
-        // Output outran this view while it was attaching. Main's buffer already
-        // holds everything that was queued, so re-attach from that single piece.
-        const whole = await window.pq.terminals.buffer(pane.id)
-        res = { ...res, replay: whole.data, replaySeq: whole.seq, replayCols: whole.cols, replayRows: whole.rows }
-        stream.pending = []
+      let res: Awaited<ReturnType<typeof window.pq.terminals.spawn>>
+      try {
+        res = await window.pq.terminals.spawn({
+          paneId: pane.id,
+          workspaceId,
+          engine: pane.engine as EngineId,
+          model: pane.model,
+          cols: term.cols,
+          rows: term.rows
+        })
+        if (stream.overflowed) {
+          // Output outran this view while it was attaching. Main's buffer already
+          // holds everything that was queued, so re-attach from that single piece.
+          const whole = await window.pq.terminals.buffer(pane.id)
+          res = { ...res, replay: whole.data, replaySeq: whole.seq, replayCols: whole.cols, replayRows: whole.rows }
+          stream.pending = []
+        }
+      } catch (err) {
+        // Padnięty IPC spawn nie zwala UI pane'a — pane zostaje idle, a sesja
+        // w mainie żyje dalej; user może ją przywrócić kliknięciem.
+        console.error('[pqTERM] spawn/replay failed:', err)
+        return
       }
       stream.dropUntil = res.replaySeq
       stream.applied = true
