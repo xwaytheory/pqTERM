@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { randomBytes, timingSafeEqual } from 'crypto'
-import { runningDev } from './env.ts'
+import { runningDev, profileDirName } from './env.ts'
 import { CTL } from './pqterm-ctl.ts'
 
 /** Bridge bodies are tiny JSON commands — anything bigger is junk (or a local DoS). */
@@ -20,7 +20,7 @@ export const PQ_HINT =
   'You are inside pqTERM, a Windows terminal grid. Sibling panes are NOT Windows Terminal. Control them with the pqterm command (on PATH): `pqterm list` · `pqterm fill grok` · `pqterm spawn 2 grok` · `pqterm send 2 Siemanko`. Never run wt, conhost, or start to open extra terminals.'
 
 export function binDir(): string {
-  return join(homedir(), 'AppData', 'Roaming', runningDev() ? 'pqTERM-dev' : 'pqTERM-pr', 'bin')
+  return join(homedir(), 'AppData', 'Roaming', profileDirName(), 'bin')
 }
 
 function findNode(): string {

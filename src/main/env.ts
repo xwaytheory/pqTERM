@@ -70,3 +70,12 @@ export function editionId(): EditionId {
 export function buildNumber(): number {
   return resolveEdition().build
 }
+
+/** Jeden kanoniczny katalog profilu per instalacja (zamiast rozproszonych
+ *  ternarów `runningDev() ? 'pqTERM-dev' : 'pqTERM-pr'`):
+ *  prod → pqTERM-pr, dev → pqTERM-dev, test (PQ_EDITION=test z START-dev.cmd)
+ *  → pqTERM-test, tak by trzy instancje nie mieszały workspace'ów. */
+export function profileDirName(): string {
+  if (process.env.PQ_EDITION === 'test') return 'pqTERM-test'
+  return runningDev() ? 'pqTERM-dev' : 'pqTERM-pr'
+}

@@ -24,7 +24,7 @@ function empty(): AppSnapshot {
 }
 
 function mergeProviders(saved: ProviderInfo[] | undefined): ProviderInfo[] {
-  const byId = new Map((saved ?? []).map((p) => [p.id, p]))
+  const byId = new Map((Array.isArray(saved) ? saved : []).map((p) => [p.id, p]))
   return ENGINE_SPECS.map((spec) => {
     const prev = byId.get(spec.id)
     const base = defaultProvider(spec)
@@ -56,16 +56,33 @@ function sanitizePane(p: PaneState): PaneState {
   }
 }
 
+/** A corrupt pq-state.json (truncated write, new format, hand edit) must not be
+ *  destroyed by the next boot-save: move it aside first so the data stays
+ *  recoverable by hand, then let the app start on an empty profile. */
+function quarantine(file: string, err: unknown): void {
+  try {
+    if (existsSync(file)) renameSync(file, `${file}.corrupt-${Date.now()}.json`)
+    console.error(
+      '[pqTERM] pq-state.json unparseable, quarantined:',
+      err instanceof Error ? err.message : err
+    )
+  } catch (qErr) {
+    console.error('[pqTERM] pq-state.json quarantine failed:', qErr)
+  }
+}
+
 export function loadState(): AppSnapshot {
   const file = resolveProfileState(app.getPath('userData'), existsSync)
   if (!file) return empty()
   try {
     const raw = readFileSync(file, 'utf8')
     const parsed = JSON.parse(raw) as AppSnapshot
-    const workspaces = (Array.isArray(parsed.workspaces) ? parsed.workspaces : []).map((w) => ({
-      ...w,
-      panes: Array.isArray(w.panes) ? w.panes.map(sanitizePane) : []
-    }))
+    const workspaces = (Array.isArray(parsed.workspaces) ? parsed.workspaces : [])
+      .filter((w): w is Workspace => Boolean(w) && typeof w === 'object')
+      .map((w) => ({
+        ...w,
+        panes: (Array.isArray(w.panes) ? w.panes : []).map(sanitizePane)
+      }))
     return {
       ...empty(),
       ...parsed,
@@ -80,7 +97,8 @@ export function loadState(): AppSnapshot {
       providers: mergeProviders(parsed.providers),
       workspaces
     }
-  } catch {
+  } catch (err) {
+    quarantine(file, err)
     return empty()
   }
 }

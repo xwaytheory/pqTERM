@@ -6,7 +6,7 @@ import { specById } from './engines'
 import type { EngineId } from '../shared/types'
 import { resolveLaunch, sanitizeEnv, yoloEnv } from './resolve-launch'
 import { trustWorkspace } from './trust'
-import { runningDev } from './env'
+import { profileDirName } from './env'
 import { cleanOscTitle, scanOscTitle } from './osc-title'
 import { scanOscNotices, cleanNoticeText, type OscNotice } from './osc-notify'
 import { appendTail } from '../shared/term-stream'
@@ -57,7 +57,7 @@ function envFor(
     extraEnv?.PQ_BIN || '',
     extraPath ? dirname(extraPath) : '',
     ...extraDirs,
-    `${homedir()}\\AppData\\Roaming\\${runningDev() ? 'pqTERM-dev' : 'pqTERM-pr'}\\bin`,
+    `${homedir()}\\AppData\\Roaming\\${profileDirName()}\\bin`,
     `${homedir()}\\.grok\\bin`,
     `${homedir()}\\AppData\\Roaming\\npm`,
     `${homedir()}\\AppData\\Local\\hermes\\bin`,

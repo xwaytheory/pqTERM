@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'child_process'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, session, shell } from './host'
-import type { IpcMainInvokeEvent } from 'electron'
+import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { dirname, join, relative } from 'path'
 import { homedir } from 'os'
 import { stat } from 'fs/promises'
@@ -13,7 +13,7 @@ import {
   writeFileSync,
   chmodSync
 } from 'fs'
-import { productName, runningDev, editionId, buildNumber } from './env'
+import { productName, runningDev, editionId, buildNumber, profileDirName } from './env'
 import type {
   AppSnapshot,
   EngineId,
@@ -68,7 +68,22 @@ import { queryActiveOpenCodeTitle } from './opencode-title'
 app.setName('pqTERM')
 process.title = 'pqTERM'
 app.setAppUserModelId('com.pqterm.app')
-app.setPath('userData', join(app.getPath('appData'), runningDev() ? 'pqTERM-dev' : 'pqTERM-pr'))
+app.setPath('userData', join(app.getPath('appData'), profileDirName()))
+
+// Druga instancja tego samego profilu nie może startować (kanon: RemoteHub,
+// porty, locki PTY, wspólny pq-state) — podnosi już otwarte okno zamiast kolidować.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const win = mainWindow
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+    }
+  })
+}
 
 process.on('uncaughtException', (err) => {
   const msg = (err?.message ? String(err.message) : String(err)).replace(/electron/gi, 'pqTERM')
@@ -178,7 +193,25 @@ const activity = new PaneActivityTracker((paneId, next) => {
   notifyPane(paneId, paneAlertTitle(paneId), ACTIVITY_LABELS[kind])
 })
 
-function requireRenderer(event: IpcMainInvokeEvent): void {
+/** Model id trafia prosto do argv CLI (modelFlag), więc ma zamknięty kształt;
+ *  engine musi istnieć w liście speców. Patch przychodzi z renderera/telefonu. */
+const MODEL_RE = /^[\w./:+-]{1,128}$/
+
+function validPanePatch(patch: PanePatch): boolean {
+  if (!patch || typeof patch !== 'object') return false
+  if (
+    patch.engine !== undefined && patch.engine !== null &&
+    !(typeof patch.engine === 'string' && ENGINE_SPECS.some((s) => s.id === patch.engine))
+  ) return false
+  if (
+    patch.model !== undefined && patch.model !== null &&
+    !(typeof patch.model === 'string' && MODEL_RE.test(patch.model))
+  ) return false
+  if (patch.title !== undefined && typeof patch.title !== 'string') return false
+  return patch.titleLocked === undefined || typeof patch.titleLocked === 'boolean'
+}
+
+function requireRenderer(event: IpcMainInvokeEvent | IpcMainEvent): void {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed() ||
     event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame) {
     throw new Error('Invalid renderer sender')
@@ -246,38 +279,48 @@ function sessionSeed(workspaceId: string, paneId: string): { data: string } {
 
 function restoreSession(ws: Workspace, pane: PaneState): void {
   if (!pane.engine) return
-  const existing = ptys.describe(pane.id)
-  if (existing?.alive && existing.engine === pane.engine && existing.workspaceId === ws.id) return
-  const seed = sessionSeed(ws.id, pane.id)
-  const provider = state.providers.find((p) => p.id === pane.engine)
-  const spec = specById(pane.engine)
-  const model = pane.model
-  let extraArgs = [
-    ...(spec.args ?? []),
-    ...(model && spec.modelFlag ? spec.modelFlag(model) : [])
-  ]
-  const session = pickResume(ws.id, pane.engine, pane.id, pane.sessionHandle)
-  if (session) {
-    const flag = resumeFlag(pane.engine, session.handle)
-    if (flag) extraArgs = [...extraArgs, ...flag]
-    if (pane.sessionHandle !== session.handle) pane.sessionHandle = session.handle
-  } else if (pane.sessionHandle) {
-    // stale/duplicated handle — let the pane pick its session again next boot
-    pane.sessionHandle = undefined
-  }
-  ptys.spawn({
-    paneId: pane.id,
-    workspaceId: ws.id,
-    engine: pane.engine,
-    cwd: ws.cwd,
-    cols: 80,
-    rows: 24,
-    resolvedPath: provider?.resolvedPath,
-    extraArgs,
-    seedBuf: seed.data
-  })
-  if (ws.id === state.activeWorkspaceId) {
-    board.paneStart(pane.id, pane.engine, pane.title || spec.name)
+  // Stale engine id (CLI uninstall / lista speców się zmieniła) albo padnięty
+  // spawn nie mogą zwalić całego bootu — ten jeden pane staje się idle.
+  try {
+    const existing = ptys.describe(pane.id)
+    if (existing?.alive && existing.engine === pane.engine && existing.workspaceId === ws.id) return
+    const seed = sessionSeed(ws.id, pane.id)
+    const provider = state.providers.find((p) => p.id === pane.engine)
+    const spec = specById(pane.engine)
+    const model = pane.model
+    let extraArgs = [
+      ...(spec.args ?? []),
+      ...(model && spec.modelFlag ? spec.modelFlag(model) : [])
+    ]
+    const session = pickResume(ws.id, pane.engine, pane.id, pane.sessionHandle)
+    if (session) {
+      const flag = resumeFlag(pane.engine, session.handle)
+      if (flag) extraArgs = [...extraArgs, ...flag]
+      if (pane.sessionHandle !== session.handle) pane.sessionHandle = session.handle
+    } else if (pane.sessionHandle) {
+      // stale/duplicated handle — let the pane pick its session again next boot
+      pane.sessionHandle = undefined
+    }
+    ptys.spawn({
+      paneId: pane.id,
+      workspaceId: ws.id,
+      engine: pane.engine,
+      cwd: ws.cwd,
+      cols: 80,
+      rows: 24,
+      resolvedPath: provider?.resolvedPath,
+      extraArgs,
+      seedBuf: seed.data
+    })
+    if (ws.id === state.activeWorkspaceId) {
+      board.paneStart(pane.id, pane.engine, pane.title || spec.name)
+    }
+  } catch (err) {
+    console.error(
+      `[pqTERM] restore ${pane.engine} failed for pane ${pane.id}:`,
+      err instanceof Error ? err.message : err
+    )
+    pane.engine = null
   }
 }
 
@@ -504,6 +547,7 @@ async function dispatchRemote(cmd: RemoteCommand): Promise<unknown> {
       const workspaceId = String(a[0])
       const paneId = String(a[1])
       const patch = a[2] as PanePatch
+      if (!validPanePatch(patch)) throw new Error('Invalid pane patch')
       state.workspaces = state.workspaces.map((w) => {
         if (w.id !== workspaceId) return w
         return touchWorkspace({
@@ -563,7 +607,7 @@ async function dispatchRemote(cmd: RemoteCommand): Promise<unknown> {
   }
 }
 
-const userDataDir = join(app.getPath('appData'), runningDev() ? 'pqTERM-dev' : 'pqTERM-pr')
+const userDataDir = join(app.getPath('appData'), profileDirName())
 remote = new RemoteHub({
   rootDir: join(__dirname, '..', '..'),
   persistFile: join(userDataDir, 'remote.json'),
@@ -848,6 +892,18 @@ function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     if (isHttpUrl(details.url)) void shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+  // Renderer nie nawiguje okna poza nasze własne strony (dev URL, zbudowany
+  // file://, fallback bez UI); cokolwiek innego idzie do przeglądarki.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const dev = process.env.ELECTRON_RENDERER_URL
+    if (
+      (dev && url.startsWith(dev)) ||
+      url.startsWith('file://') ||
+      url.startsWith('data:text/html;charset=utf-8,')
+    ) return
+    event.preventDefault()
+    if (isHttpUrl(url)) void shell.openExternal(url)
   })
 
 
@@ -1144,9 +1200,23 @@ function registerIpc(): void {
   )
 
   ipcMain.handle('workspaces:update', (_e, id: string, patch: Partial<Workspace>) => {
-    state.workspaces = state.workspaces.map((w) =>
-      w.id === id ? touchWorkspace({ ...w, ...patch, id: w.id }) : w
-    )
+    // Renderer/telefon może podać tylko tytuł, cwd i zoom; zoomedPaneId musi
+    // istnieć w tym workspace (albo być null = wyczyść), reszta ignorowana.
+    if (typeof id !== 'string' || !patch || typeof patch !== 'object') return
+    state.workspaces = state.workspaces.map((w) => {
+      if (w.id !== id) return w
+      const clean: Partial<Workspace> = {}
+      if (typeof patch.title === 'string') clean.title = patch.title
+      if (typeof patch.cwd === 'string') clean.cwd = patch.cwd
+      if (patch.zoomedPaneId === null) clean.zoomedPaneId = null
+      else if (
+        typeof patch.zoomedPaneId === 'string' &&
+        w.panes.some((p) => p.id === patch.zoomedPaneId)
+      ) {
+        clean.zoomedPaneId = patch.zoomedPaneId
+      }
+      return touchWorkspace({ ...w, ...clean, id: w.id })
+    })
     persist()
   })
 
@@ -1180,6 +1250,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('workspaces:setPane', (_e, workspaceId: string, paneId: string, patch: PanePatch) => {
+    if (!validPanePatch(patch)) throw new Error('Invalid pane patch')
     state.workspaces = state.workspaces.map((w) => {
       if (w.id !== workspaceId) return w
       return touchWorkspace({
@@ -1317,11 +1388,19 @@ function registerIpc(): void {
     ) => {
       const ws = state.workspaces.find((w) => w.id === input.workspaceId)
       if (!ws) throw new Error('brak workspace')
+      // paneId musi istnieć w tym workspace — sessionSeed/logi są kluczowane
+      // po paneId, więc obcy id to path traversal w sessionLogPath.
+      if (typeof input.paneId !== 'string' || !ws.panes.some((p) => p.id === input.paneId)) {
+        throw new Error('nie ma takiego pane')
+      }
       const sessionSeedData = sessionSeed(input.workspaceId, input.paneId)
       const spec = specById(input.engine)
       const provider = state.providers.find((p) => p.id === input.engine)
       const paneInWs = ws.panes.find((p) => p.id === input.paneId)
       const model = input.model ?? paneInWs?.model
+      if (model !== undefined && model !== null && !(typeof model === 'string' && MODEL_RE.test(model))) {
+        throw new Error('Invalid model')
+      }
 
       const existing = ptys.describe(input.paneId)
       if (
@@ -1388,10 +1467,12 @@ function registerIpc(): void {
     }
   )
 
-  ipcMain.on('term:write', (_e, paneId: string, data: string) => {
+  ipcMain.on('term:write', (event, paneId: string, data: string) => {
+    requireRenderer(event)
     ptys.write(paneId, data)
   })
-  ipcMain.on('term:resize', (_e, paneId: string, cols: number, rows: number) => {
+  ipcMain.on('term:resize', (event, paneId: string, cols: number, rows: number) => {
+    requireRenderer(event)
     ptys.resize(paneId, cols, rows)
   })
   // read-only: a pane that fell behind re-attaches from one authoritative
@@ -1402,7 +1483,8 @@ function registerIpc(): void {
     const b = ptys.buffer(paneId)
     return { data: b.data, seq: b.seq, cols: b.cols, rows: b.rows }
   })
-  ipcMain.handle('term:kill', (_e, paneId: string) => {
+  ipcMain.handle('term:kill', (event, paneId: string) => {
+    requireRenderer(event)
     ptys.kill(paneId)
   })
    // Main-process clipboard: no renderer permission prompts, works for
@@ -1560,12 +1642,23 @@ app.whenReady().then(async () => {
   }
   state = loadState()
   state.providers = scanProviders(state.user?.email, state.providers)
-  saveState(state)
+  try {
+    saveState(state)
+  } catch (err) {
+    console.error('[pqTERM] saveState:', err instanceof Error ? err.message : err)
+  }
   registerIpc()
+  // Okno rusza od razu po zarejestrowaniu IPC; resume/PTY bootują pod spodem,
+  // a renderer sam prosi o replaye (term:spawn jest idempotentny).
+  createWindow()
   board.setListener((snap) => mainWindow?.webContents.send('board:changed', snap))
   usage.onChange((m) => mainWindow?.webContents.send('usage:changed', m))
   remote.onChange((info) => mainWindow?.webContents.send('remote:changed', info))
-  attachBoard()
+  try {
+    attachBoard()
+  } catch (err) {
+    console.error('[pqTERM] attachBoard:', err instanceof Error ? err.message : err)
+  }
   // Scan engine session storage BEFORE any TUI starts (the opencode CLI becomes very
   // slow under contention with running opencode servers) so every pane can resume
   // its previous conversation right away.
@@ -1578,14 +1671,16 @@ app.whenReady().then(async () => {
   startTitlePoller()
   activityTimer = setInterval(() => activity.tick(), 1000)
   void runUpdateScript(['--ensure-cmd'], 15000)
-  createWindow()
   usage.start()
   void remote.restore().catch((err) => console.error('[pqTERM] remote', err))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
-})
+  })
+  .catch((err) => {
+    console.error('[pqTERM] boot failed:', err instanceof Error ? err.message : err)
+  })
 
 app.on('window-all-closed', () => {
   persistSessions()
