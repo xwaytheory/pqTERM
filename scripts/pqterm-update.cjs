@@ -170,14 +170,18 @@ function inTree(stable, dir) {
   return !normRel(stable, dir).startsWith('..')
 }
 
-// ponytail: tasklist image name only — a renamed host exe would skip the lock check
+// ponytail: image-name filter only — a host launched via electron.exe (dev/rebuild)
+// would otherwise skip the lock check; check both possible image names.
 function pqtermRunning() {
   if (process.platform !== 'win32') return false
-  const r = spawnSync('tasklist', ['/FI', 'IMAGENAME eq pqterm.exe', '/NH'], {
-    encoding: 'utf8',
-    windowsHide: true
-  })
-  return /pqterm\.exe/i.test(r.stdout || '')
+  for (const image of ['pqterm.exe', 'electron.exe']) {
+    const r = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${image}`, '/NH'], {
+      encoding: 'utf8',
+      windowsHide: true
+    })
+    if (new RegExp(`\\b${image}\\b`, 'i').test(r.stdout || '')) return true
+  }
+  return false
 }
 
 function npmBin() {
