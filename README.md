@@ -2,14 +2,24 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.3.12** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.5.3** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
 
-## Nowości 1.3.12
+## Nowości 1.5.3
 
-- **pqterm update.** W nowym oknie cmd wpisz `pqterm update`. Dociąga czyste kopie `main`, `dev` i `test` z GitHuba i przebudowuje oficjalną kopię.
-- **Pasek przy starcie.** Gdy GitHub jest do przodu, u góry widać prośbę, żeby wpisać `pqterm update`.
-- **Nowa kopia jest pusta.** Pierwsze uruchomienie nie wciąga starych workspace’ów ze starego profilu `pq`.
-- **Klik w inne okno zostawia widok na dole.** Terminal nie skacze na początek bufora.
+- **`pqterm update` z poziomu zainstalowanej komendy.** `pqterm` w `bin/` (pqTERM-pr/pqTERM-dev) zna `update` i `--check` — odpala skrypt aktualizacji z korzenia aplikacji (ścieżka zapisana w `bridge.json` przy starcie), a nie tylko steruje siatką. Instalator zawiera `scripts/pqterm-update.cjs`.
+
+## Nowości 1.5.2
+
+- **`pqterm update` w końcu aktualizuje.** Bez `remote.origin.fetch` w configu `git fetch` nie pobierał gałęzi, więc check zawsze mówił „brak zmian” — teraz fetch używa jawnych refspeców. Brudne pliki nieblokujące (untracked) nie blokują fast-forward, a wstrzymana przebudowa (np. ubity build) wznawia się przy następnym uruchomieniu. `.cmd`/`.bat` odpalane przez shell (Node ≥21 EINVAL), przebudowa wyzwalana zmianą lockfilea w korzeniu aplikacji.
+- **Nag o przebudowie tylko dla swojego drzewa.** `pqterm update --check` przypomina o zaległej przebudowie tylko w obrębie instalacji, w której pracujesz — nie o śmieciach w obcych kopiach.
+
+## Nowości 1.5.1
+
+- **Powiadomienia działają dla wszystkich CLI.** BEL, OSC 9, OSC 99 i OSC 777 (łącznie z pakietem Warp od omp/hermes) trafiają do alertu; dodatkowo pqTERM rozpoznawa zatrzymane pytanie („Do you want to proceed?”, `[y/n]`, `❯ 1. Yes`) albo puste pole na końcu tury agenta — działa też dla CLI, które w ogóle nic nie wysyłają (qwen, copilot, cline, crush, kimi, cursor…). Sama cisza nadal nie uruchamia alertu, tylko zmienia status w pasku pane.
+- **CLI wreszcie gadają.** Pane podaje im terminal, który potrafi powiadamiać: claude i codex dostają OSC 9, opencode i omp swój protokół, omp dodatkowo bogate zdarzenia (pytanie, zgoda, koniec tury). Trzy CLI mają jeszcze własny wyłącznik domyślnie na off — opisane w Ustawieniach → Powiadomienia.
+- **Terminale startują jako Administrator.** `host\pqterm.exe` ma manifest `highestAvailable`, więc każde okno (shell, cmd, dowolny CLI) wchodzi podniesione. Na maszynie z `ConsentPromptBehaviorAdmin=0` podniesienie jest ciche — bez pytania UAC. Sprawdź w dowolnym oknie: `whoami /groups` → linia `S-1-16-12288`.
+- **Pułapka przy uruchamianiu z node.** Bramkowanego exe nie odpali `node` ani .NET (`ERROR_ELEVATION_REQUIRED`), więc `npm run dev` / `npm start` celowo zostają niepodniesione — podniesiona jest tylko kopia `host\`, którą uruchamia `START-pr.cmd`, skrót i podwójne kliknięcie.
+- **Bonus: pairing z telefonem.** Podniesiony proces może dodać regułę firewalla (`netsh advfirewall`), więc parowanie działa bez ręcznej reguły.
 
 Na razie **prywatne**. Publicznie wyjdzie dopiero gdy zdecydujesz.
 

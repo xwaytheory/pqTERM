@@ -10,5 +10,5 @@
 pub const PQ_CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Workspace product version for updater comparisons (bump with releases).
-/// Synced with Electron `package.json` version `1.3.12`.
-pub const WORKSPACE_VERSION: &str = "1.3.12";
+/// Synced with Electron `package.json` version `1.5.3`.
+pub const WORKSPACE_VERSION: &str = "1.5.3";
