@@ -13,7 +13,7 @@ Stable stays at `C:\Users\pq\pqTERM`; all other worktrees live under `instances\
 | `C:\Users\pq\pqTERM`      | `main`   | Official/stable release for the client. `host\pqterm.exe` + `out\` present. Launch: `START-pr.cmd`. |
 | `C:\Users\pq\pqTERM\instances\dev` | `dev` | Where you develop daily. Launch: `START-dev.cmd` (npm run dev). |
 | `C:\Users\pq\pqTERM\instances\test` | `test` | Pre-release verification; contains fixes from `dev` pending approval. Launch: `START-dev.cmd`. |
-| `C:\Users\pq\pqTERM\instances\wip` | `main` | Existing unfinished work; preserve its staged index. |
+| `C:\Users\pq\pqTERM\instances\wip` | `wip-snapshot` | Archived unfinished work on branch `wip-snapshot`; preserve its staged index. |
 | `C:\Users\pq\pqTERM\instances\feat\engine-lifecycle` | `feat/engine-lifecycle` | Isolated feature worktree. |
 
 Each worktree keeps its own `node_modules/` (not shared by default).
@@ -177,10 +177,10 @@ Work in `C:\Users\pq\pqTERM\instances\dev` (branch `dev`). When a fix is ready f
 - Do NOT touch `host/`, `release/`, `out/`, `node_modules/`, `crates/target/`.
 - Do NOT "fix" `sandbox:false` (needed for DnD paths), `win.signAndEditExecutable:false`
   (no cert yet), or the dual Rust tracks (`crates/` vs `src-tauri/` spike).
-- Version `1.3.3` is synced across `package.json`, `crates/`, `src-tauri/`,
-  `stamp-host.cjs`, README — never bump it in one place alone. Bump **real version
-  fields only**: a global search/replace over `Cargo.lock` once rewrote the `toml`
-  *crate* to a version that does not exist and broke the whole `src-tauri` build
+- The version from `package.json` (currently `1.5.3`) is synced across `crates/`, `src-tauri/`,
+  `stamp-host.cjs` (reads `package.json` directly since C12), README — never bump it in one place
+  alone. Bump **real version fields only**: a global search/replace over `Cargo.lock` once rewrote
+  the `toml` *crate* to a version that does not exist and broke the whole `src-tauri` build
   (fixed 2026-09-15). Guard: `npm run check:version`.
 - Do NOT edit `%AppData%\pq*\pq-state.json` by hand while the app runs
   (in-memory state overwrites it on next persist).

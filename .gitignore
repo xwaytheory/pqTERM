@@ -30,10 +30,14 @@ src-tauri/target/
 src-tauri/gen/
 
 # skills: `.agents/skills/` is the real, portable install (commit it).
-# `.claude/skills/` holds absolute symlinks the installer creates for Claude Code �?"
+# `.claude/skills/` holds absolute symlinks the installer creates for Claude Code —
 # machine-specific, they break on any other checkout, so keep them out of git.
 .claude/
 
 # graphify skill artifact (its own output, not source)
 graphify-out/
 
+
+
+# python bytecode caches from vendored skill scripts
+__pycache__/

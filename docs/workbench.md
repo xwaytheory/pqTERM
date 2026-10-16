@@ -1243,3 +1243,38 @@ Dowód integracyjny (piaskownica: klon `repo.git`, 1 commit za `origin/main`, pl
 Dowód bramek: `npm run test:unit` **174/174** + oba typechecki (8 testów updatera, nowe asserty `rebuild`), `npm run check:version` OK (1.5.1). Higiena stable bez commita: usunięty pusty plik `nul` (artefakt przekierowania), przywrócone `AGENTS.md` (zewnętrzne narzędzie dopisuje pustą linię — obserwowane, patrz ryzyka).
 
 Ryzyka/limity pozostawione świadomie: `pqtermRunning()` widzi tylko `pqterm.exe` (dev/test jako `electron.exe` nie blokują — istniejący marker ponytail), docs-only commit na app root nadal wywołuje pełny build (świadomy koszt, marker ponytail), wersja w `host\\pqterm.exe` po bumpie odświeża dopiero `stamp-host.cjs` (kosmetyka Explorera — bump i tak wymaga ludzkiej promocji), zewnętrzne narzędzie cyklicznie brudzi `AGENTS.md` w stable (jeśli wróci `M`: `git checkout -- AGENTS.md`).
+
+## Audyt 2026-10-16 — poprawki krytyczne (C1-C13)
+
+Fala 12 równoległych audytorów (security/IPC, correctness, state/persistence, perf, tests, build, UI/UX, Windows, error-handling, dead-code, kontrakty danych, product/docs) + 3 krytycy (security, reliability, arbiter zakresu). Security / Reliability / Arbiter: SATISFIED. Wdrożono TYLKO ustalenia ocenione jako Critical; ustalenia MAJOR pozostają listą rekomendacji (na końcu).
+
+| Ud. | Plik(e) | Naprawa |
+|---|---|---|
+| C1 | src/main/store.ts | kwarantanna pq-state.json przy load-fail (rename *.corrupt-<ms>.json zamiast nadpisania), filtr nieobiektowych workspace'ów, providers musi być tablicą |
+| C2 | src/main/index.ts | createWindow() od razu po registerIpc(); .catch na whenReady; per-pane guard w restoreSession (nieznany engine -> idle + log); saveState/attachBoard w try |
+| C3 | renderer | ErrorBoundary globalnie (main.tsx), per pane w DeckScreen (fallback-karta z „Zamknij pane"), spawn/replay IPC w try w TerminalPane.start |
+| C4 | src/main/index.ts | allowlista will-navigate (dev URL / file:// / wbudowany fallback data:), reszta nawigacji → shell.openExternal |
+| C5 | src/main/index.ts | workspaces:update = whitelista (title/cwd/zoomedPaneId w tym workspace); walidacja engine+model w setPane na OBU ścieżkach (IPC i remote); regex modelu w term:spawn |
+| C7 | src/main/index.ts | term:spawn wymaga paneId w workspace (path traversal przez sessionLogPath); term:write/resize/kill tylko dla prawdziwego renderera |
+| C8 | src/main/index.ts | requestSingleInstanceLock + second-instance -> focus otwartego okna |
+| C9 | src/main/env.ts + 4 sites | jeden canonical profileDirName(): prod pqTERM-pr / dev pqTERM-dev / test pqTERM-test (PQ_EDITION z START-dev.cmd testu); bez typowania profilu gałęzią gita |
+| C10 | scripts/pqterm-update.cjs | blokada przebudowy widzi też electron.exe (dev/rebuild), nie tylko pqterm.exe |
+| C11 | src/shared/types.ts + nowy test | parseGridIntent iteruje ENGINE_ORDER (lokalna lista nie znała cline i shell); src/shared/engine-parity.test.ts w test:unit |
+| C12 | scripts/stamp-host.cjs + scripts/check-version-sync.cjs (atomic) | wersja hosta czekana z package.json (bez literałów, które przestały nadążać za release); guard akceptuje literał i formę require(package.json) |
+| — | .gitignore + dysk stable | __pycache__/ ignorowane; usunięte untracked: tmp-*.cjs (x9), plik nul, .agents/skills/ui-ux-pro-max/scripts/__pycache__/ |
+
+Kontekst gałęzi: dev dociągnął main (release 1.5.3, merge 3563d91) i odzyskał treść skasowaną przez „wip: staged snapshot (1.3.12-era)" (commit 77f4771: .agents/skills/*, attention.ts i nowsza droga powiadomień, pi.png, sekcja skills w AGENTS.md). Dev zachowuje własne patche: pqterm-update.cjs (+testy) i wpisy boardu.
+
+Dowód (dev, po commitach):
+
+| Sprawdzenie | Wynik |
+|---|---|
+| npm run test:unit | **202/202** + oba typechecki (178 bazowych + 24 nowe testy) |
+| npm run check:version | OK (product 1.5.3; 2 locki, cargo) |
+
+Rekomendacje MAJOR — świadomie niewdrożone: P1 noticeTail stale; P2 resume-claim leak; P3 broadcast tytułu z opencode-DB do wszystkich pane; S-08 persist bez catch; F1 kopiowanie appendBuf przy cap; F7 clientSecret w drodze do renderer; F8/F9 sieć remote; a11y A1/A2; T-02/T-03 (testy remote/store); W-PATH-01/02; W-PTY-01/02. Kolejna iteracja.
+
+## Release (rejestr)
+
+- **1.5.2** — pqterm update działa (jawne refspecy fetch, untracked nie blokuje fast-forward, pending rebuild odżywa, .cmd przez shell przy Node >= 21).
+- **1.5.3** — `pqterm update` / `--check` z zainstalowanej komendy (bin/pqterm; ścieżka updatera z bridge.json).

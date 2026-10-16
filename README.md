@@ -33,7 +33,6 @@ Trwa migracja Electron → Rust (**Phase 1: plan + scaffold**). Electron nadal j
 
 - Plan: [docs/MIGRATION-RUST.md](docs/MIGRATION-RUST.md)
 - Workspace: crates/ (pq-work, pq-voice, pq-core)
-- STT map (honest): **CURRENT Electron** = `Xenova/whisper-tiny` (`voiceCommander.ts`); **INTENT desktop Rust / pq-voice** = Whisper Large v3 (`openai/whisper-large-v3`, PL) — not a runtime lock; **Android** = system `SpeechRecognizer` only (no on-device Whisper)
 - Night backlog (installer MSI/EXE, logo, DnD, gauntlet): [docs/BACKLOG-NIGHT.md](docs/BACKLOG-NIGHT.md) · [docs/LOGOS-INVENTORY.md](docs/LOGOS-INVENTORY.md) · [docs/workbench.md](docs/workbench.md)
 - Build szkicu:
 
@@ -170,6 +169,7 @@ Aplikacja wykrywa automatycznie zainstalowane CLI agentów. Każdy engine ma: bi
 |---|---|---|---|---|
 | `grok` | Grok CLI | xAI | `grok` | `--always-approve --trust` |
 | `omp` | Omp | oh-my-pi | `omp` | `--yolo` |
+| `pi` | Pi | Earendil | `pi` | — |
 | `hermes` | Hermes | Nous | `hermes` | — |
 | `opencode` | OpenCode | OpenCode | `opencode` | `--yolo` |
 | `codex` | Codex | OpenAI | `codex` | `--yolo` |
@@ -263,7 +263,7 @@ W cwd workspace'u: `.pq/BOARD.md`. Agenty mają czytać tablicę zanim wejdą w 
 ## Build produkcji (release)
 
 ```bat
-cd %USERPROFILE%\pq
+cd %USERPROFILE%\pqTERM
 npm install
 npm run build
 npm run stamp
@@ -276,7 +276,7 @@ Albo jednym strzałem:
 START-pr.cmd
 ```
 
-**Uwaga**: `scripts/stamp-host.cjs` używa `rcedit` do podpisania `electron.exe` → `pqterm.exe` (zmiana ProductName, FileDescription, wersja 1.1.7). Wymaga `node_modules/rcedit/bin/rcedit-x64.exe`.
+**Uwaga**: `scripts/stamp-host.cjs` używa `rcedit` do podpisania `electron.exe` → `pqterm.exe` (zmiana ProductName, FileDescription, wersja z `package.json`). Wymaga `node_modules/rcedit/bin/rcedit-x64.exe`.
 
 ---
 
@@ -301,7 +301,6 @@ Tworzy na pulpicie:
 - **ws** (WebSocket)
 - **Vite 5** (renderer/phone build)
 - **electron-vite** (main/preload build)
-- **@huggingface/transformers** (do przyszłego STT lokalnego)
 - **electron-builder** (deps rebuild)
 
 ---
@@ -309,7 +308,7 @@ Tworzy na pulpicie:
 ## Start tutaj
 
 ```bat
-cd %USERPROFILE%\pq
+cd %USERPROFILE%\pqTERM
 npm install
 npm run build
 npm run stamp
