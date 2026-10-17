@@ -33,6 +33,8 @@ import {
   MAX_PANES,
   paneCount,
   sanitizeUi,
+  UI_ZOOM_MAX,
+  UI_ZOOM_MIN,
   type SnapZone,
   type UiSettings
 } from '../shared/types'
@@ -847,6 +849,24 @@ function brandIconPath(): string | undefined {
   return undefined
 }
 
+// Whole-GUI zoom. Ctrl+wheel arrives natively as 'zoom-changed'; Ctrl+plus/minus/0
+// have no menu accelerators in a frameless window, so main intercepts them via
+// before-input-event before the renderer (and xterm) ever sees the key.
+// Persisting is debounced: a wheel roll would otherwise hit pq-state.json
+// a dozen times per second.
+let zoomPersistTimer: ReturnType<typeof setTimeout> | null = null
+
+function setZoom(next: number): void {
+  const z = Math.round(Math.min(UI_ZOOM_MAX, Math.max(UI_ZOOM_MIN, next)) * 100) / 100
+  const wc = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null
+  if (!wc) return
+  wc.setZoomFactor(z)
+  if (state.ui.zoom === z) return
+  state.ui.zoom = z
+  if (zoomPersistTimer) clearTimeout(zoomPersistTimer)
+  zoomPersistTimer = setTimeout(persist, 250)
+}
+
 function createWindow(): void {
   const icon = brandIconPath()
   mainWindow = new BrowserWindow({
@@ -867,7 +887,8 @@ function createWindow(): void {
       // Threat note: sandbox:false is required so preload can use webUtils.getPathForFile
       // for DnD absolute paths. Mitigations: contextIsolation:true, nodeIntegration:false,
       // no remote module; do not widen privileges further. Paths exposed to renderer are sensitive.
-      sandbox: false
+      sandbox: false,
+      zoomFactor: state.ui.zoom
     }
   })
 
@@ -904,6 +925,28 @@ function createWindow(): void {
     ) return
     event.preventDefault()
     if (isHttpUrl(url)) void shell.openExternal(url)
+  })
+  // Wheel: step from the persisted value (never Chromium's internal level, so the
+  // factor we set is always the single truth) — same math for keys and wheel.
+  mainWindow.webContents.on('zoom-changed', (_e, dir) => {
+    setZoom(state.ui.zoom * (dir === 'in' ? 1.1 : 0.9))
+  })
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || !input.control) return
+    const key = input.key
+    let next: number | null = null
+    if (key === '+' || key === '=' || key === 'NumpadAdd' || key === 'Add') next = state.ui.zoom + 0.1
+    else if (key === '-' || key === '_' || key === 'NumpadSubtract' || key === 'Subtract') next = state.ui.zoom - 0.1
+    else if (key === '0' || key === 'Numpad0') next = 1
+    else return
+    event.preventDefault()
+    setZoom(next)
+  })
+  // Chromium resets the factor on every navigation (dev HMR, built file://, the
+  // crash fallback) — re-apply the persisted factor after each load.
+  mainWindow.webContents.on('did-finish-load', () => {
+    const wc = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null
+    if (wc) wc.setZoomFactor(state.ui.zoom)
   })
 
 

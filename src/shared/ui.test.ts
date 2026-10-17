@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DEFAULT_UI, sanitizeUi, UI_FONT_MAX, UI_FONT_MIN, UI_SCROLLBACK_MAX, isPaneWorking, type PaneActivity } from './types.ts'
+import { DEFAULT_UI, sanitizeUi, UI_FONT_MAX, UI_FONT_MIN, UI_SCROLLBACK_MAX, UI_ZOOM_MAX, UI_ZOOM_MIN, isPaneWorking, type PaneActivity } from './types.ts'
 
 test('a patch keeps everything it does not mention', () => {
   const next = sanitizeUi({ accent: 'blue' }, DEFAULT_UI)
@@ -29,6 +29,15 @@ test('numbers are clamped and rounded, never trusted', () => {
   assert.equal(sanitizeUi({ fontSize: Infinity }).fontSize, DEFAULT_UI.fontSize)
   assert.equal(sanitizeUi({ scrollback: -5 }).scrollback, 0)
   assert.equal(sanitizeUi({ scrollback: 1e9 }).scrollback, UI_SCROLLBACK_MAX)
+})
+
+test('zoom clamps to the supported band and round-trips cleanly', () => {
+  assert.equal(sanitizeUi({ zoom: 5 }).zoom, UI_ZOOM_MAX)
+  assert.equal(sanitizeUi({ zoom: 0 }).zoom, UI_ZOOM_MIN)
+  assert.equal(sanitizeUi({ zoom: 1.249999 }).zoom, 1.25)
+  assert.equal(sanitizeUi({ zoom: Number.NaN }).zoom, DEFAULT_UI.zoom)
+  assert.equal(sanitizeUi({ zoom: Infinity }).zoom, DEFAULT_UI.zoom)
+  assert.equal(sanitizeUi({}, DEFAULT_UI).zoom, DEFAULT_UI.zoom)
 })
 
 // The sidebar's animated "pracuje" rail/dot keys off exactly this rule.

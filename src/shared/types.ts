@@ -251,6 +251,8 @@ export interface UiSettings {
   cursorBlink: boolean
   /** terminal scrollback lines (0 = no scrollback) */
   scrollback: number
+  /** whole-GUI Chromium zoom factor (Ctrl+wheel / Ctrl+plus-minus), 0.5–2 */
+  zoom: number
 }
 
 export const DEFAULT_UI: UiSettings = {
@@ -259,14 +261,20 @@ export const DEFAULT_UI: UiSettings = {
   fontSize: 13,
   cursorStyle: 'bar',
   cursorBlink: true,
-  scrollback: 4000
+  scrollback: 4000,
+  zoom: 1
 }
 
 export const UI_FONT_MIN = 9
 export const UI_FONT_MAX = 20
 export const UI_SCROLLBACK_MAX = 50000
+export const UI_ZOOM_MIN = 0.5
+export const UI_ZOOM_MAX = 2
 
 const clampInt = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, Math.round(v)))
+
+/** zoom is a float and wheel steps multiply it — clamp to the band, keep two decimals */
+const clampZoom = (v: number): number => Math.min(UI_ZOOM_MAX, Math.max(UI_ZOOM_MIN, Math.round(v * 100) / 100))
 
 /**
  * One validator for `ui`, used by the IPC handler and by the state loader, so a
@@ -284,7 +292,8 @@ export function sanitizeUi(patch: Partial<UiSettings> | undefined, base: UiSetti
       : base.cursorStyle,
     cursorBlink: typeof p.cursorBlink === 'boolean' ? p.cursorBlink : base.cursorBlink,
     fontSize: num(p.fontSize) ? clampInt(p.fontSize, UI_FONT_MIN, UI_FONT_MAX) : base.fontSize,
-    scrollback: num(p.scrollback) ? clampInt(p.scrollback, 0, UI_SCROLLBACK_MAX) : base.scrollback
+    scrollback: num(p.scrollback) ? clampInt(p.scrollback, 0, UI_SCROLLBACK_MAX) : base.scrollback,
+    zoom: num(p.zoom) ? clampZoom(p.zoom) : base.zoom
   }
 }
 

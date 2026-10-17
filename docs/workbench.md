@@ -1,5 +1,22 @@
 # pq workbench (gauntlet live board)
 
+## Skalowanie całego GUI: LCTRL+scroll i LCTRL+`+`/`−` (2026-10-17, `dev`)
+
+**Prośba:** możliwość powiększenia/zmniejszenia całego GUI klawiszem LCTRL +
+scroll myszy albo LCTRL + `+` / `−`.
+
+**Rozwiązanie (ponytail: natywny zoom Chromium; zero zmian w rendererze/preloadzie):**
+
+1. `ui.zoom` (0.5–2) w `UiSettings` + `sanitizeUi` (clamp, 2 miejsca po przecinku) — trwały w pq-state.json.
+2. `createWindow`: `zoomFactor: state.ui.zoom` (start od zapisanej wartości) oraz re-apply po każdej nawigacji (HMR/file://, fallback C3 — Chromium resetuje factor).
+3. **Ctrl+scroll** = natywny `zoom-changed` → krok ×1.1 / ÷1.1 liczony od zapisanej wartości (stan jest jedną prawdą, nie wewnętrzny poziom Chromium), clamp 0.5–2.
+4. **Klawisze**: `before-input-event` w main, zanim renderer/xterm zobaczy klawisz: `+`/`=`/NumpadAdd → +0.1, `-`/`_`/NumpadSubtract → −0.1, `0`/Numpad0 → reset 1.0.
+5. Persist z debounce 250 ms — przewijanie rolą nie zapisuje pq-state.json kilkanaście razy na sekundę.
+
+**Pliki:** `src/shared/types.ts` (UiSettings.zoom, DEFAULT_UI, UI_ZOOM_MIN/MAX, sanitizeUi), `src/main/index.ts` (setZoom + listenery w createWindow), `src/shared/ui.test.ts` (+1 test).
+
+**Gates (dev):** `npm run test:unit` → **203/203 pass** ✔ (typecheck + node --test).
+
 ## „CLI wymaga uwagi” zostaje, choć CLI dalej pisze (2026-09-27, `dev`)
 
 **Zgłoszenie:** pane w trakcie pracy (omp pisze kod, woła narzędzia) ma badge
