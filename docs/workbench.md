@@ -1,5 +1,27 @@
 # pq workbench (gauntlet live board)
 
+## `pqterm update`: npm.cmd z "Program Files" padał na przebudowie (2026-10-17, `dev`)
+
+**Zgłoszenie (maszyna klienta, `C:/Users/admin/pq`):** instancje ff-merge się, ale przebudowa
+huba kończy się kodem 1 — `'C:\Program' is not recognized...` i
+`C:\Program Files\nodejs\npm.cmd run build zakończył się kodem 1`.
+
+**Root cause:** `runCmd()` routuje .cmd przez `shell: true` (Node ≥21 po CVE-2024-27980
+odmawia bezpośredniego spawnu .cmd), a Node skleja `[file, ...args]` pojedynczą spacją
+bez cytowania — cmd tnie linię na pierwszej niezacytowanej spacji, więc
+`C:\Program Files\nodejs\npm.cmd` startuje jako `C:\Program`.
+
+**Fix:** `quoteForShell()` w `scripts/pqterm-update.cjs` — cudzysłowy tylko gdy ścieżka ma
+spację/cudzysłów (długi slack: cytowane same program; args to proste słowa: install/run/build).
+
+**Dowód:** na maszynie dev `C:\Program Files\nodejs\npm.cmd` istnieje —
+spawnSync bez cytatu → status 1 + identyczny komunikat co u klienta;
+spawnSync z `quoteForShell` → status 0, `npm --version = 11.11.0`.
+
+**Test:** `pqterm-update.test.ts` — „quotation of a spaced npm path for the shell, bare names stay bare".
+
+**Gates (dev):** `npm run test:unit` → **204/204 pass** ✔.
+
 ## Skalowanie całego GUI: LCTRL+scroll i LCTRL+`+`/`−` (2026-10-17, `dev`)
 
 **Prośba:** możliwość powiększenia/zmniejszenia całego GUI klawiszem LCTRL +

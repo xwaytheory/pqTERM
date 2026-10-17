@@ -193,10 +193,16 @@ function npmBin() {
   return existsSync(fallback) ? fallback : 'npm.cmd'
 }
 
+// cmd splits a shell line at the first unquoted space, so npm.cmd found in
+// "C:\Program Files\nodejs" on the client machine ran as "C:\Program". Only the
+// program path needs quoting today (args are simple words: install/run/build),
+// a marker so spaced arguments would have to be quoted here.
+const quoteForShell = (s) => (/[\s"]/.test(s) ? `"${s}"` : s)
+
 function runCmd(file, args, cwd) {
   // Node ≥21 refuses bare .cmd/.bat in spawnSync (CVE-2024-27980) — route through the shell
   const viaShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(file)
-  const r = spawnSync(file, args, { cwd, stdio: 'inherit', windowsHide: true, shell: viaShell })
+  const r = spawnSync(viaShell ? quoteForShell(file) : file, args, { cwd, stdio: 'inherit', windowsHide: true, shell: viaShell })
   if (r.error) throw r.error
   if (r.status) throw new Error(`${file} ${args.join(' ')} zakończył się kodem ${r.status}`)
 }
@@ -493,6 +499,7 @@ module.exports = {
   parsePending,
   formatPending,
   inTree,
+  quoteForShell,
   PENDING_TEXT
 }
 

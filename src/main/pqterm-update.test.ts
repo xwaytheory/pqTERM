@@ -13,7 +13,8 @@ import {
   shimBody,
   parsePending,
   formatPending,
-  inTree
+  inTree,
+  quoteForShell
 } from '../../scripts/pqterm-update.cjs'
 
 const root = resolve('pqterm-root')
@@ -26,6 +27,12 @@ test('origin accepts only this GitHub repo', () => {
   assert.equal(originOk('https://github.com/xwaytheory/pqTERM.git'), true)
   assert.equal(originOk('git@github.com:xwaytheory/pqTERM.git'), true)
   assert.equal(originOk('https://github.com/other/pqTERM.git'), false)
+})
+
+test('a spaced npm path is quoted for the shell, bare names stay bare', () => {
+  assert.equal(quoteForShell('C:\\Program Files\\nodejs\\npm.cmd'), '"C:\\Program Files\\nodejs\\npm.cmd"')
+  assert.equal(quoteForShell('npm.cmd'), 'npm.cmd')
+  assert.equal(quoteForShell('C:\\Users\\ad min\\AppData\\Roaming\\npm\\npm.cmd'), '"C:\\Users\\ad min\\AppData\\Roaming\\npm\\npm.cmd"')
 })
 
 test('worktree list keeps main, dev and test and leaves wip and feat', () => {
