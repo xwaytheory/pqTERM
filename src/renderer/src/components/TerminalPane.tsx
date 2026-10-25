@@ -849,7 +849,9 @@ if (pane.engine && !isRawShell(pane.engine)) {
                     ? p.detectedAuth
                       ? 'detected'
                       : 'installed'
-                    : 'click to install'
+                    : p.actions.includes('install')
+                      ? 'click to install'
+                      : 'nie zainstalowano'
               // Installed tiles offer update/uninstall; missing ones offer install.
               const shown = isShell
                 ? []
