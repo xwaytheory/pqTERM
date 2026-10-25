@@ -109,9 +109,13 @@ test('CWD-relative installer runs inside the detectable install dir', () => {
 
 test('every lifecycle window is launched elevated through UAC', () => {
   const cmd = elevateArgs('cmd', 'C:\\Temp\\pq-lifecycle\\kimi-install-1.cmd')
-  assert.deepEqual(cmd.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command'])
-  const line = cmd[3]
-  assert.ok(line.startsWith("Start-Process -FilePath 'cmd.exe'"), line)
+  assert.deepEqual(cmd.slice(0, 3), ['-NoProfile', '-NonInteractive', '-EncodedCommand'])
+  // Base64 UTF-16LE bypasses Node's argv quoting, so the nested quotes survive.
+  const line = Buffer.from(cmd[3], 'base64').toString('utf16le')
+  // A plain Start-Process failure is non-terminating: without this PowerShell
+  // exits 0 and the UI claims success while no window opened (1.5.4 bug).
+  assert.ok(line.startsWith("$ErrorActionPreference = 'Stop'; "), line)
+  assert.ok(line.includes("Start-Process -FilePath 'cmd.exe'"), line)
   assert.ok(
     line.includes(`-ArgumentList '/d','/k','"C:\\Temp\\pq-lifecycle\\kimi-install-1.cmd"'`),
     line
@@ -119,8 +123,8 @@ test('every lifecycle window is launched elevated through UAC', () => {
   assert.ok(line.endsWith('-Verb RunAs'), line)
 
   const ps1 = elevateArgs('ps1', 'C:\\Users\\Jan Kowalski\\Temp\\ori-install-1.ps1')
-  const line2 = ps1[3]
-  assert.ok(line2.startsWith("Start-Process -FilePath 'powershell.exe'"), line2)
+  const line2 = Buffer.from(ps1[3], 'base64').toString('utf16le')
+  assert.ok(line2.includes("Start-Process -FilePath 'powershell.exe'"), line2)
   assert.ok(
     line2.includes(
       `-ArgumentList '-NoProfile','-NoExit','-ExecutionPolicy','Bypass','-File','"C:\\Users\\Jan Kowalski\\Temp\\ori-install-1.ps1"'`
