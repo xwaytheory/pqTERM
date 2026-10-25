@@ -1,5 +1,6 @@
 import type { EngineId, ModelChoice, ProviderInfo } from '../shared/types'
 import { isRawShell } from '../shared/types'
+import { lifecycleActions } from './install-scripts'
 
 export interface EngineSpec {
   id: EngineId
@@ -407,6 +408,7 @@ export function defaultProvider(spec: EngineSpec, extras?: Partial<ProviderInfo>
     icon: spec.icon,
     mark: spec.mark,
     installed: false,
+    actions: lifecycleActions(spec),
     detectedAuth: false,
     enabled: !isRawShell(spec.id),
     models: spec.models.map((m) => ({ ...m, enabled: true })),

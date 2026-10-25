@@ -1034,6 +1034,54 @@ body.pane-resizing * {
   opacity: 0.35;
   cursor: not-allowed;
 }
+/* Hover overlay: install on a missing CLI, update/uninstall on an installed one. */
+.eng-slot {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.eng-slot > .eng {
+  flex: 1;
+}
+.eng-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.eng-slot:hover .eng-actions,
+.eng-slot:focus-within .eng-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.eng-action {
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-3);
+  color: var(--text);
+  cursor: pointer;
+}
+.eng-action:hover {
+  border-color: var(--accent);
+  background: var(--wash);
+}
+.eng-action.uninstall:hover {
+  border-color: #ff387b;
+  color: #ff8fb2;
+}
 .eng .n {
   font-size: 12px;
   width: 100%;

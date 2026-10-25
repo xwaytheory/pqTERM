@@ -16,6 +16,7 @@ import {
 import { productName, runningDev, editionId, buildNumber, profileDirName } from './env'
 import type {
   AppSnapshot,
+  EngineAction,
   EngineId,
   GoogleOAuthConfig,
   LayoutId,
@@ -57,7 +58,7 @@ import { PtyManager } from './pty-manager'
 import { PaneActivityTracker } from './pane-activity'
 import { ENGINE_SPECS, specById } from './engines'
 import { EngineSync } from './sync'
-import { installCommand } from './install-scripts'
+import { installCommand, lifecycleCommand } from './install-scripts'
 import { BoardHub } from './board'
 import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
@@ -1163,18 +1164,20 @@ function registerIpc(): void {
     persist()
   })
 
-  // One click on an undetected CLI → the official install command in a visible
-  // cmd/PowerShell window. pqTERM installs nothing itself; rescan on next click.
-  ipcMain.handle('engines:install', async (_e, id: EngineId) => {
+  // One click on a CLI tile → the official install/update/uninstall command in a
+  // visible cmd/PowerShell window. pqTERM runs nothing itself; rescan on next click.
+  const LIFECYCLE_ACTIONS: EngineAction[] = ['install', 'update', 'uninstall']
+
+  function runLifecycle(id: EngineId, action: EngineAction) {
     const spec = specById(id)
-    const install = installCommand(id)
-    if (!install) {
+    const cmd = action === 'install' ? installCommand(id) : lifecycleCommand(spec, action)
+    if (!cmd) {
       return {
         ok: false,
-        message: `${spec.name}: brak skryptu — użyj oficjalnego instalatora. ${spec.hint}`
+        message: `${spec.name}: brak skryptu ${action} — użyj oficjalnego instalatora. ${spec.hint}`
       }
     }
-    const win = spawn(install.exe, install.args, {
+    const win = spawn(cmd.exe, cmd.args, {
       detached: true,
       stdio: 'ignore',
       windowsHide: false,
@@ -1183,7 +1186,18 @@ function registerIpc(): void {
     win.unref()
     return {
       ok: true,
-      message: `${spec.name}: instalacja w osobnym oknie — po zakończeniu kliknij ponownie, aby odpalić.`
+      message: `${spec.name}: ${action} w osobnym oknie — po zakończeniu kliknij kafelek, aby odświeżyć stan.`
+    }
+  }
+
+  ipcMain.handle('engines:install', async (_e, id: EngineId) => runLifecycle(id, 'install'))
+
+  ipcMain.handle('engines:lifecycle', async (_e, id: EngineId, action: EngineAction) => {
+    if (!LIFECYCLE_ACTIONS.includes(action)) return { ok: false, message: 'nieznana akcja' }
+    try {
+      return runLifecycle(id, action)
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) }
     }
   })
 
