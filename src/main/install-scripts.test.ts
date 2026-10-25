@@ -134,6 +134,18 @@ test('every lifecycle window is launched elevated through UAC', () => {
   assert.ok(line2.endsWith('-Verb RunAs'), line2)
 })
 
+test('kilocode installs, updates and uninstalls through its npm package', () => {
+  const kilo = {
+    id: 'kilocode',
+    binaries: ['kilocode', 'kilocode.cmd', 'kilo', 'kilo.cmd'],
+    npmPackage: '@kilocode/cli'
+  } as const
+  assert.deepEqual(lifecycleActions(kilo), ['install', 'update', 'uninstall'])
+  assert.match(lifecycleScript(kilo, 'install')?.body ?? '', /npm install -g @kilocode\/cli/)
+  assert.match(lifecycleScript(kilo, 'update')?.body ?? '', /npm install -g @kilocode\/cli@latest/)
+  assert.match(lifecycleScript(kilo, 'uninstall')?.body ?? '', /npm uninstall -g @kilocode\/cli/)
+})
+
 test('raw shells never get lifecycle buttons', () => {
   for (const spec of [shellSpec, cmdSpec]) {
     assert.deepEqual(lifecycleActions(spec), [])

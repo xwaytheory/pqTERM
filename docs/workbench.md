@@ -1,5 +1,26 @@
 # pq workbench (gauntlet live board)
 
+## SPAWN ENGINE: Kilo Code (2026-10-25, `dev`)
+
+**Zgłoszenie:** dodać Kilo Code do siatki CLI.
+
+**Spec** (`src/main/engines.ts`): `kilocode`, vendor Kilo, binarki
+`kilocode`/`kilo` (+ `.cmd`), `npmPackage: '@kilocode/cli'`, PATH
+`%APPDATA%\npm`. Źródło pakietu sprawdzone w rejestrze npm:
+`@kilocode/cli@7.8.17`, `bin = { kilo: 'bin/kilo', kilocode: 'bin/kilo' }`
+— obie komendy to ten sam shim, więc obie trafiają do detekcji.
+
+**Akcje:** install `npm install -g @kilocode/cli`, update
+`npm install -g @kilocode/cli@latest`, uninstall
+`npm uninstall -g @kilocode/cli` — bez zgadywanego `selfUpdate`.
+
+**Reszta ścieżki:** `EngineId` + `ENGINE_ORDER` (shared), `case 'kilocode'`
+w grupie npm `resolve-launch.ts` (ConPTY dostaje `kilocode.cmd` z `%APPDATA%\npm`),
+logo `assets/engines/kilocode.svg` (LobeHub `kilocode`) + wpis w
+`engineLogoMeta.ts` i `docs/LOGOS-INVENTORY.md`.
+
+**Dowód gates (dev):** patrz wynik `npm run test:unit` / `npm run build` w tym commicie.
+
 ## Hotfix 1.5.5 po 1.5.4: „Aktualizuj nic nie robi" — winny `detached`, nie `-Command` (2026-10-25, `dev`)
 
 **Zgłoszenie:** po wdrożeniu 1.5.4 kliknięcie „Aktualizuj" (grok, hermes, opencode,

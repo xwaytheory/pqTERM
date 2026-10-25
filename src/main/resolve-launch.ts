@@ -107,7 +107,8 @@ export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: str
     case 'crush':
     case 'zcode':
     case 'copilot':
-    case 'cline': {
+    case 'cline':
+    case 'kilocode': {
       const name = engine
       const exe = firstExisting([
         join(npm, `${name}.cmd`),
