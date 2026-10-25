@@ -192,7 +192,6 @@ const pq = {
       invoke('panes:fill', input) as Promise<number[]>
   },
   engines: {
-    install: (id: EngineId) => invoke('engines:install', id) as Promise<{ ok: boolean; message: string }>,
     lifecycle: (id: EngineId, action: EngineAction) =>
       invoke('engines:lifecycle', id, action) as Promise<{ ok: boolean; message: string }>
   },

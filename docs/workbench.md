@@ -1,34 +1,68 @@
 # pq workbench (gauntlet live board)
 
-## SPAWN ENGINE: hover = Zainstaluj / Aktualizuj / Odinstaluj (2026-10-25, `dev`)
+## SPAWN ENGINE: akcje na kafelkach + audyt skryptów (2026-10-25, `dev`)
 
-**Zgłoszenie:** kafelek CLI ma pokazywać po najechaniu gotowe akcje: brak CLI →
-„Zainstaluj" (cmd ze skryptem instalacyjnym), zainstalowane → „Aktualizuj"
-i „Odinstaluj", każde w osobnym oknie cmd/PowerShell.
+**Zgłoszenie 1:** kafelek CLI ma pokazywać po najechaniu gotowe akcje: brak CLI →
+„Zainstaluj", zainstalowane → „Aktualizuj" i „Odinstaluj", każde w osobnym oknie
+cmd/PowerShell. **Zgłoszenie 2 (po wdrożeniu):** `Cursor CLI`, `Antigravity CLI`,
+`cmd`, `ori`, `powershell` nie pokazują nic — audyt wszystkich skryptów.
+
+**Root cause pustych kafli:** `lifecycleActions()` liczyło akcje tylko z
+`npmPackage` / `pipPackage` / `selfUpdate`. Cursor, Antigravity, Ori i raw shell
+nie mają żadnego z tych pól → `actions = []` → overlay się nie rysował. Dodatkowo
+renderer rysował overlay tylko gdy `shown.length > 0`, więc brak akcji = brak
+jakiejkolwiek informacji.
 
 **Rozwiązanie (ponytail: zero nowych zależności, jedno źródło skryptów):**
 
-1. `src/main/install-scripts.ts` — `lifecycleCommand(spec, action)` generuje komendę
-   z danych, które już były w specu: `selfUpdate` → `<bin> update`, `npmPackage` →
-   `npm i -g <pkg>@latest` / `npm uninstall -g <pkg>`, `pipPackage` → `pip -U` /
-   `pip uninstall -y`. Natywne deinstalatory tylko zweryfikowane przez `--help`
-   (`hermes update`, `hermes uninstall`); brak skryptu = `null`, nigdy zgadywanie.
-2. `lifecycleActions(spec)` → `ProviderInfo.actions` (`src/shared/types.ts`), więc
-   renderer nie rysuje martwych przycisków.
-3. IPC `engines:lifecycle` (walidacja akcji, `specById` po stronie main) + preload.
-4. `TerminalPane.tsx` — kafelek w `.eng-slot`, overlay `.eng-actions` na hover/focus;
-   `busy` = `Map<EngineId, EngineAction>` (status „instaluje…/aktualizuje…/…”).
-5. `launch()` skanuje providerów **zawsze** — po zewnętrznym uninstallu kafelek nie
-   odpala już usuniętego CLI.
+1. `src/main/install-scripts.ts` — `installCommand()` generuje install z
+   `npmPackage` / `pipPackage` (koniec 15 duplikatów w mapie), a `INSTALL` trzyma
+   tylko instalatory nie-pakietowe (pi, qoder, baicode, cursor, antigravity, ori).
+   `lifecycleScript(spec, action)` → `{kind, body}`: instalacja, update i uninstall
+   zawsze celują w ten sam pakiet.
+2. Skrypt trafia do `%TEMP%\pq-lifecycle\<id>-<action>.cmd|.ps1` i jest uruchamiany
+   jako `cmd /d /k <plik>` albo `powershell -NoProfile -NoExit -ExecutionPolicy
+   Bypass -File <plik>` — koniec błędów nested-quote (m.in. `&&` w instalatorze
+   Antigravity, który odrzuca `&`/`|`/`;` w `%CMDCMDLINE%`).
+3. Prefiks PATH z `extraPathDirs` (ścieżki rozwijane przez `process.env`), bo PATH
+   Electrona bywa nieaktualny; `baicode` dostaje `Set-Location ~/.baicode`, bo jego
+   instalator tworzy `.venv` w CWD, a detection szuka `~/.baicode/.venv/Scripts`.
+4. `lifecycleActions(spec)` → `ProviderInfo.actions` (`src/shared/types.ts`) —
+   renderer nie rysuje martwych przycisków; przy braku akcji pokazuje notkę
+   (`.eng-note`): „wbudowany shell" / „brak oficjalnego instalatora".
+5. IPC `engines:lifecycle` z walidacją akcji (`engines:install` usunięty —
+   renderer używa jednego kanału); `launch()` skanuje providerów **zawsze**, więc
+   po zewnętrznym uninstallu kafelek nie odpala usuniętego CLI.
 
-**Dowód:** `npm run typecheck` czysty; `npm run test:unit` → **209/209 pass**
-(+5 testów lifecycle: npm, selfUpdate, pip, natywne, raw shell); `npm run build` OK;
-`check:version` OK.
+**Audyt (stan po naprawie):**
 
-**Ograniczenie (świadome):** silniki bez znanego deinstalatora (np. `grok`,
-`qoder`, `ori`, `cursor`, `antigravity`) pokazują tylko akcje, które realnie
-istnieją — `grok` ma `update`, reszta bez `uninstall`. Dokładanie zgadywanego
-„Odinstaluj" mogłoby zostawić system w połowie usunięty.
+| Kafelek | Zainstaluj | Aktualizuj | Odinstaluj |
+|---|---|---|---|
+| npm (omp, opencode, codex, claude, qwen, dsh, gemini, crush, copilot, zcode, freebuff, kimi, cline) | `npm i -g <pkg>` | `<cli> update` lub `npm i -g <pkg>@latest` | `npm uninstall -g <pkg>` |
+| aider (pip) | `pip install -U aider-chat` | `pip install -U aider-chat` | `pip uninstall -y aider-chat` |
+| Pi | oficjalny `install.ps1` | `pi update` | `npm uninstall -g @earendil-works/pi-coding-agent` |
+| Cursor | `irm cursor.com/install?win32=true` | ten sam instalator (oficjalna ścieżka update) | — |
+| Antigravity | oficjalny `install.cmd` + `call` | ten sam instalator | — |
+| Ori | `install.ps1` | `ori update` | — |
+| Qoder | `install.ps1` | `qodercli install --force` (tak robi ich instalator) | — |
+| BAI code | `baicode_install.ps1` | ten sam instalator | — |
+| Grok | — (brak zweryfikowanego instalatora) | `grok update` | — |
+| Hermes | — | `hermes update` | `hermes uninstall` |
+| cmd / PowerShell | notka „wbudowany shell" | — | — |
+
+**Weryfikacja źródeł:** 14 pakietów npm sprawdzone przez `npm view <pkg> version`
+(wszystkie istnieją), `aider-chat` przez PyPI; URL-e instalatorów sprawdzone
+`curl` (HTTP 200): pi.dev, qoder aliyuncs, baicode GitHub, cursor win32,
+antigravity install.cmd, ori install.ps1.
+
+**Dowód:** `npm run typecheck` czysty; `npm run test:unit` → **208/208 pass**
+(8 testów lifecycle: npm, PATH prefix, selfUpdate, pip/BOM, natywne, cursor/
+antigravity/ori, baicode CWD, raw shell); `npm run build` OK; `check:version` OK.
+
+**Ograniczenie (świadome):** przycisk pojawia się tylko tam, gdzie komenda jest
+oficjalna i zweryfikowana — `grok` nie ma scriptowanego install, a cursor/
+antigravity/ori/qoder/baicode nie mają deinstalatora. Zgadywany „Odinstaluj"
+mógłby zostawić system w połowie usuniętym.
 
 ## `pqterm update`: npm.cmd z "Program Files" padał na przebudowie (2026-10-17, `dev`)
 

@@ -1,89 +1,117 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { installCommand, lifecycleActions, lifecycleCommand } from './install-scripts.ts'
+import { lifecycleActions, lifecycleScript } from './install-scripts.ts'
 
 // Literal specs (not ENGINE_SPECS): engines.ts uses extensionless runtime
 // imports, which node --experimental-strip-types cannot resolve. Values mirror
 // the real specs; drift is caught by typecheck on `lifecycleActions(spec)`.
-const npmSpec = { id: 'kimi', binaries: ['kimi', 'kimi.cmd'], npmPackage: '@moonshot-ai/kimi-code' } as const
-const selfUpdateSpec = { id: 'omp', binaries: ['omp', 'omp.cmd'], npmPackage: '@oh-my-pi/pi-coding-agent', selfUpdate: ['update'] } as const
-const pipSpec = { id: 'aider', binaries: ['aider', 'aider.exe'], pipPackage: 'aider-chat' } as const
+const npmSpec = {
+  id: 'kimi',
+  binaries: ['kimi', 'kimi.cmd'],
+  npmPackage: '@moonshot-ai/kimi-code',
+  extraPathDirs: ['%APPDATA%\\npm']
+} as const
+const selfUpdateSpec = {
+  id: 'omp',
+  binaries: ['omp', 'omp.cmd'],
+  npmPackage: '@oh-my-pi/pi-coding-agent',
+  selfUpdate: ['update'],
+  extraPathDirs: ['%APPDATA%\\npm']
+} as const
+const pipSpec = {
+  id: 'aider',
+  binaries: ['aider', 'aider.exe'],
+  pipPackage: 'aider-chat',
+  extraPathDirs: ['%APPDATA%\\Python']
+} as const
 const nativeSpec = { id: 'grok', binaries: ['grok', 'grok.exe'], selfUpdate: ['update'] } as const
 const hermesSpec = { id: 'hermes', binaries: ['hermes', 'hermes.cmd'] } as const
 const shellSpec = { id: 'shell', binaries: ['pwsh', 'powershell'] } as const
 const cmdSpec = { id: 'cmd', binaries: ['cmd.exe'] } as const
 
-// The install window runs whatever command this returns — the user sees it and
-// trusts it, so every entry must name the official package exactly.
-
-test('npm CLIs get a cmd /k window with the official package', () => {
-  const kimi = installCommand('kimi')
-  assert.ok(kimi)
-  assert.equal(kimi.exe, 'cmd.exe')
-  assert.deepEqual(kimi.args, ['/d', '/s', '/k', 'npm install -g @moonshot-ai/kimi-code'])
-
-  const claude = installCommand('claude')
-  assert.ok(claude?.script.includes('@anthropic-ai/claude-code'))
-})
-
-test('pip CLI gets a PowerShell window that stays open', () => {
-  const aider = installCommand('aider')
-  assert.ok(aider)
-  assert.equal(aider.exe, 'powershell.exe')
-  assert.deepEqual(aider.args, ['/NoProfile', '-NoExit', '-Command', 'pip install -U aider-chat'])
-})
-
-test('pi gets the official Windows installer in a PowerShell window', () => {
-  const pi = installCommand('pi')
-  assert.ok(pi)
-  assert.equal(pi.exe, 'powershell.exe')
-  assert.deepEqual(pi.args, ['/NoProfile', '-NoExit', '-Command', 'irm https://pi.dev/install.ps1 | iex'])
-})
-
-test('native-only engines have no scripted install', () => {
-  for (const id of ['grok', 'hermes', 'antigravity', 'ori', 'cursor', 'shell', 'cmd'] as const) {
-    assert.equal(installCommand(id), null, `${id} must not fake a scripted install`)
-  }
-})
-
 test('npm CLI: install, update and uninstall all target the same package', () => {
   assert.deepEqual(lifecycleActions(npmSpec), ['install', 'update', 'uninstall'])
-  assert.deepEqual(lifecycleCommand(npmSpec, 'install')?.args, [
-    '/d',
-    '/s',
-    '/k',
-    'npm install -g @moonshot-ai/kimi-code'
-  ])
-  assert.equal(lifecycleCommand(npmSpec, 'update')?.script, 'npm install -g @moonshot-ai/kimi-code@latest')
-  assert.equal(lifecycleCommand(npmSpec, 'uninstall')?.script, 'npm uninstall -g @moonshot-ai/kimi-code')
-  assert.equal(lifecycleCommand(npmSpec, 'uninstall')?.exe, 'cmd.exe')
+
+  const install = lifecycleScript(npmSpec, 'install')
+  assert.equal(install?.kind, 'cmd')
+  assert.match(install?.body ?? '', /npm install -g @moonshot-ai\/kimi-code(\r?\n|$)/)
+  assert.doesNotMatch(install?.body ?? '', /@latest/)
+  assert.match(lifecycleScript(npmSpec, 'update')?.body ?? '', /@moonshot-ai\/kimi-code@latest/)
+
+  assert.match(lifecycleScript(npmSpec, 'uninstall')?.body ?? '', /npm uninstall -g @moonshot-ai\/kimi-code/)
+})
+
+test('generated cmd script prepends the engine path dirs', () => {
+  const body = lifecycleScript(npmSpec, 'install')?.body ?? ''
+  assert.match(body, /set "PATH=.*AppData\\Roaming\\npm;%PATH%"/)
 })
 
 test('engine-native updater wins over npm for update', () => {
-  assert.equal(lifecycleCommand(selfUpdateSpec, 'update')?.script, 'omp update')
+  const body = lifecycleScript(selfUpdateSpec, 'update')?.body ?? ''
+  assert.match(body, /omp update/)
+  assert.doesNotMatch(body, /npm install/)
 })
 
-test('pip CLI uninstalls through PowerShell', () => {
+test('pip CLI runs in PowerShell and uninstalls cleanly', () => {
   assert.deepEqual(lifecycleActions(pipSpec), ['install', 'update', 'uninstall'])
-  assert.equal(lifecycleCommand(pipSpec, 'uninstall')?.exe, 'powershell.exe')
-  assert.equal(lifecycleCommand(pipSpec, 'uninstall')?.script, 'pip uninstall -y aider-chat')
-  assert.equal(lifecycleCommand(pipSpec, 'update')?.script, 'pip install -U aider-chat')
+  const uninstall = lifecycleScript(pipSpec, 'uninstall')
+  assert.equal(uninstall?.kind, 'ps1')
+  // BOM so PowerShell 5.1 parses the file as UTF-8 instead of ANSI.
+  assert.equal(uninstall?.body.charCodeAt(0), 0xfeff)
+  assert.match(uninstall?.body ?? '', /pip uninstall -y aider-chat/)
+  assert.match(lifecycleScript(pipSpec, 'update')?.body ?? '', /pip install -U aider-chat/)
 })
 
 test('native installs expose only the subcommands that really exist', () => {
   assert.deepEqual(lifecycleActions(nativeSpec), ['update'])
-  assert.equal(lifecycleCommand(nativeSpec, 'update')?.script, 'grok update')
-  assert.equal(lifecycleCommand(nativeSpec, 'uninstall'), null)
+  assert.match(lifecycleScript(nativeSpec, 'update')?.body ?? '', /grok update/)
+  assert.equal(lifecycleScript(nativeSpec, 'uninstall'), null)
 
   assert.deepEqual(lifecycleActions(hermesSpec), ['update', 'uninstall'])
-  assert.equal(lifecycleCommand(hermesSpec, 'uninstall')?.script, 'hermes uninstall')
+  assert.match(lifecycleScript(hermesSpec, 'uninstall')?.body ?? '', /hermes uninstall/)
+  assert.match(lifecycleScript(hermesSpec, 'update')?.body ?? '', /hermes update/)
+})
+
+test('engines that used to show no hover actions now have install + update', () => {
+  const cursor = { id: 'cursor', binaries: ['cursor', 'cursor.exe', 'cursor-agent.cmd'] } as const
+  assert.deepEqual(lifecycleActions(cursor), ['install', 'update'])
+  assert.match(lifecycleScript(cursor, 'install')?.body ?? '', /cursor\.com\/install\?win32=true/)
+
+  const antigravity = { id: 'antigravity', binaries: ['agy', 'agy.exe'] } as const
+  assert.deepEqual(lifecycleActions(antigravity), ['install', 'update'])
+  const agy = lifecycleScript(antigravity, 'install')
+  assert.equal(agy?.kind, 'cmd')
+  assert.match(agy?.body ?? '', /antigravity\.google\/cli\/install\.cmd/)
+  assert.match(agy?.body ?? '', /%TEMP%\\agy-install\.cmd/)
+  // `call` so the parent script continues (prints done) after the installer.
+  assert.match(agy?.body ?? '', /&& call "%TEMP%\\agy-install\.cmd"/)
+
+  const ori = { id: 'ori', binaries: ['ori', 'ori.exe'] } as const
+  assert.deepEqual(lifecycleActions(ori), ['install', 'update'])
+  assert.match(lifecycleScript(ori, 'install')?.body ?? '', /openrouter\.ai\/labs\/ori\/install\.ps1/)
+})
+
+test('CWD-relative installer runs inside the detectable install dir', () => {
+  const baicode = {
+    id: 'baicode',
+    binaries: ['baicode', 'baicode.exe'],
+    extraPathDirs: ['%USERPROFILE%\\.baicode\\.venv\\Scripts']
+  } as const
+  assert.deepEqual(lifecycleActions(baicode), ['install', 'update'])
+  const body = lifecycleScript(baicode, 'install')?.body ?? ''
+  assert.match(body, /Set-Location '/)
+  assert.ok(body.includes('.baicode\''), 'installer runs in ~/.baicode')
+  assert.ok(
+    body.includes('.baicode\\.venv\\Scripts;'),
+    'that venv is on PATH, so the next scan detects baicode'
+  )
 })
 
 test('raw shells never get lifecycle buttons', () => {
   for (const spec of [shellSpec, cmdSpec]) {
     assert.deepEqual(lifecycleActions(spec), [])
     for (const action of ['install', 'update', 'uninstall'] as const) {
-      assert.equal(lifecycleCommand(spec, action), null)
+      assert.equal(lifecycleScript(spec, action), null)
     }
   }
 })

@@ -1055,13 +1055,13 @@ body.pane-resizing * {
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   opacity: 0;
+  /* Container never blocks the tile: only the buttons opt back in. */
   pointer-events: none;
   transition: opacity 0.12s ease;
 }
 .eng-slot:hover .eng-actions,
 .eng-slot:focus-within .eng-actions {
   opacity: 1;
-  pointer-events: auto;
 }
 .eng-action {
   font: inherit;
@@ -1073,6 +1073,7 @@ body.pane-resizing * {
   background: var(--bg-3);
   color: var(--text);
   cursor: pointer;
+  pointer-events: auto;
 }
 .eng-action:hover {
   border-color: var(--accent);
@@ -1081,6 +1082,15 @@ body.pane-resizing * {
 .eng-action.uninstall:hover {
   border-color: #ff387b;
   color: #ff8fb2;
+}
+.eng-note {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--muted);
+  text-align: center;
+  padding: 0 6px;
+  /* A note, not a control — the tile underneath stays clickable. */
+  pointer-events: none;
 }
 .eng .n {
   font-size: 12px;

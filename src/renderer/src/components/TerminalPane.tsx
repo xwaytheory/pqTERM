@@ -887,6 +887,7 @@ if (pane.engine && !isRawShell(pane.engine)) {
                           key={a}
                           className={`eng-action ${a}`}
                           disabled={Boolean(busyAction)}
+                          aria-label={`${ACTION_LABEL[a]} ${name}`}
                           title={`${ACTION_LABEL[a]} — otworzy cmd z gotowym skryptem`}
                           onClick={(e) => {
                             e.stopPropagation()
@@ -897,7 +898,13 @@ if (pane.engine && !isRawShell(pane.engine)) {
                         </button>
                       ))}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="eng-actions">
+                      <span className="eng-note">
+                        {isShell ? 'wbudowany shell' : 'brak oficjalnego instalatora'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )
             })}
