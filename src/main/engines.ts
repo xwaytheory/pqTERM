@@ -368,6 +368,20 @@ export const ENGINE_SPECS: EngineSpec[] = [
     ]
   },
   {
+    id: 'kilocode',
+    name: 'Kilo Code',
+    vendor: 'Kilo',
+    color: '#e6e6e6',
+    mark: 'Kc',
+    // npm exposes both names (`kilocode` and `kilo`) for the same shim.
+    binaries: ['kilocode', 'kilocode.cmd', 'kilo', 'kilo.cmd'],
+    args: [],
+    hint: 'Kilo Code CLI — npm install -g @kilocode/cli (komendy: kilocode / kilo)',
+    extraPathDirs: ['%APPDATA%\\npm'],
+    npmPackage: '@kilocode/cli',
+    models: []
+  },
+  {
     id: 'shell',
     name: 'PowerShell',
     vendor: 'Windows',
