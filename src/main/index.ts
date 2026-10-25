@@ -1168,14 +1168,14 @@ function registerIpc(): void {
   // visible cmd/PowerShell window. pqTERM runs nothing itself; rescan on next click.
   const LIFECYCLE_ACTIONS: EngineAction[] = ['install', 'update', 'uninstall']
 
-  function runLifecycle(id: EngineId, action: EngineAction) {
+  function runLifecycle(id: EngineId, action: EngineAction): Promise<{ ok: boolean; message: string }> {
     const spec = specById(id)
     const script = lifecycleScript(spec, action)
     if (!script) {
-      return {
+      return Promise.resolve({
         ok: false,
         message: `${spec.name}: brak skryptu ${action} — użyj oficjalnego instalatora. ${spec.hint}`
-      }
+      })
     }
     // Temp script file: paths and quoted URLs survive without nested-quote bugs.
     const dir = join(tmpdir(), 'pq-lifecycle')
@@ -1184,25 +1184,47 @@ function registerIpc(): void {
     // must never overwrite a script whose window is still running.
     const file = join(dir, `${spec.id}-${action}-${Date.now()}.${script.kind}`)
     writeFileSync(file, script.body, 'utf8')
-    // Elevated (UAC): Start-Process -Verb RunAs re-launches the same script as
-    // Administrator. Spawned detached because the launcher blocks on consent.
-    const win = spawn('powershell.exe', elevateArgs(script.kind, file), {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-      cwd: homedir()
+    // Elevated (UAC). Wait for the launcher: it exits as soon as the user
+    // answers the consent prompt, and a non-zero exit is the only signal that
+    // UAC was declined or the launch failed — report it instead of going silent.
+    return new Promise((resolve) => {
+      const child = spawn('powershell.exe', elevateArgs(script.kind, file), {
+        // No `detached`: DETACHED_PROCESS makes PowerShell exit 0 without
+        // launching Start-Process, i.e. the click silently does nothing.
+        // windowsHide only hides the powershell launcher; the elevated
+        // cmd/PowerShell window still shows up normally.
+        windowsHide: true,
+        stdio: ['ignore', 'ignore', 'pipe'],
+        cwd: homedir()
+      })
+      let stderr = ''
+      child.stderr?.on('data', (chunk) => {
+        if (stderr.length < 4000) stderr += String(chunk)
+      })
+      child.on('error', (err) => {
+        resolve({ ok: false, message: `${spec.name}: nie udało się podnieść uprawnień — ${err.message}` })
+      })
+      child.on('exit', (code) => {
+        if (code === 0) {
+          resolve({
+            ok: true,
+            message: `${spec.name}: ${action} jako Administrator w osobnym oknie — po zakończeniu kliknij kafelek, aby odświeżyć stan.`
+          })
+          return
+        }
+        const tail = stderr.trim().split(/\r?\n/).filter(Boolean).pop() ?? ''
+        resolve({
+          ok: false,
+          message: `${spec.name}: ${action} nie wystartowało (UAC anulowany?)${tail ? ` — ${tail}` : ''}`
+        })
+      })
     })
-    win.unref()
-    return {
-      ok: true,
-      message: `${spec.name}: ${action} — potwierdź prompt administratora (UAC). Po zakończeniu kliknij kafelek, aby odświeżyć stan.`
-    }
   }
 
   ipcMain.handle('engines:lifecycle', async (_e, id: EngineId, action: EngineAction) => {
     if (!LIFECYCLE_ACTIONS.includes(action)) return { ok: false, message: 'nieznana akcja' }
     try {
-      return runLifecycle(id, action)
+      return await runLifecycle(id, action)
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : String(err) }
     }

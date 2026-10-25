@@ -1,5 +1,40 @@
 # pq workbench (gauntlet live board)
 
+## Hotfix po 1.5.4: „Aktualizuj nic nie robi" — winny `detached`, nie `-Command` (2026-10-25, `dev`)
+
+**Zgłoszenie:** po wdrożeniu 1.5.4 kliknięcie „Aktualizuj" (grok, hermes, opencode,
+omp, freebuff…) nie otwiera żadnego okna i nie pokazuje błędu.
+
+**Dowód, że klik dochodzi do main:** w `%TEMP%\pq-lifecycle` są wygenerowane
+skrypty z 19:00:18–19:00:48 (`grok-update-…`, `hermes-update-…`, `freebuff-update-…`
+×3). Czyli IPC i generowanie skryptu działają — nie startuje launcher.
+
+**Bisekcja `spawn` (ten sam `-Command` + `-Verb RunAs`, 4 s na efekt):**
+
+| opcje | efekt |
+|---|---|
+| `{ windowsHide: true }` | marker zapisany |
+| `{ detached: true, stdio: 'ignore' }` | **brak markera, brak stderr, exit 0** |
+| `{ detached: true, stdio: 'ignore', windowsHide: true }` | **brak markera** |
+| `{ detached: true, stdio: 'ignore', windowsHide: true, cwd: homedir() }` (build 1.5.4) | **brak markera** |
+| `{ windowsHide: true, cwd: homedir() }` (nowy kod) | marker zapisany |
+
+**Przyczyna:** `DETACHED_PROCESS` (Node `detached: true`) sprawia, że PowerShell
+kończy się kodem 0, nie wykonując `Start-Process`. Poprzednia diagnoza („`-Command`
+jest po cichu ignorowane") była błędna — test bez `detached` dawał marker.
+
+**Fix:** `runLifecycle()` spawnuje launcher **bez `detached`**, z
+`stdio: ['ignore','ignore','pipe']` i czeka na exit. `elevateArgs()` nadal używa
+`-EncodedCommand` (odporne na cytowanie) i dokłada
+`$ErrorActionPreference = 'Stop';` — bez tego nieudany `Start-Process` to błąd
+niekończący, PowerShell wychodzi 0 i UI raportuje sukces.
+
+**Weryfikacja end-to-end:** `elevateArgs()` + realny spawn → okno
+`Administrator: pq-final-probe` widoczne (`MainWindowTitle`), launcher exit 0;
+bogaty w błąd wariant (`no-such-exe-xyz.exe`) → **exit 1** + komunikat w stderr.
+
+**Dowód gates (dev):** `npm run test:unit` → 209/209; `npm run build` OK.
+
 ## 1.5.4: akcje CLI podniesione do Administratora (2026-10-25, `dev`)
 
 **Zgłoszenie:** „Zainstaluj / Aktualizuj / Odinstaluj" mają działać z uprawnieniami
@@ -8,9 +43,10 @@ mogą potrzebować UAC).
 
 **Fix:** `elevateArgs(kind, file)` w `src/main/install-scripts.ts` buduje
 `Start-Process -FilePath cmd.exe|powershell.exe -ArgumentList ... -Verb RunAs`;
-`runLifecycle()` spawnuje ten launcher detached (`windowsHide`), a komunikat mówi
-„potwierdź prompt administratora (UAC)". Sam skrypt (treść, PATH, `call`,
-`Set-Location`) bez zmian — elewacja tylko zmienia sposób startu.
+`runLifecycle()` spawnuje ten launcher (`windowsHide`). Sam skrypt (treść, PATH,
+`call`, `Set-Location`) bez zmian — elewacja tylko zmienia sposób startu.
+**Uwaga:** pierwotna wersja używała `detached: true` — to był błąd naprawiony
+wpisem wyżej.
 
 **Weryfikacja cytowania (bez wywoływania UAC):** `Start-Process -FilePath cmd.exe
 -ArgumentList '/d','/c','"C:\...\pq quote test\probe.cmd"' -Wait` → `exit=0`,
@@ -18,7 +54,7 @@ marker zapisany (ścieżka ze spacją). Test `every lifecycle window is launched
 elevated through UAC` pilnuje kształtu argumentów dla `.cmd` i `.ps1`.
 (`-WhatIf` nie istnieje w PS 5.1 — sprawdzone, nie używać.)
 
-**Dowód gates (dev):** `npm run test:unit` → patrz wpis niżej; `npm run build` OK;
+**Dowód gates (dev):** `npm run test:unit` → 209/209; `npm run build` OK;
 `npm run check:version` → `OK (product 1.5.4; 2 locki, cargo)`.
 
 ## SPAWN ENGINE: akcje na kafelkach + audyt skryptów (2026-10-25, `dev`)

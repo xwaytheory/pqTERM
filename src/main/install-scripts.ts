@@ -161,7 +161,16 @@ export function lifecycleScript(spec: LifecycleSpec, action: EngineAction): Life
 /**
  * PowerShell arguments that re-run a generated script as Administrator (UAC).
  * `Start-Process -Verb RunAs` waits for the consent prompt, so the caller
- * spawns this detached and tells the user to confirm.
+ * spawns this and reports the launcher's exit code.
+ *
+ * -EncodedCommand, not -Command: base64 UTF-16LE bypasses Node's argv quoting,
+ * so the nested -ArgumentList quotes reach PowerShell verbatim.
+ * `$ErrorActionPreference = 'Stop'` matters because a failed Start-Process is
+ * otherwise a non-terminating error: PowerShell exits 0 and the UI reports
+ * success while nothing opened (the 1.5.4 "Aktualizuj nic nie robi" bug).
+ *
+ * The caller must NOT spawn this detached: with DETACHED_PROCESS PowerShell
+ * exits 0 without ever running Start-Process (verified on 1.5.4).
  */
 export function elevateArgs(kind: 'cmd' | 'ps1', file: string): string[] {
   const script = `"${file.replace(/'/g, "''")}"`
@@ -170,10 +179,14 @@ export function elevateArgs(kind: 'cmd' | 'ps1', file: string): string[] {
       ? ['/d', '/k', script]
       : ['-NoProfile', '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', script]
   const list = inner.map((arg) => `'${arg.replace(/'/g, "''")}'`).join(',')
+  const command =
+    `$ErrorActionPreference = 'Stop'; ` +
+    `Start-Process -FilePath '${kind === 'cmd' ? 'cmd.exe' : 'powershell.exe'}' ` +
+    `-ArgumentList ${list} -Verb RunAs`
   return [
     '-NoProfile',
     '-NonInteractive',
-    '-Command',
-    `Start-Process -FilePath '${kind === 'cmd' ? 'cmd.exe' : 'powershell.exe'}' -ArgumentList ${list} -Verb RunAs`
+    '-EncodedCommand',
+    Buffer.from(command, 'utf16le').toString('base64')
   ]
 }
