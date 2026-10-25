@@ -275,7 +275,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     mark: 'Or',
     binaries: ['ori', 'ori.exe'],
     args: ['code', '-i', '--tty'],
-    hint: 'Ori Code (OpenRouter) — natywny coding agent. Instalacja: curl -fsSL https://openrouter.ai/labs/ori/install.sh | bash',
+    hint: 'Ori Code (OpenRouter) — natywny coding agent. Instalacja (Windows): irm https://openrouter.ai/labs/ori/install.ps1 | iex',
     extraPathDirs: ['%USERPROFILE%\\.local\\bin'],
     modelFlag: (id) => ['--model', id],
     models: [
@@ -331,7 +331,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     mark: 'Qd',
     binaries: ['qodercli', 'qodercli.exe'],
     args: [],
-    hint: 'Qoder CLI — oficjalny instalator: https://qoder.com/install.cmd',
+    hint: 'Qoder CLI — oficjalny instalator Windows: irm https://qoder-ide.oss-accelerate.aliyuncs.com/qodercli/install.ps1 | iex',
     extraPathDirs: ['%USERPROFILE%\\.qoder\\bin\\qodercli'],
     selfUpdate: ['install', '--force'],
     models: []
@@ -344,7 +344,8 @@ export const ENGINE_SPECS: EngineSpec[] = [
     binaries: ['baicode', 'baicode.exe'],
     args: [],
     hint: 'BAI code — CLI od B.AI (klient OpenAI-compatible; wymaga BAI_API_KEY)',
-    extraPathDirs: [],
+    // Official installer creates .venv in the CWD → install-scripts pins it here.
+    extraPathDirs: ['%USERPROFILE%\\.baicode\\.venv\\Scripts'],
     models: []
   },
   {
@@ -353,9 +354,9 @@ export const ENGINE_SPECS: EngineSpec[] = [
     vendor: 'Anysphere',
     color: '#2563eb',
     mark: 'Cu',
-    binaries: ['cursor', 'cursor.exe'],
+    binaries: ['cursor', 'cursor.exe', 'cursor-agent', 'cursor-agent.exe', 'cursor-agent.cmd'],
     args: ['--yolo'],
-    hint: 'Cursor Agent CLI — instalacja: oficjalny instalator https://cursor.com/install (Windows PowerShell).',
+    hint: "Cursor Agent CLI — instalacja (Windows): irm 'https://cursor.com/install?win32=true' | iex",
     extraPathDirs: ['%LOCALAPPDATA%\\cursor-agent', '%LOCALAPPDATA%\\Cursor\\resources\\app\\bin', '%APPDATA%\\npm'],
     modelFlag: (id) => ['--model', id],
     models: [

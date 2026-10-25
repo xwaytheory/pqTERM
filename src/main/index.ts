@@ -2,7 +2,7 @@ import { execFile, spawn } from 'child_process'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, session, shell } from './host'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { dirname, join, relative } from 'path'
-import { homedir } from 'os'
+import { homedir, tmpdir } from 'os'
 import { stat } from 'fs/promises'
 import {
   existsSync,
@@ -58,7 +58,7 @@ import { PtyManager } from './pty-manager'
 import { PaneActivityTracker } from './pane-activity'
 import { ENGINE_SPECS, specById } from './engines'
 import { EngineSync } from './sync'
-import { installCommand, lifecycleCommand } from './install-scripts'
+import { lifecycleScript } from './install-scripts'
 import { BoardHub } from './board'
 import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
@@ -1170,27 +1170,33 @@ function registerIpc(): void {
 
   function runLifecycle(id: EngineId, action: EngineAction) {
     const spec = specById(id)
-    const cmd = action === 'install' ? installCommand(id) : lifecycleCommand(spec, action)
-    if (!cmd) {
+    const script = lifecycleScript(spec, action)
+    if (!script) {
       return {
         ok: false,
         message: `${spec.name}: brak skryptu ${action} — użyj oficjalnego instalatora. ${spec.hint}`
       }
     }
-    const win = spawn(cmd.exe, cmd.args, {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: false,
-      cwd: homedir()
-    })
+    // Temp script file: paths and quoted URLs survive without nested-quote bugs.
+    const dir = join(tmpdir(), 'pq-lifecycle')
+    mkdirSync(dir, { recursive: true })
+    // Unique name: cmd.exe reads a .cmd file incrementally, so a second click
+    // must never overwrite a script whose window is still running.
+    const file = join(dir, `${spec.id}-${action}-${Date.now()}.${script.kind}`)
+    writeFileSync(file, script.body, 'utf8')
+    const win = spawn(
+      script.kind === 'cmd' ? 'cmd.exe' : 'powershell.exe',
+      script.kind === 'cmd'
+        ? ['/d', '/k', file]
+        : ['-NoProfile', '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', file],
+      { detached: true, stdio: 'ignore', windowsHide: false, cwd: homedir() }
+    )
     win.unref()
     return {
       ok: true,
       message: `${spec.name}: ${action} w osobnym oknie — po zakończeniu kliknij kafelek, aby odświeżyć stan.`
     }
   }
-
-  ipcMain.handle('engines:install', async (_e, id: EngineId) => runLifecycle(id, 'install'))
 
   ipcMain.handle('engines:lifecycle', async (_e, id: EngineId, action: EngineAction) => {
     if (!LIFECYCLE_ACTIONS.includes(action)) return { ok: false, message: 'nieznana akcja' }
