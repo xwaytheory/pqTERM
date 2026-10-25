@@ -1,5 +1,35 @@
 # pq workbench (gauntlet live board)
 
+## SPAWN ENGINE: hover = Zainstaluj / Aktualizuj / Odinstaluj (2026-10-25, `dev`)
+
+**Zgłoszenie:** kafelek CLI ma pokazywać po najechaniu gotowe akcje: brak CLI →
+„Zainstaluj" (cmd ze skryptem instalacyjnym), zainstalowane → „Aktualizuj"
+i „Odinstaluj", każde w osobnym oknie cmd/PowerShell.
+
+**Rozwiązanie (ponytail: zero nowych zależności, jedno źródło skryptów):**
+
+1. `src/main/install-scripts.ts` — `lifecycleCommand(spec, action)` generuje komendę
+   z danych, które już były w specu: `selfUpdate` → `<bin> update`, `npmPackage` →
+   `npm i -g <pkg>@latest` / `npm uninstall -g <pkg>`, `pipPackage` → `pip -U` /
+   `pip uninstall -y`. Natywne deinstalatory tylko zweryfikowane przez `--help`
+   (`hermes update`, `hermes uninstall`); brak skryptu = `null`, nigdy zgadywanie.
+2. `lifecycleActions(spec)` → `ProviderInfo.actions` (`src/shared/types.ts`), więc
+   renderer nie rysuje martwych przycisków.
+3. IPC `engines:lifecycle` (walidacja akcji, `specById` po stronie main) + preload.
+4. `TerminalPane.tsx` — kafelek w `.eng-slot`, overlay `.eng-actions` na hover/focus;
+   `busy` = `Map<EngineId, EngineAction>` (status „instaluje…/aktualizuje…/…”).
+5. `launch()` skanuje providerów **zawsze** — po zewnętrznym uninstallu kafelek nie
+   odpala już usuniętego CLI.
+
+**Dowód:** `npm run typecheck` czysty; `npm run test:unit` → **209/209 pass**
+(+5 testów lifecycle: npm, selfUpdate, pip, natywne, raw shell); `npm run build` OK;
+`check:version` OK.
+
+**Ograniczenie (świadome):** silniki bez znanego deinstalatora (np. `grok`,
+`qoder`, `ori`, `cursor`, `antigravity`) pokazują tylko akcje, które realnie
+istnieją — `grok` ma `update`, reszta bez `uninstall`. Dokładanie zgadywanego
+„Odinstaluj" mogłoby zostawić system w połowie usunięty.
+
 ## `pqterm update`: npm.cmd z "Program Files" padał na przebudowie (2026-10-17, `dev`)
 
 **Zgłoszenie (maszyna klienta, `C:/Users/admin/pq`):** instancje ff-merge się, ale przebudowa

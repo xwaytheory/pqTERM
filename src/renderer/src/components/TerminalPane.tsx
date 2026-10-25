@@ -11,6 +11,7 @@ import {
   parseGridIntent,
   type CursorStyleId,
   type EngineId,
+  type EngineAction,
   type EngineUsage,
   type FontId,
   type PaneArea,
@@ -22,6 +23,12 @@ import { areaStyle } from '../../../shared/grid'
 import { paneUnderMin } from '../../../shared/term-geometry'
 import { formatDroppedPaths, pathShellForPane, quotePath } from '../lib/dropPaths'
 import EngineMark from './EngineMark'
+
+const ACTION_LABEL: Record<EngineAction, string> = {
+  install: 'Zainstaluj',
+  update: 'Aktualizuj',
+  uninstall: 'Odinstaluj'
+}
 
 function resetLeft(ms?: number): string {
   if (!ms) return ''
@@ -125,7 +132,7 @@ function TerminalPane({
   const [tooSmall, setTooSmall] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [dropStatus, setDropStatus] = useState<string | null>(null)
-  const [installing, setInstalling] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState<Map<string, EngineAction>>(new Map())
   const [installError, setInstallError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [editing, setEditing] = useState(false)
@@ -577,6 +584,23 @@ if (pane.engine && !isRawShell(pane.engine)) {
   const tiles = [...enabled, ...rawShells]
   tiles.sort((a, b) => tileName(a).localeCompare(tileName(b), 'en', { sensitivity: 'base' }))
 
+  async function runAction(engine: EngineId, action: EngineAction) {
+    setInstallError(null)
+    setBusy((prev) => new Map(prev).set(engine, action))
+    try {
+      const res = await window.pq.engines.lifecycle(engine, action)
+      if (!res.ok) setInstallError(res.message)
+    } catch (err) {
+      setInstallError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy((prev) => {
+        const next = new Map(prev)
+        next.delete(engine)
+        return next
+      })
+    }
+  }
+
   async function launch(engine: EngineId, allIdle = false) {
     if (allIdle) {
       await window.pq.panes.fill({ engine })
@@ -584,29 +608,16 @@ if (pane.engine && !isRawShell(pane.engine)) {
     }
     setInstallError(null)
     let p = providers.find((x) => x.id === engine)
-    if (p && !p.installed) {
-      // Re-scan first so a finished external install (cmd window) turns the
-      // NEXT click into a launch instead of re-opening the installer.
-      try {
-        p = (await window.pq.providers.scan()).find((x) => x.id === engine)
-      } catch {
-        /* stale p is fine */
-      }
+    // Always re-scan: an external install/update/uninstall window may have
+    // changed PATH since the last scan, so the tile must not launch (or
+    // re-offer) a CLI that is already gone.
+    try {
+      p = (await window.pq.providers.scan()).find((x) => x.id === engine)
+    } catch {
+      /* stale p is fine */
     }
     if (p && !p.installed) {
-      setInstalling((prev) => new Set(prev).add(engine))
-      try {
-        const res = await window.pq.engines.install(engine)
-        if (!res.ok) setInstallError(res.message)
-      } catch (err) {
-        setInstallError(err instanceof Error ? err.message : String(err))
-      } finally {
-        setInstalling((prev) => {
-          const next = new Set(prev)
-          next.delete(engine)
-          return next
-        })
-      }
+      await runAction(engine, 'install')
       // pane launches on the next click, once the scan actually detects the CLI
       return
     }
@@ -827,44 +838,67 @@ if (pane.engine && !isRawShell(pane.engine)) {
           <div className="engines">
             {tiles.map((p) => {
               const isShell = isRawShell(p.id)
-              const isInstalling = installing.has(p.id)
+              const busyAction = busy.get(p.id)
               const name = tileName(p)
               const vendor = isShell ? 'Windows' : p.vendor
               const status = isShell
                 ? 'raw shell'
-                : isInstalling
-                  ? 'installing…'
+                : busyAction
+                  ? `${ACTION_LABEL[busyAction].toLowerCase()}…`
                   : p.installed
                     ? p.detectedAuth
                       ? 'detected'
                       : 'installed'
                     : 'click to install'
+              // Installed tiles offer update/uninstall; missing ones offer install.
+              const shown = isShell
+                ? []
+                : p.actions.filter((a) => (p.installed ? a !== 'install' : a === 'install'))
               return (
-                <button
-                  key={p.id}
-                  className={`eng${!p.installed ? ' disabled-visual' : ''}`}
-                  style={!p.installed ? { opacity: 0.35, filter: 'grayscale(1)' } : undefined}
-                  disabled={isInstalling}
-                  title={`${name} · ${vendor}`}
-                  onClick={(e) => launch(p.id, e.shiftKey)}
-                >
-                  <EngineMark
-                    id={p.id}
-                    name={name}
-                    color={p.color}
-                    logo={p.logo}
-                    icon={p.icon}
-                    mark={p.mark}
-                    size={34}
-                  />
-                  <span className="meta">
-                  <span className="n" style={{ color: p.color }}>
-                    {name}
-                  </span>
-                  <span className="v">{vendor}</span>
-                  <span className="st">{status}</span>
-                  </span>
-                </button>
+                <div key={p.id} className="eng-slot">
+                  <button
+                    className={`eng${!p.installed ? ' disabled-visual' : ''}`}
+                    style={!p.installed ? { opacity: 0.35, filter: 'grayscale(1)' } : undefined}
+                    disabled={Boolean(busyAction)}
+                    title={`${name} · ${vendor}`}
+                    onClick={(e) => launch(p.id, e.shiftKey)}
+                  >
+                    <EngineMark
+                      id={p.id}
+                      name={name}
+                      color={p.color}
+                      logo={p.logo}
+                      icon={p.icon}
+                      mark={p.mark}
+                      size={34}
+                    />
+                    <span className="meta">
+                      <span className="n" style={{ color: p.color }}>
+                        {name}
+                      </span>
+                      <span className="v">{vendor}</span>
+                      <span className="st">{status}</span>
+                    </span>
+                  </button>
+                  {shown.length ? (
+                    <div className="eng-actions">
+                      {shown.map((a) => (
+                        <button
+                          key={a}
+                          className={`eng-action ${a}`}
+                          disabled={Boolean(busyAction)}
+                          title={`${ACTION_LABEL[a]} — otworzy cmd z gotowym skryptem`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void runAction(p.id, a)
+                          }}
+                        >
+                          {ACTION_LABEL[a]}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               )
             })}
           </div>

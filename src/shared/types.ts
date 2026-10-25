@@ -24,6 +24,9 @@ export type EngineId =
   | 'shell'
   | 'cmd'
 
+/** Lifecycle actions a CLI tile may expose; main decides which ones have a safe script. */
+export type EngineAction = 'install' | 'update' | 'uninstall'
+
 export function isRawShell(id: EngineId): boolean {
   return id === 'shell' || id === 'cmd'
 }
@@ -88,6 +91,8 @@ export interface ProviderInfo {
   /** Optional monogram override (two-letter collision marks). */
   mark?: string
   installed: boolean
+  /** Actions with a ready script; computed in main from the engine spec. */
+  actions: EngineAction[]
   detectedAuth: boolean
   matchedEmail?: string
   resolvedPath?: string
