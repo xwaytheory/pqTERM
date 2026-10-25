@@ -2,7 +2,11 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.5.4** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.5.5** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.5.5
+
+- **Naprawa „Aktualizuj nic nie robi” (regresja 1.5.4).** Launcher UAC był spawnowany jako `detached`, a taki proces PowerShell kończył się kodem 0, nie uruchamiając `Start-Process` — bez okna i bez błędu. Teraz launcher działa bez `detached`, a nieudane podniesienie uprawnień zwraca niezerowy kod i pokazuje komunikat w UI.
 
 ## Nowości 1.5.4
 

@@ -1,6 +1,6 @@
 # pq workbench (gauntlet live board)
 
-## Hotfix po 1.5.4: „Aktualizuj nic nie robi" — winny `detached`, nie `-Command` (2026-10-25, `dev`)
+## Hotfix 1.5.5 po 1.5.4: „Aktualizuj nic nie robi" — winny `detached`, nie `-Command` (2026-10-25, `dev`)
 
 **Zgłoszenie:** po wdrożeniu 1.5.4 kliknięcie „Aktualizuj" (grok, hermes, opencode,
 omp, freebuff…) nie otwiera żadnego okna i nie pokazuje błędu.
