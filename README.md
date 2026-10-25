@@ -2,7 +2,12 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.5.3** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.5.4** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.5.4
+
+- **Akcje na kafelkach SPAWN ENGINE.** Najechanie na CLI pokazuje „Zainstaluj” (gdy go nie ma) albo „Aktualizuj” i „Odinstaluj” (gdy jest); każde uruchamia gotowy, oficjalny skrypt w osobnym oknie. Dodane m.in. instalatory Cursor, Antigravity i ori; silniki bez zweryfikowanego instalatora/deinstalatora pokazują tylko akcje, które realnie istnieją (żadnych zgadywanych komend).
+- **Skrypty startują jako Administrator.** Instalacja, aktualizacja i deinstalacja idą przez `Start-Process -Verb RunAs` (UAC), więc działają także przy `npm run dev` uruchomionym bez podniesienia.
 
 ## Nowości 1.5.3
 

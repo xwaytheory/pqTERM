@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { lifecycleActions, lifecycleScript } from './install-scripts.ts'
+import { elevateArgs, lifecycleActions, lifecycleScript } from './install-scripts.ts'
 
 // Literal specs (not ENGINE_SPECS): engines.ts uses extensionless runtime
 // imports, which node --experimental-strip-types cannot resolve. Values mirror
@@ -105,6 +105,29 @@ test('CWD-relative installer runs inside the detectable install dir', () => {
     body.includes('.baicode\\.venv\\Scripts;'),
     'that venv is on PATH, so the next scan detects baicode'
   )
+})
+
+test('every lifecycle window is launched elevated through UAC', () => {
+  const cmd = elevateArgs('cmd', 'C:\\Temp\\pq-lifecycle\\kimi-install-1.cmd')
+  assert.deepEqual(cmd.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command'])
+  const line = cmd[3]
+  assert.ok(line.startsWith("Start-Process -FilePath 'cmd.exe'"), line)
+  assert.ok(
+    line.includes(`-ArgumentList '/d','/k','"C:\\Temp\\pq-lifecycle\\kimi-install-1.cmd"'`),
+    line
+  )
+  assert.ok(line.endsWith('-Verb RunAs'), line)
+
+  const ps1 = elevateArgs('ps1', 'C:\\Users\\Jan Kowalski\\Temp\\ori-install-1.ps1')
+  const line2 = ps1[3]
+  assert.ok(line2.startsWith("Start-Process -FilePath 'powershell.exe'"), line2)
+  assert.ok(
+    line2.includes(
+      `-ArgumentList '-NoProfile','-NoExit','-ExecutionPolicy','Bypass','-File','"C:\\Users\\Jan Kowalski\\Temp\\ori-install-1.ps1"'`
+    ),
+    line2
+  )
+  assert.ok(line2.endsWith('-Verb RunAs'), line2)
 })
 
 test('raw shells never get lifecycle buttons', () => {

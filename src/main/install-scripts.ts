@@ -157,3 +157,23 @@ export function lifecycleScript(spec: LifecycleSpec, action: EngineAction): Life
     .join('\r\n')
   return { kind: 'cmd', body: body + '\r\n' }
 }
+
+/**
+ * PowerShell arguments that re-run a generated script as Administrator (UAC).
+ * `Start-Process -Verb RunAs` waits for the consent prompt, so the caller
+ * spawns this detached and tells the user to confirm.
+ */
+export function elevateArgs(kind: 'cmd' | 'ps1', file: string): string[] {
+  const script = `"${file.replace(/'/g, "''")}"`
+  const inner =
+    kind === 'cmd'
+      ? ['/d', '/k', script]
+      : ['-NoProfile', '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', script]
+  const list = inner.map((arg) => `'${arg.replace(/'/g, "''")}'`).join(',')
+  return [
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    `Start-Process -FilePath '${kind === 'cmd' ? 'cmd.exe' : 'powershell.exe'}' -ArgumentList ${list} -Verb RunAs`
+  ]
+}

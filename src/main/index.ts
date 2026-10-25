@@ -58,7 +58,7 @@ import { PtyManager } from './pty-manager'
 import { PaneActivityTracker } from './pane-activity'
 import { ENGINE_SPECS, specById } from './engines'
 import { EngineSync } from './sync'
-import { lifecycleScript } from './install-scripts'
+import { elevateArgs, lifecycleScript } from './install-scripts'
 import { BoardHub } from './board'
 import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
@@ -1184,17 +1184,18 @@ function registerIpc(): void {
     // must never overwrite a script whose window is still running.
     const file = join(dir, `${spec.id}-${action}-${Date.now()}.${script.kind}`)
     writeFileSync(file, script.body, 'utf8')
-    const win = spawn(
-      script.kind === 'cmd' ? 'cmd.exe' : 'powershell.exe',
-      script.kind === 'cmd'
-        ? ['/d', '/k', file]
-        : ['-NoProfile', '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', file],
-      { detached: true, stdio: 'ignore', windowsHide: false, cwd: homedir() }
-    )
+    // Elevated (UAC): Start-Process -Verb RunAs re-launches the same script as
+    // Administrator. Spawned detached because the launcher blocks on consent.
+    const win = spawn('powershell.exe', elevateArgs(script.kind, file), {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      cwd: homedir()
+    })
     win.unref()
     return {
       ok: true,
-      message: `${spec.name}: ${action} w osobnym oknie — po zakończeniu kliknij kafelek, aby odświeżyć stan.`
+      message: `${spec.name}: ${action} — potwierdź prompt administratora (UAC). Po zakończeniu kliknij kafelek, aby odświeżyć stan.`
     }
   }
 
