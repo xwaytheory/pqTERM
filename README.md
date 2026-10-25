@@ -2,7 +2,11 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.5.5** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.6.0** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.6.0
+
+- **Kilo Code w SPAWN ENGINE.** Kafelek pokazuje stan CLI i akcje „Zainstaluj” / „Aktualizuj” / „Odinstaluj” oparte o oficjalne `@kilocode/cli` (komendy `kilocode` i `kilo`), z logo i własnym kolorem.
 
 ## Nowości 1.5.5
 

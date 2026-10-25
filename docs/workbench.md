@@ -1,6 +1,6 @@
 # pq workbench (gauntlet live board)
 
-## SPAWN ENGINE: Kilo Code (2026-10-25, `dev`)
+## SPAWN ENGINE: Kilo Code (2026-10-25, `dev`, wydane w 1.6.0)
 
 **Zgłoszenie:** dodać Kilo Code do siatki CLI.
 
