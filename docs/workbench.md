@@ -1,5 +1,26 @@
 # pq workbench (gauntlet live board)
 
+## 1.5.4: akcje CLI podniesione do Administratora (2026-10-25, `dev`)
+
+**Zgłoszenie:** „Zainstaluj / Aktualizuj / Odinstaluj" mają działać z uprawnieniami
+administratora (dev działa bez podniesienia, więc npm-global i instalatory natywne
+mogą potrzebować UAC).
+
+**Fix:** `elevateArgs(kind, file)` w `src/main/install-scripts.ts` buduje
+`Start-Process -FilePath cmd.exe|powershell.exe -ArgumentList ... -Verb RunAs`;
+`runLifecycle()` spawnuje ten launcher detached (`windowsHide`), a komunikat mówi
+„potwierdź prompt administratora (UAC)". Sam skrypt (treść, PATH, `call`,
+`Set-Location`) bez zmian — elewacja tylko zmienia sposób startu.
+
+**Weryfikacja cytowania (bez wywoływania UAC):** `Start-Process -FilePath cmd.exe
+-ArgumentList '/d','/c','"C:\...\pq quote test\probe.cmd"' -Wait` → `exit=0`,
+marker zapisany (ścieżka ze spacją). Test `every lifecycle window is launched
+elevated through UAC` pilnuje kształtu argumentów dla `.cmd` i `.ps1`.
+(`-WhatIf` nie istnieje w PS 5.1 — sprawdzone, nie używać.)
+
+**Dowód gates (dev):** `npm run test:unit` → patrz wpis niżej; `npm run build` OK;
+`npm run check:version` → `OK (product 1.5.4; 2 locki, cargo)`.
+
 ## SPAWN ENGINE: akcje na kafelkach + audyt skryptów (2026-10-25, `dev`)
 
 **Zgłoszenie 1:** kafelek CLI ma pokazywać po najechaniu gotowe akcje: brak CLI →
