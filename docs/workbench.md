@@ -1,5 +1,31 @@
 # pq workbench (gauntlet live board)
 
+## SPAWN ENGINE: CodeBuddy Code (2026-11-01, `dev`, wydane w 1.8.0)
+
+**Zgłoszenie:** dodać CodeBuddy CLI (`codebuddy.cn`) do siatki — z logo wskazanym
+przez użytkownika i startem bez pytań, jak każde inne CLI.
+
+**Spec** (`src/main/engines.ts`): `codebuddy`, vendor Tencent Cloud, binarki
+`codebuddy`/`cbc` (+ `.cmd` — npm wystawia obie nazwy dla tego samego shimu),
+`npmPackage: '@tencent-ai/codebuddy-code'`, `selfUpdate: ['update']` (komenda
+`codebuddy update` z oficjalnego CLI reference), PATH `%APPDATA%\npm`, kolor
+`#6c4dff` z logo.
+
+**YOLO:** `--dangerously-skip-permissions` — oficjalne docs: równoważne
+`--permission-mode bypassPermissions`. Świadomie **bez** `CODEBUDDY_IS_SANDBOX=1`:
+docs rezerwują tę zmienną wyłącznie dla izolowanych sandboxów bez dostępu do
+sieci i odradzają jej na lokalnej maszynie. Trust przy starcie: `trust.ts`
+dopisuje `trustAll: true` do `~/.codebuddy/settings.json` (strict JSON —
+komentarze/JSONC zostają nietknięte, jak przy Claude).
+
+**Reszta ścieżki:** `EngineId` + `ENGINE_ORDER` (shared), `case 'codebuddy'`
+w grupie npm `resolve-launch.ts`, logo `assets/engines/codebuddy.png` (URL od
+użytkownika, LobeHub `codebuddy-color`) + wpis w `engineLogoMeta.ts` i
+`docs/LOGOS-INVENTORY.md`. Akcje install/update/uninstall generowane z
+`npmPackage` — bez osobnych skryptów.
+
+**Dowód gates (dev):** patrz wynik `npm run test:unit` / `npm run build` w tym commicie.
+
 ## SPAWN ENGINE: akcje w stopce + pełny audyt trybu YOLO (2026-11-01, `dev`, wydane w 1.7.0)
 
 **Zgłoszenie:** hover z „Aktualizuj"/„Odinstaluj" zasłaniał logo, nazwę i vendora
@@ -47,6 +73,7 @@ albo oficjalnych docsach (data 2026-11-01):
 | qoder | `--yolo` | oficjalne docs Qoder CLI |
 | cursor | `--yolo --approve-mcps` | oficjalne docs Cursor CLI |
 | kilocode | `--auto` | `kilo --auto --version` (7.8.18) |
+| codebuddy | `--dangerously-skip-permissions` | oficjalne docs CodeBuddy CLI: `-y` = `--permission-mode bypassPermissions`; trust: `trustAll` w `~/.codebuddy/settings.json` |
 | shell | `-NoLogo -NoExit -ExecutionPolicy Bypass` | `resolve-launch.ts` |
 | cmd | `/K` | bez systemu pozwoleń |
 

@@ -382,6 +382,21 @@ export const ENGINE_SPECS: EngineSpec[] = [
     models: []
   },
   {
+    id: 'codebuddy',
+    name: 'CodeBuddy Code',
+    vendor: 'Tencent Cloud',
+    color: '#6c4dff',
+    mark: 'Cb',
+    // npm exposes both names (`codebuddy` and `cbc`) for the same shim.
+    binaries: ['codebuddy', 'codebuddy.cmd', 'cbc', 'cbc.cmd'],
+    args: ['--dangerously-skip-permissions'],
+    hint: 'CodeBuddy Code (Tencent Cloud) — TUI. npm install -g @tencent-ai/codebuddy-code (komendy: codebuddy / cbc). YOLO: --dangerously-skip-permissions + trustAll w ~/.codebuddy/settings.json.',
+    extraPathDirs: ['%APPDATA%\\npm'],
+    npmPackage: '@tencent-ai/codebuddy-code',
+    selfUpdate: ['update'],
+    models: []
+  },
+  {
     id: 'shell',
     name: 'PowerShell',
     vendor: 'Windows',

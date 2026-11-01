@@ -108,6 +108,7 @@ describe('pathShellForPane ENGINE_SPECS matrix contract', () => {
     'crush',
     'aider',
     'copilot',
+    'codebuddy',
     'shell',
     'cmd'
   ] as const
