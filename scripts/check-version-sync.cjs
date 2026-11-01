@@ -42,7 +42,10 @@ const STATIC_ALLOWED = [
   'crc32fast@1.5.1',
   // product 1.7.0: `cargo info blocking@1.7.0` confirms the real crate version;
   // the bump diff touches only the local `pq` crate in src-tauri/Cargo.lock.
-  'blocking@1.7.0'
+  'blocking@1.7.0',
+  // product 1.9.0: `cargo info zeroize@1.9.0` confirms the real crate version;
+  // the bump diff touches only the local crates in each lock.
+  'zeroize@1.9.0'
 ]
 const allowed = new Set([
   ...STATIC_ALLOWED,

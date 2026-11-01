@@ -992,7 +992,9 @@ body.pane-resizing * {
   padding: 12px 0;
 }
 .picker h3 {
-  margin: 0;
+  /* The favourites strip is a separate block; give the heading a little more
+     air than the 10px flex gap (4px extra) so the two do not read as one row. */
+  margin: 4px 0 0;
   color: var(--muted);
   font-weight: 500;
   letter-spacing: 0.14em;
