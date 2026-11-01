@@ -2,7 +2,11 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.8.0** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.9.0** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.9.0
+
+- **Ulubione silniki w SPAWN ENGINE.** Serce w prawym górnym rogu każdego kafelka dodaje CLI do paska nad siatką; kliknięcie chipa uruchamia silnik (shift+klik wypełnia wszystkie puste okna), a lista jest zapisywana w `pq-state.json`. Pasek zawija się do kolejnych rzędów, więc wszystkie ulubione pozostają widoczne, i ma 4 px więcej odstępu od nagłówka SPAWN ENGINE.
 
 ## Nowości 1.8.0
 

@@ -1,6 +1,6 @@
 # pq workbench (gauntlet live board)
 
-## SPAWN ENGINE: serca i pasek ulubionych (2026-11-01, `dev`)
+## SPAWN ENGINE: serca i pasek ulubionych (2026-11-01, `dev`, wydane w 1.9.0)
 
 **Zgłoszenie:** w prawym górnym rogu każdego kafelka SPAWN ENGINE ma być serce;
 zaznaczone CLI ma trafiać do paska „ulubione” nad nagłówkiem SPAWN ENGINE.
@@ -28,6 +28,9 @@ i scrolla) — wszystkie ulubione są widoczne, a picker przewija się, gdy uro�
 Siatka kafelków przeszła z `repeat(4, 1fr)` na `repeat(auto-fill, minmax(140px, 1fr))`
 (max 720 px), więc wąski pane nie ściska kafelków do ~35 px i serce nie wchodzi
 na logo.
+
+**Wydanie 1.9.0:** po akceptacji DEV pasek dostał dodatkowe 4 px odstępu od
+nagłówka SPAWN ENGINE (`.picker h3 { margin-top: 4px }`); bez zmian w logice.
 
 **Bramki (`dev`):** `npm run typecheck` (oba projekty), `npm run test:unit`
 (**214/214**, 9 suit, w tym 2 nowe testy `sanitizeUi` dla ulubionych),
