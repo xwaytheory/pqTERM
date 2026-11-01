@@ -978,10 +978,11 @@ body.pane-resizing * {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  justify-content: safe center;
   color: var(--dim);
 }
 .picker-inner {
-  margin: auto;
+  margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
   display: flex;
@@ -1004,15 +1005,16 @@ body.pane-resizing * {
 }
 .engines {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 8px;
   align-content: center;
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
   padding: 0 12px;
   box-sizing: border-box;
 }
 .eng-slot {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -1101,6 +1103,9 @@ body.pane-resizing * {
 .eng .n {
   font-size: 12px;
   width: 100%;
+  /* reserve the corner for the heart, not the whole row: the vendor line
+     keeps the full width and short names are not truncated any earlier */
+  padding-right: 26px;
   text-align: left;
   line-height: 1.35;
   min-height: 16px;
@@ -1129,6 +1134,132 @@ body.pane-resizing * {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ── favourites: one compact row above SPAWN ENGINE ───────────────── */
+.favbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  column-gap: 8px;
+  row-gap: 4px;
+  width: 100%;
+  max-width: 720px;
+  min-height: 24px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  font-size: 10px;
+}
+.favbar-label {
+  flex: none;
+  color: var(--muted);
+  letter-spacing: 0.14em;
+  line-height: 24px;
+  text-transform: uppercase;
+}
+.favbar-empty {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 24px;
+  color: var(--muted);
+}
+/* Wrap instead of hiding the overflow: every starred CLI must be reachable.
+   A second row is cheaper than a horizontal scrollbar (and its fade mask read
+   as a "shadow" on the last chip). */
+.favbar-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.favbar-list > li {
+  flex: none;
+}
+.fav {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 132px;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.fav .n {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fav .engine-logo,
+.fav .engine-mark {
+  flex: none;
+}
+.fav:not(:disabled):hover {
+  color: var(--text);
+  border-color: var(--accent-dim);
+  background: var(--wash);
+}
+.fav:not(:disabled):active {
+  background: var(--bg-3);
+  transform: translateY(1px);
+}
+.fav:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+.fav:disabled {
+  opacity: 0.35;
+  cursor: progress;
+}
+.fav.missing {
+  border-style: dashed;
+}
+.fav.missing:not(:disabled) {
+  opacity: 0.75;
+}
+.fav.missing:not(:disabled):hover {
+  opacity: 1;
+}
+
+/* Corner heart: 24px hit area, 3px inset clears the 8px tile radius. It is a
+   sibling of the tile button (nested buttons are invalid) and never disabled
+   by an install, so a CLI can be starred while it is still installing. */
+.fav-btn {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  z-index: 1;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.fav-btn:hover {
+  color: var(--text);
+  background: var(--wash);
+}
+.fav-btn:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+.fav-btn.on {
+  color: var(--accent);
 }
 
 .blank {

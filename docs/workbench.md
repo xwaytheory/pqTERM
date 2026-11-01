@@ -1,5 +1,40 @@
 # pq workbench (gauntlet live board)
 
+## SPAWN ENGINE: serca i pasek ulubionych (2026-11-01, `dev`)
+
+**Zgłoszenie:** w prawym górnym rogu każdego kafelka SPAWN ENGINE ma być serce;
+zaznaczone CLI ma trafiać do paska „ulubione” nad nagłówkiem SPAWN ENGINE.
+Ulubione użytkownika: Freebuff, OpenCode, Kilo Code, CodeBuddy, Hermes, OMP.
+
+**Dane:** `UiSettings.favoriteEngines: EngineId[]` (`src/shared/types.ts`) trzyma
+kolejność zaznaczania. `DEFAULT_UI.favoriteEngines = []`. `sanitizeUi()` przepuszcza
+tylko id z `ENGINE_ORDER`, deduplikuje, a nie-tablicę zastępuje kopią poprzedniej
+wartości — ten sam walidator obsługuje `ui:set` i ręcznie edytowany `pq-state.json`.
+Zero nowych kanałów IPC: renderer wysyła pełną tablicę przez istniejące
+`window.pq.ui.set`, main zapisuje `state.ui`, a `state:changed` odsyła snapshot.
+
+**UI:** serce jest **rodzeństwem** przycisku kafelka (nie zagnieżdżonym buttonem),
+ma 24 px hit area, `aria-pressed` i stan outline/filled. Pasek `.favbar` nad
+„SPAWN ENGINE” pokazuje logo + nazwę; kliknięcie idzie przez `launch()`, więc
+niezainstalowane CLI najpierw się instaluje, a shift+klik wypełnia wszystkie puste
+okna. Wyłączony provider znika z paska (id zostaje w stanie), a trwająca
+instalacja blokuje chip, ale nie serce. Nazwa kafelka rezerwuje 26 px tylko na
+linii nazwy (`.eng .n`), więc vendor dalej ma pełną szerokość.
+
+**Poprawka po pierwszej wersji:** pasek był jedną linią z horizontal scroll i
+maską gradientową. Użytkownik zgłosił, że przy większej liczbie ulubionych ostatni
+chip się nie mieści i wygląda jak cień. Zamienione na `flex-wrap: wrap` (bez maski
+i scrolla) — wszystkie ulubione są widoczne, a picker przewija się, gdy urośnie.
+Siatka kafelków przeszła z `repeat(4, 1fr)` na `repeat(auto-fill, minmax(140px, 1fr))`
+(max 720 px), więc wąski pane nie ściska kafelków do ~35 px i serce nie wchodzi
+na logo.
+
+**Bramki (`dev`):** `npm run typecheck` (oba projekty), `npm run test:unit`
+(**214/214**, 9 suit, w tym 2 nowe testy `sanitizeUi` dla ulubionych),
+`npm run build` i `npm run check:version` — zielone. Weryfikacja wzrokowa na
+`npm run dev`: 7 ulubionych zawija się do 2 rzędów, serca widać na wszystkich
+kafelkach, brak przyciętego cienia. Po merge na `test` bramki powtórzone.
+
 ## SPAWN ENGINE: CodeBuddy Code (2026-11-01, `dev`, wydane w 1.8.0)
 
 **Zgłoszenie:** dodać CodeBuddy CLI (`codebuddy.cn`) do siatki — z logo wskazanym

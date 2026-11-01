@@ -770,6 +770,7 @@ export default function DeckScreen({ snap }: { snap: AppSnapshot }) {
                               cursorStyle={snap.ui.cursorStyle}
                               cursorBlink={snap.ui.cursorBlink}
                               scrollback={snap.ui.scrollback}
+                              favoriteEngines={snap.ui.favoriteEngines}
                               onAdd={() => addPane(w.id)}
                               onClose={() => closePane(w.id, p.id)}
                               onDragStart={beginDrag}

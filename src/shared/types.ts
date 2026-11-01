@@ -260,6 +260,8 @@ export interface UiSettings {
   scrollback: number
   /** whole-GUI Chromium zoom factor (Ctrl+wheel / Ctrl+plus-minus), 0.5–2 */
   zoom: number
+  /** SPAWN ENGINE favourites, in the order the user starred them. */
+  favoriteEngines: EngineId[]
 }
 
 export const DEFAULT_UI: UiSettings = {
@@ -269,7 +271,8 @@ export const DEFAULT_UI: UiSettings = {
   cursorStyle: 'bar',
   cursorBlink: true,
   scrollback: 4000,
-  zoom: 1
+  zoom: 1,
+  favoriteEngines: []
 }
 
 export const UI_FONT_MIN = 9
@@ -300,7 +303,14 @@ export function sanitizeUi(patch: Partial<UiSettings> | undefined, base: UiSetti
     cursorBlink: typeof p.cursorBlink === 'boolean' ? p.cursorBlink : base.cursorBlink,
     fontSize: num(p.fontSize) ? clampInt(p.fontSize, UI_FONT_MIN, UI_FONT_MAX) : base.fontSize,
     scrollback: num(p.scrollback) ? clampInt(p.scrollback, 0, UI_SCROLLBACK_MAX) : base.scrollback,
-    zoom: num(p.zoom) ? clampZoom(p.zoom) : base.zoom
+    zoom: num(p.zoom) ? clampZoom(p.zoom) : base.zoom,
+    // Engine ids are a closed set and the renderer owns the order. Drop junk,
+    // dedupe, and never alias the default array (callers may replace it).
+    favoriteEngines: Array.isArray(p.favoriteEngines)
+      ? [...new Set(p.favoriteEngines)].filter((id): id is EngineId =>
+          ENGINE_ORDER.includes(id as EngineId)
+        )
+      : [...base.favoriteEngines]
   }
 }
 

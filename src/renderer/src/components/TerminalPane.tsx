@@ -66,6 +66,25 @@ function ActionIcon({ action }: { action: EngineAction }) {
   )
 }
 
+/** 14px heart inside a 24px hit area. Outline = off, filled = on. */
+function Heart({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20.5 4.9 13.6A4.9 4.9 0 0 1 12 6.9a4.9 4.9 0 0 1 7.1 6.7L12 20.5Z" />
+    </svg>
+  )
+}
+
 function resetLeft(ms?: number): string {
   if (!ms) return ''
   const d = ms - Date.now()
@@ -121,6 +140,7 @@ function TerminalPane({
   cursorStyle,
   cursorBlink,
   scrollback,
+  favoriteEngines,
   onAdd,
   onClose,
   onFocus,
@@ -144,6 +164,7 @@ function TerminalPane({
   cursorStyle: CursorStyleId
   cursorBlink: boolean
   scrollback: number
+  favoriteEngines: EngineId[]
   onAdd: () => void
   onClose: () => void
   onFocus: () => void
@@ -173,6 +194,12 @@ function TerminalPane({
   const inputRef = useRef<HTMLInputElement>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(pane.title)
+  // The snapshot echo is async; a fast second click must not compute from the
+  // same stale array (it would re-send the first patch and the heart would stick).
+  const favoritesRef = useRef(favoriteEngines)
+  useEffect(() => {
+    favoritesRef.current = favoriteEngines
+  }, [favoriteEngines])
 
   const provider = providers.find((p) => p.id === pane.engine)
   const engineName = provider?.name ?? pane.engine ?? 'idle'
@@ -620,6 +647,26 @@ if (pane.engine && !isRawShell(pane.engine)) {
   const tiles = [...enabled, ...rawShells]
   tiles.sort((a, b) => tileName(a).localeCompare(tileName(b), 'en', { sensitivity: 'base' }))
 
+  // Keep the user's starring order; a disabled/missing engine simply drops out
+  // until it is enabled again (the persisted id is never pruned here).
+  const favoriteSet = new Set(favoriteEngines)
+  const favoriteTiles = favoriteEngines
+    .map((id) => tiles.find((p) => p.id === id))
+    .filter((p): p is ProviderInfo => Boolean(p))
+
+  function toggleFavorite(engine: EngineId): void {
+    const current = favoritesRef.current
+    const next = current.includes(engine)
+      ? current.filter((id) => id !== engine)
+      : [...current, engine]
+    favoritesRef.current = next
+    void window.pq.ui.set({ favoriteEngines: next }).catch((err) => {
+      if (favoritesRef.current === next) favoritesRef.current = current
+      setInstallError('Nie udało się zapisać ulubionych. Spróbuj ponownie.')
+      console.error('[pqTERM] favourites save failed', err)
+    })
+  }
+
   async function runAction(engine: EngineId, action: EngineAction) {
     setInstallError(null)
     setBusy((prev) => new Map(prev).set(engine, action))
@@ -862,6 +909,48 @@ if (pane.engine && !isRawShell(pane.engine)) {
       ) : (
         <div className="picker">
           <div className="picker-inner">
+          <div className="favbar" role="group" aria-label="ulubione silniki">
+            <span className="favbar-label">ulubione</span>
+            {favoriteTiles.length ? (
+              <ul className="favbar-list">
+                {favoriteTiles.map((p) => {
+                  const name = tileName(p)
+                  const busyAction = busy.get(p.id)
+                  return (
+                    <li key={p.id}>
+                      <button
+                        className={`fav${p.installed ? '' : ' missing'}`}
+                        disabled={Boolean(busyAction)}
+                        title={
+                          busyAction
+                            ? `${name} — ${ACTION_LABEL[busyAction].toLowerCase()}…`
+                            : p.installed
+                              ? `${name} — uruchom · shift+klik = wszystkie puste okna`
+                              : p.actions.includes('install')
+                                ? `${name} — nie zainstalowano, kliknięcie zainstaluje`
+                                : `${name} — nie zainstalowano`
+                        }
+                        onClick={(e) => void launch(p.id, e.shiftKey)}
+                      >
+                        <EngineMark
+                          id={p.id}
+                          name={name}
+                          color={p.color}
+                          logo={p.logo}
+                          icon={p.icon}
+                          mark={p.mark}
+                          size={15}
+                        />
+                        <span className="n">{name}</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <span className="favbar-empty">kliknij serce na kafelku</span>
+            )}
+          </div>
           <h3>SPAWN ENGINE</h3>
           {installError && (
             <div className="hint" style={{ marginTop: -8, color: '#ff387b' }}>
@@ -915,6 +1004,18 @@ if (pane.engine && !isRawShell(pane.engine)) {
                       </span>
                       <span className="v">{vendor}</span>
                     </span>
+                  </button>
+                  <button
+                    className={`fav-btn${favoriteSet.has(p.id) ? ' on' : ''}`}
+                    aria-pressed={favoriteSet.has(p.id)}
+                    aria-label={`ulubione: ${name}`}
+                    title={`${favoriteSet.has(p.id) ? 'usuń z ulubionych' : 'dodaj do ulubionych'} — ${name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleFavorite(p.id)
+                    }}
+                  >
+                    <Heart filled={favoriteSet.has(p.id)} />
                   </button>
                   <div className="eng-foot">
                     <span className="st" title={status}>
@@ -976,5 +1077,6 @@ export default memo(TerminalPane, (a, b) =>
   a.fontSize === b.fontSize &&
   a.cursorStyle === b.cursorStyle &&
   a.cursorBlink === b.cursorBlink &&
-  a.scrollback === b.scrollback
+  a.scrollback === b.scrollback &&
+  a.favoriteEngines.join('\u0000') === b.favoriteEngines.join('\u0000')
 )
