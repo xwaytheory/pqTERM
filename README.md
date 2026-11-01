@@ -2,7 +2,14 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.6.0** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.7.0** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.7.0
+
+- **Akcje nie zasłaniają już CLI.** „Aktualizuj” i „Odinstaluj” przeniesione z pełnej nakładki do stopki kafelka: status po lewej, cichy dock ikon 24×24 px po prawej. Logo, nazwa i vendor są zawsze widoczne, hover nie przesuwa layoutu, a kafelek bez zainstalowanego CLI nadal instaluje po kliknięciu.
+- **Każdy CLI startuje bez pytań.** Pełny audyt flag: `opencode --auto` (stary `--yolo` był po cichu ignorowany), `hermes --yolo --accept-hooks`, `pi --approve`, `crush --yolo`, `aider --yes-always`, `antigravity --dangerously-skip-permissions`, `zcode --mode yolo`, `ori --approvals self-drive`, `freebuff --trust-agents`, `kimi --auto`, `cline --auto-approve true`, `qoder --yolo`, `cursor --yolo --approve-mcps`, `kilocode --auto`; Qwen i Claude dostają trwały wpis trust w `~/.qwen` i `~/.claude/settings.json`. Usunięte martwe zmienne env, których żadne CLI nie czytało.
+- **`dsh` wreszcie startuje.** `--profile tui` nie istnieje w oficjalnym wydaniu; kafelek używa `--profile web` (lokalny serwer UI z URL-em w terminalu).
+- **PowerShell bez blokady skryptów.** Pane startuje z `-ExecutionPolicy Bypass`.
 
 ## Nowości 1.6.0
 
