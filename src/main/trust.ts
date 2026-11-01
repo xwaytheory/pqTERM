@@ -100,6 +100,28 @@ function trustGemini(dir: string): void {
   writeJson(file, json)
 }
 
+/** Qwen Code is a Gemini CLI fork with the same trust-file contract. */
+function trustQwen(dir: string): void {
+  const file = resolve(homedir(), '.qwen', 'trustedFolders.json')
+  const json = readJson(file)
+  const key = slash(dir)
+  if (json[key] === 'TRUST_FOLDER') return
+  json[key] = 'TRUST_FOLDER'
+  writeJson(file, json)
+}
+
+/**
+ * `--dangerously-skip-permissions` still asks "Yes, I accept" once; this key
+ * answers it permanently. It lives in settings.json, not ~/.claude.json.
+ */
+function trustClaudeSettings(): void {
+  const file = resolve(homedir(), '.claude', 'settings.json')
+  const json = readJson(file)
+  if (json.skipDangerousModePermissionPrompt === true) return
+  json.skipDangerousModePermissionPrompt = true
+  writeJson(file, json)
+}
+
 function trustCodex(dir: string): void {
   const file = resolve(homedir(), '.codex', 'config.toml')
   const cur = readText(file)
@@ -197,10 +219,20 @@ export function trustWorkspace(cwd: string): void {
       /* ignore — trust must not block pane spawn */
     }
     try {
+      trustQwen(dir)
+    } catch {
+      /* ignore — trust must not block pane spawn */
+    }
+    try {
       trustCodex(dir)
     } catch {
       /* ignore — trust must not block pane spawn */
     }
+  }
+  try {
+    trustClaudeSettings()
+  } catch {
+    /* ignore — trust must not block pane spawn */
   }
   try {
     seedWorkspaceDefaults(cwd)

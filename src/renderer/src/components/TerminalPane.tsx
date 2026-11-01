@@ -30,6 +30,42 @@ const ACTION_LABEL: Record<EngineAction, string> = {
   uninstall: 'Odinstaluj'
 }
 
+/** 16px glyph inside the 24px footer hit area. */
+function ActionIcon({ action }: { action: EngineAction }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {action === 'update' ? (
+        <>
+          <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+          <path d="M20 4v7h-7" />
+        </>
+      ) : action === 'uninstall' ? (
+        <>
+          <path d="M4 7h16" />
+          <path d="M10 4h4" />
+          <path d="M6 7l1 13h10l1-13" />
+        </>
+      ) : (
+        <>
+          <path d="M12 4v11" />
+          <path d="M7 10l5 5 5-5" />
+          <path d="M5 20h14" />
+        </>
+      )}
+    </svg>
+  )
+}
+
 function resetLeft(ms?: number): string {
   if (!ms) return ''
   const d = ms - Date.now()
@@ -852,17 +888,16 @@ if (pane.engine && !isRawShell(pane.engine)) {
                     : p.actions.includes('install')
                       ? 'click to install'
                       : 'nie zainstalowano'
-              // Installed tiles offer update/uninstall; missing ones offer install.
-              const shown = isShell
-                ? []
-                : p.actions.filter((a) => (p.installed ? a !== 'install' : a === 'install'))
+              // Installed tiles offer update/uninstall in the footer dock; a
+              // missing CLI installs from the tile itself (launch() routes it).
+              const shown = p.installed ? p.actions.filter((a) => a !== 'install') : []
               return (
                 <div key={p.id} className="eng-slot">
                   <button
                     className={`eng${!p.installed ? ' disabled-visual' : ''}`}
                     style={!p.installed ? { opacity: 0.35, filter: 'grayscale(1)' } : undefined}
                     disabled={Boolean(busyAction)}
-                    title={`${name} · ${vendor}`}
+                    title={`${name} · ${vendor} — ${status}`}
                     onClick={(e) => launch(p.id, e.shiftKey)}
                   >
                     <EngineMark
@@ -879,34 +914,32 @@ if (pane.engine && !isRawShell(pane.engine)) {
                         {name}
                       </span>
                       <span className="v">{vendor}</span>
-                      <span className="st">{status}</span>
                     </span>
                   </button>
-                  {shown.length ? (
-                    <div className="eng-actions">
-                      {shown.map((a) => (
-                        <button
-                          key={a}
-                          className={`eng-action ${a}`}
-                          disabled={Boolean(busyAction)}
-                          aria-label={`${ACTION_LABEL[a]} ${name}`}
-                          title={`${ACTION_LABEL[a]} — otworzy cmd z gotowym skryptem`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void runAction(p.id, a)
-                          }}
-                        >
-                          {ACTION_LABEL[a]}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="eng-actions">
-                      <span className="eng-note">
-                        {isShell ? 'wbudowany shell' : 'brak oficjalnego instalatora'}
-                      </span>
-                    </div>
-                  )}
+                  <div className="eng-foot">
+                    <span className="st" title={status}>
+                      {status}
+                    </span>
+                    {shown.length ? (
+                      <div className="eng-actions">
+                        {shown.map((a) => (
+                          <button
+                            key={a}
+                            className={`eng-act ${a}`}
+                            disabled={Boolean(busyAction)}
+                            aria-label={`${ACTION_LABEL[a]} ${name}`}
+                            title={`${ACTION_LABEL[a]} — otworzy cmd z gotowym skryptem`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void runAction(p.id, a)
+                            }}
+                          >
+                            <ActionIcon action={a} />
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               )
             })}

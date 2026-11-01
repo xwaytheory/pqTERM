@@ -1012,12 +1012,25 @@ body.pane-resizing * {
   padding: 0 12px;
   box-sizing: border-box;
 }
-.eng {
+.eng-slot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   border: 1px solid var(--line);
   background: var(--bg-2);
-  color: var(--text);
   border-radius: 8px;
-  padding: 8px;
+  box-sizing: border-box;
+}
+.eng-slot:hover {
+  border-color: var(--accent-dim);
+}
+.eng {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px 8px 0 0;
+  padding: 7px 8px 0;
   min-width: 0;
   box-sizing: border-box;
   text-align: left;
@@ -1027,70 +1040,63 @@ body.pane-resizing * {
   justify-content: flex-start;
   gap: 6px;
 }
-.eng:hover {
-  border-color: var(--accent-dim);
-}
 .eng:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
-/* Hover overlay: install on a missing CLI, update/uninstall on an installed one. */
-.eng-slot {
-  position: relative;
-  display: flex;
-  min-width: 0;
-}
-.eng-slot > .eng {
-  flex: 1;
-}
-.eng-actions {
-  position: absolute;
-  inset: 0;
+/* Status footer: the whole bottom row belongs to status + the action dock, so
+   update/uninstall never sit on top of the logo, name or vendor. */
+.eng-foot {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 4px;
-  box-sizing: border-box;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  opacity: 0;
-  /* Container never blocks the tile: only the buttons opt back in. */
-  pointer-events: none;
-  transition: opacity 0.12s ease;
+  gap: 4px;
+  /* Same height with or without a dock: installing a CLI must not resize the
+     tile (and therefore the whole grid row). */
+  min-height: 24px;
+  padding: 0 4px 2px 8px;
 }
-.eng-slot:hover .eng-actions,
-.eng-slot:focus-within .eng-actions {
+.eng-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+/* Quiet at rest, full strength on hover/focus. Never invisible: an opacity-0
+   control would still take clicks over the footer. */
+.eng-act {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  /* 0.75 keeps the glyph at ~3.4:1 against the tile — quiet, but still a
+     visible control (WCAG 1.4.11), unlike an opacity-0 dock. */
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.eng-slot:hover .eng-act,
+.eng-slot:focus-within .eng-act,
+.eng-act:focus-visible {
   opacity: 1;
 }
-.eng-action {
-  font: inherit;
-  font-size: 11px;
-  line-height: 1.2;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--line-2);
-  background: var(--bg-3);
-  color: var(--text);
-  cursor: pointer;
-  pointer-events: auto;
-}
-.eng-action:hover {
-  border-color: var(--accent);
+.eng-act:hover {
   background: var(--wash);
+  color: var(--text);
 }
-.eng-action.uninstall:hover {
-  border-color: #ff387b;
+.eng-act:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+.eng-act:disabled {
+  opacity: 0.3;
+  cursor: progress;
+}
+.eng-act.uninstall:hover {
   color: #ff8fb2;
-}
-.eng-note {
-  font-size: 10px;
-  line-height: 1.3;
-  color: var(--muted);
-  text-align: center;
-  padding: 0 6px;
-  /* A note, not a control — the tile underneath stays clickable. */
-  pointer-events: none;
 }
 .eng .n {
   font-size: 12px;
@@ -1113,13 +1119,16 @@ body.pane-resizing * {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.eng .st {
+.eng-foot .st {
+  flex: 1;
+  min-width: 0;
   font-size: 10px;
-  width: 100%;
-  text-align: left;
   line-height: 1.35;
-  min-height: 14px;
+  text-align: left;
+  color: var(--muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .blank {

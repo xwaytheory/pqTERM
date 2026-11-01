@@ -168,18 +168,9 @@ export function knownLaunch(engine: EngineId, extra: string[]): { spawnFile: str
 
 export function yoloEnv(engine: EngineId): Record<string, string> {
   switch (engine) {
-    case 'opencode':
-      return {
-        OPENCODE_YOLO: 'true',
-        OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS: '1'
-      }
     case 'hermes':
-      return { HERMES_YOLO_MODE: '1' }
-    case 'grok':
-      return { GROK_FOLDER_TRUST: '0' }
-    case 'gemini':
-    case 'qwen':
-      return { GEMINI_CLI_TRUST_WORKSPACE: 'true' }
+      // Same switch as --accept-hooks, also honoured by hooks loaded later.
+      return { HERMES_ACCEPT_HOOKS: '1' }
     default:
       return {}
   }
@@ -192,7 +183,10 @@ export function resolveLaunch(
   extra: string[]
 ): { spawnFile: string; args: string[] } {
   if (engine === 'shell') {
-    return { spawnFile: 'powershell.exe', args: ['-NoLogo', '-NoExit'] }
+    return {
+      spawnFile: 'powershell.exe',
+      args: ['-NoLogo', '-NoExit', '-ExecutionPolicy', 'Bypass']
+    }
   }
   if (engine === 'cmd') {
     return { spawnFile: 'cmd.exe', args: ['/K'] }
