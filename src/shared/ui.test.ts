@@ -40,6 +40,27 @@ test('zoom clamps to the supported band and round-trips cleanly', () => {
   assert.equal(sanitizeUi({}, DEFAULT_UI).zoom, DEFAULT_UI.zoom)
 })
 
+test('favourites are a patch field like any other', () => {
+  const base = { ...DEFAULT_UI, favoriteEngines: ['claude' as const, 'codex' as const] }
+  assert.deepEqual(sanitizeUi({}, base).favoriteEngines, ['claude', 'codex'])
+  assert.deepEqual(sanitizeUi({ favoriteEngines: [] }, base).favoriteEngines, [])
+  assert.deepEqual(sanitizeUi({ favoriteEngines: ['kimi'] }, base).favoriteEngines, ['kimi'])
+  assert.deepEqual(sanitizeUi(undefined, base).favoriteEngines, ['claude', 'codex'])
+  assert.notEqual(sanitizeUi({}, base).favoriteEngines, base.favoriteEngines)
+})
+
+test('junk favourites never reach the picker', () => {
+  const fav = (ids: unknown): string[] =>
+    sanitizeUi({ favoriteEngines: ids as never }, DEFAULT_UI).favoriteEngines
+  assert.deepEqual(fav(['opencode', 'freebuff', 'opencode']), ['opencode', 'freebuff'])
+  assert.deepEqual(fav(['opencode', 'nope', 'codex']), ['opencode', 'codex'])
+  assert.deepEqual(fav(['opencode', 7, null, { id: 'codex' }]), ['opencode'])
+  assert.deepEqual(fav(['OPENCODE', ' opencode ']), [])
+  for (const bad of ['opencode', 42, null, { 0: 'opencode' }, true]) {
+    assert.deepEqual(fav(bad), [])
+  }
+})
+
 // The sidebar's animated "pracuje" rail/dot keys off exactly this rule.
 const pane = (id: string, engine: string | null = 'opencode') => ({ id, engine })
 const at = (kind: PaneActivity['kind']): PaneActivity => ({ kind, at: 0, unread: false })
