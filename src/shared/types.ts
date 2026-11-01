@@ -22,6 +22,7 @@ export type EngineId =
   | 'qoder'
   | 'baicode'
   | 'kilocode'
+  | 'codebuddy'
   | 'shell'
   | 'cmd'
 
@@ -343,6 +344,7 @@ export const ENGINE_ORDER: EngineId[] = [
   'qoder',
   'baicode',
   'kilocode',
+  'codebuddy',
   'shell',
   'cmd'
 ]

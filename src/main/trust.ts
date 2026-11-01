@@ -133,6 +133,29 @@ function trustClaudeSettings(): void {
   writeJson(file, json)
 }
 
+/**
+ * CodeBuddy asks "trust this directory" on first start; `trustAll` answers it
+ * permanently (docs: only directory trust, tool approvals stay governed by the
+ * launch flag). Same strict-JSON rule as Claude: a hand-edited file with
+ * comments is left untouched.
+ */
+function trustCodebuddy(): void {
+  const file = resolve(homedir(), '.codebuddy', 'settings.json')
+  let json: Record<string, unknown> = {}
+  if (existsSync(file)) {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'))
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return
+      json = parsed as Record<string, unknown>
+    } catch {
+      return
+    }
+  }
+  if (json.trustAll === true) return
+  json.trustAll = true
+  writeJson(file, json)
+}
+
 function trustCodex(dir: string): void {
   const file = resolve(homedir(), '.codex', 'config.toml')
   const cur = readText(file)
@@ -242,6 +265,11 @@ export function trustWorkspace(cwd: string): void {
   }
   try {
     trustClaudeSettings()
+  } catch {
+    /* ignore — trust must not block pane spawn */
+  }
+  try {
+    trustCodebuddy()
   } catch {
     /* ignore — trust must not block pane spawn */
   }

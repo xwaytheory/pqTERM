@@ -2,7 +2,11 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.7.0** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.8.0** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.8.0
+
+- **CodeBuddy Code w SPAWN ENGINE.** Kafelek Tencent Cloud z logo i własnym kolorem, oparty o oficjalne `@tencent-ai/codebuddy-code` (komendy `codebuddy` / `cbc`), z akcjami „Zainstaluj” / „Aktualizuj” / „Odinstaluj” i natywnym `codebuddy update`. Start od razu w YOLO: `--dangerously-skip-permissions` (oficjalny odpowiednik `bypassPermissions`) plus `trustAll` w `~/.codebuddy/settings.json`, więc nie pyta o zaufanie do katalogu.
 
 ## Nowości 1.7.0
 

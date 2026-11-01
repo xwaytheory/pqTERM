@@ -27,6 +27,7 @@ export const ENGINE_LOGO_IDS = [
   'qoder',
   'baicode',
   'kilocode',
+  'codebuddy',
   'shell',
   'cmd'
 ] as const
@@ -57,6 +58,7 @@ export const ENGINE_LOGO_FILES: Record<EngineLogoId, string> = {
   qoder: 'qoder.png',
   baicode: 'baicode.svg',
   kilocode: 'kilocode.svg',
+  codebuddy: 'codebuddy.png',
   shell: 'shell.svg',
   cmd: 'cmd.svg'
 }

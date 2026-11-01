@@ -65,6 +65,7 @@ All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehu
 | `ori` | `ori.png` (OpenRouter) | `openrouter-color` |
 | `cursor` | `cursor.png` | `cursor` |
 | `kilocode` | `kilocode.svg` (Kilo Code monogram) | `kilocode` |
+| `codebuddy` | `codebuddy.png` | `codebuddy-color` |
 | `qoder` | `qoder.png` | `qoder-color` |
 | `baicode` | `baicode.svg` (docs.b.ai mascot) | not on LobeHub |
 | `shell` | `shell.svg` (generic `>_` glyph) | drawn for pq |
@@ -92,6 +93,7 @@ All engine logos sourced from [LobeHub Icons](https://lobehub.com/icons) (lobehu
 | `qoder` | Qoder CLI | Alibaba | `#2adb5c` | `Qd` + `qoder.png` |
 | `baicode` | BAI code | B.AI | `#cdbd09` | `B` + `baicode.svg` |
 | `kilocode` | Kilo Code | Kilo | `#e6e6e6` | `Kc` + `kilocode.svg` |
+| `codebuddy` | CodeBuddy Code | Tencent Cloud | `#6c4dff` | `Cb` + `codebuddy.png` |
 | `shell` | PowerShell | Windows | `#5b9fd6` | `PS` |
 | `cmd` | cmd | Windows | `#4ec9b0` | `C` + `cmd.svg` |
 
