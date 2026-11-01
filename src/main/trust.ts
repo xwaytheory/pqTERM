@@ -113,10 +113,21 @@ function trustQwen(dir: string): void {
 /**
  * `--dangerously-skip-permissions` still asks "Yes, I accept" once; this key
  * answers it permanently. It lives in settings.json, not ~/.claude.json.
+ * Never clobber a hand-edited file: if it does not parse as strict JSON
+ * (comments, JSONC), leave it untouched instead of rewriting it.
  */
 function trustClaudeSettings(): void {
   const file = resolve(homedir(), '.claude', 'settings.json')
-  const json = readJson(file)
+  let json: Record<string, unknown> = {}
+  if (existsSync(file)) {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'))
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return
+      json = parsed as Record<string, unknown>
+    } catch {
+      return
+    }
+  }
   if (json.skipDangerousModePermissionPrompt === true) return
   json.skipDangerousModePermissionPrompt = true
   writeJson(file, json)
