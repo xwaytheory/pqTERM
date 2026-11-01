@@ -1,6 +1,6 @@
 # pq workbench (gauntlet live board)
 
-## SPAWN ENGINE: akcje w stopce + pełny audyt trybu YOLO (2026-11-01, `dev`)
+## SPAWN ENGINE: akcje w stopce + pełny audyt trybu YOLO (2026-11-01, `dev`, wydane w 1.7.0)
 
 **Zgłoszenie:** hover z „Aktualizuj"/„Odinstaluj" zasłaniał logo, nazwę i vendora
 kafelka — nie dało się kliknąć samego CLI, gdy chciało się tylko je uruchomić.

@@ -39,7 +39,10 @@ const STATIC_ALLOWED = [
   // product 1.5.1: same story (the 1.5.0 → 1.5.1 bump nearly hit this again —
   // verify the offending package is untouched by the diff before allowing it).
   'autocfg@1.5.1',
-  'crc32fast@1.5.1'
+  'crc32fast@1.5.1',
+  // product 1.7.0: `cargo info blocking@1.7.0` confirms the real crate version;
+  // the bump diff touches only the local `pq` crate in src-tauri/Cargo.lock.
+  'blocking@1.7.0'
 ]
 const allowed = new Set([
   ...STATIC_ALLOWED,
