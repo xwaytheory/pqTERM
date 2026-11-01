@@ -1,5 +1,75 @@
 # pq workbench (gauntlet live board)
 
+## SPAWN ENGINE: akcje w stopce + pełny audyt trybu YOLO (2026-11-01, `dev`)
+
+**Zgłoszenie:** hover z „Aktualizuj"/„Odinstaluj" zasłaniał logo, nazwę i vendora
+kafelka — nie dało się kliknąć samego CLI, gdy chciało się tylko je uruchomić.
+Przy okazji: każdy CLI/CMD/PowerShell ma startować bez pytań o pozwolenia i trust,
+a Kilo Code nie miało żadnego trybu.
+
+**Kafelek** (`TerminalPane.tsx`, `styles.css`): pełna nakładka `.eng-actions`
+(`inset: 0`) usunięta. Status to teraz stopka `.eng-foot` na całą szerokość,
+a update/uninstall to cichy dock 2 × 24 px (glif 16 px) po prawej. Logo, nazwa
+i vendor są poza stopką, więc hover ich nie dotyka. Hover zmienia wyłącznie
+`opacity`/kolor — zero przesunięć layoutu; stopka ma stałe `min-height: 24px`,
+więc nawet instalacja CLI nie zmienia wysokości rzędu. Dock jest widoczny także
+bez hovera (`opacity: .75`, ≈3.4:1 na tle kafelka) — wcześniej `.eng-actions`
+miało `opacity: 0`, ale `.eng-action` ustawiał `pointer-events: auto`, czyli
+niewidzialne przyciski przyjmowały kliknięcia. Brakujące CLI nie dostają docka:
+cały kafelek nadal instaluje (`launch()` → `runAction('install')`), a stopka
+mówi „click to install". Usunięte `.eng-note` i gałąź „brak oficjalnego
+instalatora".
+
+**Flagi startowe** (`ENGINE_SPECS`) — każda sprawdzona w `--help`, kodzie pakietu
+albo oficjalnych docsach (data 2026-11-01):
+
+| CLI | argumenty | dowód |
+|---|---|---|
+| grok | `--always-approve --trust` | `grok --help` (`--always-approve`); `--trust` ukryty, ale parsuje (exit 0 vs 2 dla bzdurnej flagi) |
+| omp | `--yolo` | ukryty alias `--auto-approve` w `dist/cli.js` (`u==="--auto-approve"||u==="--yolo" → autoApprove=!0`) |
+| pi | `--approve` | `pi --help` |
+| hermes | `--yolo --accept-hooks` | `hermes --help` (lokalnie 0.22.5) |
+| opencode | `--auto` | `opencode --help` (2.2.5); `--yolo` jest **po cichu ignorowane** |
+| codex | `--yolo` | alias `--dangerously-bypass-approvals-and-sandbox` |
+| claude | `--dangerously-skip-permissions` | oficjalne docs + wpis w `settings.json` (niżej) |
+| qwen | `--yolo` | `--yolo` w bundlu 0.26.5 + plik trust (niżej) |
+| dsh | `--profile web` | README 0.2.1-rc.5: auto-init tylko `web`, `headless`, `sdk`, `sdk-minimal`, `acp`; `tui` to przykład profilu doinstalowywanego — stary `--profile tui` nie mógł wystartować |
+| gemini | `--yolo --skip-trust` | `--help` + plik trust (już był) |
+| crush | `--yolo` | `crush --help` |
+| aider | `--yes-always` | `aider --help` |
+| copilot | `--yolo` | alias `--allow-all` w docs GitHub Copilot CLI |
+| antigravity | `--dangerously-skip-permissions` | oficjalne docs Antigravity CLI |
+| zcode | `--mode yolo` | `--help` z tarballa 3.17.1-43 |
+| ori | `code -i --tty --approvals self-drive` | changelog Ori 0.10.0: `bypass`/`auto` usunięte, zostaje `self-drive` |
+| freebuff | `--trust-agents` | `freebuff --help` 0.2.35 (jedyne okno trust; brak flagi approval) |
+| kimi | `--auto` | docs Kimi Code |
+| cline | `--auto-approve true` | oficjalne docs (domyślnie true, ustawiamy jawnie) |
+| qoder | `--yolo` | oficjalne docs Qoder CLI |
+| cursor | `--yolo --approve-mcps` | oficjalne docs Cursor CLI |
+| kilocode | `--auto` | `kilo --auto --version` (7.8.18) |
+| shell | `-NoLogo -NoExit -ExecutionPolicy Bypass` | `resolve-launch.ts` |
+| cmd | `/K` | bez systemu pozwoleń |
+
+**Trust/pozwolenia** (`trust.ts`): nowe zapisy `~/.qwen/trustedFolders.json`
+(`{ "<path>": "TRUST_FOLDER" }`, format z bundla 0.26.5) i
+`~/.claude/settings.json` → `skipDangerousModePermissionPrompt: true`.
+Wcześniej istniały już: Grok `~/.grok/trusted_folders.toml`, Claude
+`~/.claude.json` (`hasTrustDialogAccepted`), Gemini `~/.gemini/trustedFolders.json`,
+Codex `~/.codex/config.toml` (`trust_level = "trusted"`). Wszystkie zapisy są
+best-effort — błąd I/O nie blokuje spawnu PTY.
+
+**Usunięte martwe env** (`resolve-launch.ts`): `OPENCODE_YOLO`,
+`OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS`, `GROK_FOLDER_TRUST`,
+`GEMINI_CLI_TRUST_WORKSPACE` (dla qwen) — żadna z tych zmiennych nie jest czytana
+przez CLI; `opencode --yolo` i te env var były cichymi no-opami. Zostaje tylko
+`HERMES_ACCEPT_HOOKS=1`, które `hermes --help` wymienia jako równoważnik
+`--accept-hooks`.
+
+**Dowód gates (dev):** `npm run typecheck` OK (oba projekty), `npm run test:unit`
+211/211, `npm run build` OK (renderer 758 kB), `npm run check:version` OK
+(1.6.0). Kafelek sprawdzony wizualnie na zbudowanym CSS (Electron offscreen,
+stopka + dock, brak zasłoniętego logo/nazwy/vendora).
+
 ## SPAWN ENGINE: Kilo Code (2026-10-25, `dev`, wydane w 1.6.0)
 
 **Zgłoszenie:** dodać Kilo Code do siatki CLI.
