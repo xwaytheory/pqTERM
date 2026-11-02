@@ -63,7 +63,7 @@ import { BoardHub } from './board'
 import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
 import { RemoteHub, type RemoteCommand } from './remote'
-import { pickResume, primeResume, resumeFlag } from './resume'
+import { pickResume, primeResume, resumeFlag, shouldClearHandle } from './resume'
 import { shutdownVoiceHost } from './voice-host'
 import { adoptAutoTitle, updatePaneTitle } from './pane-title'
 import { queryActiveOpenCodeTitle } from './opencode-title'
@@ -300,8 +300,8 @@ function restoreSession(ws: Workspace, pane: PaneState): void {
       const flag = resumeFlag(pane.engine, session.handle)
       if (flag) extraArgs = [...extraArgs, ...flag]
       if (pane.sessionHandle !== session.handle) pane.sessionHandle = session.handle
-    } else if (pane.sessionHandle) {
-      // stale/duplicated handle — let the pane pick its session again next boot
+    } else if (shouldClearHandle(ws.id, pane.engine, pane.sessionHandle)) {
+      // the store was read and no longer holds this handle — let the pane pick again next boot
       pane.sessionHandle = undefined
     }
     ptys.spawn({
