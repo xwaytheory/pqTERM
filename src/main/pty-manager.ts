@@ -319,6 +319,14 @@ export class PtyManager {
     return Boolean(s?.alive && !exitedInternally(s.proc))
   }
 
+  /** OS pid of the pane's CLI process — some CLIs publish their session keyed by it. */
+  pidOf(paneId: string): number | null {
+    const s = this.sessions.get(paneId)
+    if (!s || !s.alive) return null
+    const pid = s.proc.pid
+    return typeof pid === 'number' && pid > 0 ? pid : null
+  }
+
   describe(paneId: string): { alive: boolean; engine: EngineId; workspaceId: string } | null {
     const s = this.sessions.get(paneId)
     if (!s) return null

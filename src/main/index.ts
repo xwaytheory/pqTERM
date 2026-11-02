@@ -67,6 +67,7 @@ import { pickResume, primeResume, resumeFlag, shouldClearHandle } from './resume
 import { checkpointRoot, mintSessionId, writeCheckpoint } from './ledger'
 import { readTranscript } from './session-adapters'
 import { handoffSeed } from './handoff'
+import { captureCodebuddyHandle } from './handle-capture'
 import { shutdownVoiceHost } from './voice-host'
 import { adoptAutoTitle, updatePaneTitle } from './pane-title'
 import { queryActiveOpenCodeTitle } from './opencode-title'
@@ -269,6 +270,28 @@ async function writePaneCheckpoint(paneId: string): Promise<string | null> {
   })
 }
 
+/**
+ * Some CLIs publish their session id only after they start (CodeBuddy writes
+ * ~/.codebuddy/sessions/<pid>.json). Poll briefly and bind it, so a later handoff
+ * can read that conversation instead of starting blind.
+ */
+async function captureHandleLater(paneId: string, since = Date.now()): Promise<void> {
+  for (let i = 0; i < 20; i++) {
+    await sleep(500)
+    const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId))
+    const pane = ws?.panes.find((p) => p.id === paneId)
+    if (!ws || !pane || pane.engine !== 'codebuddy' || pane.sessionHandle) return
+    const pid = ptys.pidOf(paneId)
+    if (!pid) return
+    const handle = captureCodebuddyHandle(pid, ws.cwd, since - 5000)
+    if (!handle) continue
+    if (!ptys.alive(paneId)) return
+    pane.sessionHandle = handle
+    persist()
+    return
+  }
+}
+
 /** Wait until a freshly spawned TUI has painted something, so the seed is not swallowed. */
 async function waitForOutput(paneId: string, ms = 12000): Promise<boolean> {
   const t0 = Date.now()
@@ -330,6 +353,7 @@ async function handoffPane(
     })
   })
   persist()
+  void captureHandleLater(paneId)
   if (!checkpoint) {
     return { ok: true, checkpoint, reason: 'brak uchwytu sesji — nowy silnik startuje bez kontekstu' }
   }
@@ -447,6 +471,7 @@ function restoreSession(ws: Workspace, pane: PaneState): void {
       extraArgs,
       seedBuf: seed.data
     })
+    void captureHandleLater(pane.id)
     if (ws.id === state.activeWorkspaceId) {
       board.paneStart(pane.id, pane.engine, pane.title || spec.name)
     }
@@ -1689,6 +1714,7 @@ function registerIpc(): void {
         })
       })
       persist()
+      void captureHandleLater(input.paneId)
       if (input.workspaceId === state.activeWorkspaceId) {
         const live = state.workspaces
           .find((w) => w.id === input.workspaceId)
