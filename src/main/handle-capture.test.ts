@@ -43,6 +43,9 @@ test('capture reads the registry file for the pid', (t) => {
     JSON.stringify({ pid: 4242, sessionId: 'sess-xyz', cwd: 'C:/work', startedAt: 10 }),
     'utf8'
   )
+  const projects = join(home, '.codebuddy', 'projects', 'c--work')
+  mkdirSync(projects, { recursive: true })
+  writeFileSync(join(projects, 'sess-xyz.jsonl'), '', 'utf8')
   assert.equal(captureCodebuddyHandle(4242, 'C:/work', 0), 'sess-xyz')
   // unknown pid + a session older than this pane must not be adopted
   assert.equal(captureCodebuddyHandle(1, 'C:/work', 1000), null)
@@ -94,4 +97,23 @@ test('a subagent trace never stands in for the conversation', (t) => {
   write('trace_a.jsonl', 'subagent', 'sub-1')
   write('trace_b.jsonl', 'main', 'uuid-2')
   assert.equal(captureCodebuddyHandle(7, 'C:/work', 0), 'uuid-2')
+})
+test('a registry handle with no transcript behind it is never captured', (t) => {
+  const home = mkdtempSync(join(os.tmpdir(), 'pq-cb-'))
+  t.mock.method(os, 'homedir', () => home)
+  syncBuiltinESMExports()
+  t.after(() => {
+    t.mock.restoreAll()
+    syncBuiltinESMExports()
+    rmSync(home, { recursive: true, force: true })
+  })
+  const dir = join(home, '.codebuddy', 'sessions')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    join(dir, '4242.json'),
+    JSON.stringify({ pid: 4242, sessionId: 'interactive-4242', cwd: 'C:/work', startedAt: 10 }),
+    'utf8'
+  )
+  // storing it would make every later handoff read "start bez kontekstu"
+  assert.equal(captureCodebuddyHandle(4242, 'C:/work', 0), null)
 })

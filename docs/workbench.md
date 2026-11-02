@@ -13,6 +13,12 @@ weryfikacji, `findByHandle` nie znajdował pliku, więc handoff *z* CodeBuddy ko
 dokładne, bez zgadywania po czasie. Trace subagenta dzieli pid, ale nie rozmowę: wygrywa
 `kind: "main"`, reszta jest tylko fallbackiem. Rejestr zostaje jako fallback dla wersji bez traces.
 
+**Skutek uboczny: trucizna w stanie.** Poll po spawnie zapisywał uchwyt raz i nigdy nie
+wracał (`pane.sessionHandle` ustawione → `return`), więc `interactive-<pid>` zostawało
+w `pq-state.json` na zawsze. Teraz uchwyt z rejestru jest przyjmowany **tylko gdy istnieje
+transkrypt o tej nazwie**, a checkpoint derywuje brakujący uchwyt z `traces/<pid>` w momencie
+handoffu — bo trace powstaje przy pierwszej turze, często długo po 10-sekundowym pollu.
+
 **Błąd 2 — opencode ogłaszał `degraded` na każdej zdrowej sesji.** Tury asystenta bez prozy
 (tylko `reasoning`/`tool`) oraz wiersz `compaction` liczyły się jako „nieznane wpisy":
 143 wiadomości → 127 „nieznanych". To ten sam błąd, który naprawiono wcześniej dla CodeBuddy —
@@ -23,8 +29,9 @@ opencode został pominięty. Teraz bookkeeping nie degraduje, a nieznany typ wie
 Checkpoint opencode zawiera ostatnią prośbę użytkownika i ostatnią odpowiedź.
 
 **Bramki (`dev`):** `npm run typecheck` (oba projekty) i `npm run test:unit`
-(**243/243**, 9 suit, +4 testy: uuid z trace wygrywa z uchwytem rejestru, subagent nie
-przejmuje rozmowy, tury tool-only i `compaction` to bookkeeping, nieznany wiersz nadal degraduje).
+(**244/244**, 9 suit, +5 testów: uuid z trace wygrywa z uchwytem rejestru, subagent nie
+przejmuje rozmowy, uchwyt bez transkryptu nie jest zapisywany, tury tool-only i `compaction`
+to bookkeeping, nieznany wiersz nadal degraduje).
 
 ## HANDOFF Z CODEBUDDY: przechwycenie uchwytu sesji (2026-11-02, `dev`)
 

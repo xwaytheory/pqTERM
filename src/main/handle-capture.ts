@@ -1,4 +1,4 @@
-import { closeSync, openSync, readFileSync, readdirSync, readSync } from 'fs'
+import { closeSync, existsSync, openSync, readFileSync, readdirSync, readSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 
@@ -91,6 +91,18 @@ function registryDir(): string {
   return join(homedir(), '.codebuddy', 'sessions')
 }
 
+/** A stored handle is only useful if a transcript is actually named after it. */
+function transcriptExists(handle: string): boolean {
+  const root = join(homedir(), '.codebuddy', 'projects')
+  try {
+    return readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .some((d) => existsSync(join(root, d.name, `${handle}.jsonl`)))
+  } catch {
+    return false
+  }
+}
+
 function readEntry(file: string): CodebuddyEntry | null {
   try {
     const raw: unknown = JSON.parse(readFileSync(file, 'utf8'))
@@ -100,19 +112,27 @@ function readEntry(file: string): CodebuddyEntry | null {
   }
 }
 
-/** Read-only. Returns null when CodeBuddy has not published its session yet. */
+/** Exact pid-keyed lookup — no cwd guessing. Used when a pane has no handle yet. */
+export function codebuddyTraceHandle(pid: number): string | null {
+  return traceHandle(pid)
+}
+
+/** Read-only. Returns null when CodeBuddy has not published a usable session yet. */
 export function captureCodebuddyHandle(pid: number, cwd: string, since: number): string | null {
   const traced = traceHandle(pid)
   if (traced) return traced
   const dir = registryDir()
   const own = readEntry(join(dir, `${pid}.json`))
-  if (own?.sessionId) return pickCodebuddySession([own], pid, cwd, since)
+  // the registry also publishes CLI handles (interactive-<pid>) that name no transcript
+  if (own?.sessionId && transcriptExists(own.sessionId))
+    return pickCodebuddySession([own], pid, cwd, since)
   try {
     const entries = readdirSync(dir)
       .filter((f) => /^\d+\.json$/.test(f))
       .map((f) => readEntry(join(dir, f)))
       .filter((e): e is CodebuddyEntry => Boolean(e))
-    return pickCodebuddySession(entries, pid, cwd, since)
+    const usable = entries.filter((e) => e.sessionId && transcriptExists(e.sessionId))
+    return pickCodebuddySession(usable, pid, cwd, since)
   } catch {
     return null
   }
