@@ -1,5 +1,22 @@
 # pq workbench (gauntlet live board)
 
+## RESUME: CodeBuddy wraca do rozmowy po restarcie (2026-11-02, `dev`)
+
+**Zgłoszenie:** pytanie właściciela „jak w ogóle odpala się historię w CodeBuddy? `/session`
+nie istnieje" odsłoniło lukę: CLI ma `-c`/`--continue`, `-r`/`--resume [id]` i `/resume`
+w TUI, ale pqTERM nigdy nie podawał tej flagi — `resumeFlag()` zwracał `null` dla codebuddy,
+a `pickResume()` i tak nie miało z czego wybrać, bo CodeBuddy nie publikuje listingu sesji.
+
+**Zmiana:** `resumeFlag('codebuddy')` → `['--resume', <uuid>]`; `pickResume()` bez wpisu
+w cache oddaje zapisany uchwyt **tylko dla codebuddy**. Dla silnika, którego store po prostu
+nie udało się odczytać (opencode), nadal `null` — stara flaga `--session` podana do martwej
+sesji potrafi ubić panel, więc brak wiedzy nie może udawać wiedzy.
+
+**Bramki (`dev`):** `npm run typecheck` + `npm run test:unit` (**246/246**, 9 suit, +2 testy:
+flaga resume dla codebuddy, brak listingu nie udaje nieczytelnego store'u). Poprzedni test
+„silnik bez czytelnego store zachowuje uchwyt" zmienił oczekiwanie z `null` na wznowienie —
+to była właśnie decyzja odroczona w boardzie do momentu, gdy uchwyt będzie skąd wziąć.
+
 ## HANDOFF: uuid zamiast uchwytu CLI + adapter opencode (2026-11-02, `dev`)
 
 **Zgłoszenie:** test na żywych danych pokazał, że łańcuch urywa się już na pierwszym hoppie,

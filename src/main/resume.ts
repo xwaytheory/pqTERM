@@ -22,6 +22,8 @@ export function resumeFlag(engine: EngineId, handle: string): string[] | null {
       return ['--session', handle]
     case 'omp':
       return ['--resume', handle]
+    case 'codebuddy':
+      return ['--resume', handle]
     default:
       return null
   }
@@ -200,7 +202,12 @@ export function pickResume(
   sessionHandle?: string | null
 ): SessionRef | null {
   const slots = cache.get(keyOf(workspaceId, engine))
-  if (!slots) return null
+  if (!slots) {
+    // CodeBuddy has no store listing, so the handle captured at spawn is the only pointer
+    return sessionHandle && engine === 'codebuddy'
+      ? { handle: sessionHandle, title: '', updatedAt: 0 }
+      : null
+  }
   const owned = slots.find((s) => s.paneId === paneId)
   if (owned) return owned.ref
   if (sessionHandle) {
