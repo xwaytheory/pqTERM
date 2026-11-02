@@ -42,6 +42,8 @@ type PaneBridgeHooks = {
   fill: (engine: string, prompt: string, skipSlot: number) => Promise<number[]>
   /** Derive a handoff checkpoint for one slot; returns the file path or null. */
   checkpoint?: (slot: number) => Promise<string | null>
+  /** Move a slot's task to another engine in the same cwd. */
+  handoff?: (slot: number, engine: string) => Promise<{ ok: boolean; checkpoint: string | null; reason?: string }>
   updaterSource?: string
 }
 
@@ -199,6 +201,15 @@ export class PaneBridge {
         if (!Number.isSafeInteger(slot) || slot < 1) return send(400, { error: 'invalid slot' })
         const path = (await this.hooks.checkpoint?.(slot)) ?? null
         return send(path ? 200 : 404, path ? { ok: true, path } : { error: 'no session' })
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/session/handoff') {
+        const slot = typeof body.slot === 'number' ? body.slot : Number.NaN
+        if (!Number.isSafeInteger(slot) || slot < 1) return send(400, { error: 'invalid slot' })
+        if (typeof body.engine !== 'string' || !body.engine.trim()) {
+          return send(400, { error: 'invalid engine' })
+        }
+        const out = await this.hooks.handoff?.(slot, body.engine)
+        return send(out?.ok ? 200 : 409, out ?? { error: 'handoff unavailable' })
       }
       if (req.method === 'POST' && url.pathname === '/v1/fill') {
         if ((body.prompt !== undefined && typeof body.prompt !== 'string') ||
