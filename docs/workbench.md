@@ -1,5 +1,50 @@
 # pq workbench (gauntlet live board)
 
+## SESSION LEDGER: tożsamość sesji + derywowany checkpoint (2026-11-02, `dev`)
+
+**Zgłoszenie:** fundament pod handoff między CLI — każda rozmowa ma dostać stabilną
+tożsamość pqTERM i artefakt, który przeczyta *inny* silnik po wyczerpaniu limitu.
+
+**Tożsamość:** `PaneState.sessionId` (uuid mintowany przez pqTERM) obok istniejącego
+`sessionHandle` (id silnika). Handle zmienia się przy każdym hoppie, sessionId nie —
+więc tylko on może nazywać katalog artefaktów. Mint przy spawnie; **zmiana silnika
+w panelu mintuje nowy id**, bo to inna rozmowa (stary checkpoint nie może wyciec do nowej).
+Migracji nie ma i nie trzeba: pole opcjonalne, `sanitizePane` przepuszcza nieznane klucze,
+stan 1.9.0 bootuje bez zmian.
+
+**Artefakt:** `%LOCALAPPDATA%\pqTERM-<profil>\sessions\<sessionId>\checkpoint.<n>.md`
+— **poza repo** (transkrypty zawierają sekrety; `.pq/` w sklonowanym repo byłby kanałem
+prompt-injection). Append-only, zapis atomowy (tmp + rename), 33 linie markdownu.
+
+**Checkpoint jest derywowany, nie darowany:** pisze go main process, nie agent — bo agent
+ginie razem z limitem. Źródła: natywny transkrypt (adapter read-only) + `git status`
+(repo-wide, oznaczone jako wspólne dla workspace). Sekcje: prośba użytkownika, ostatnia
+ukończona odpowiedź, nieudane narzędzia, zmiany w repo, **błąd ostatniej tury**.
+
+**Kluczowe odkrycie z realnej sesji:** opencode przy `provider.free-limit` zapisuje
+wiadomość asystenta z `content: []`, `finish: "error"` i `error.message`. Bez obsługi
+tego pola checkpoint twierdziłby „brak odpowiedzi" — teraz mówi wprost
+`Free usage limit reached…`, czyli podaje następnemu agentowi **powód** handoffu.
+
+**Adaptery (read-only, zero sqlite):** `opencode` (`session export <id>`),
+`omp` (jsonl), `codebuddy` (jsonl). Status `ok | empty | degraded | schemaUnknown`
+jest częścią nagłówka artefaktu — agent ma wiedzieć, czy ma pełny kontekst, czy ma
+weryfikować repo. Silnik bez adaptera → `degraded`, nigdy wyjątek.
+
+**Wyzwalacze:** nieintencjonalne wyjście panelu (crash) oraz `pqterm checkpoint [slot]`
+(nowa trasa `POST /v1/session/checkpoint`, więc agent w panelu może poprosić o własny
+checkpoint). Panel bez uchwytu sesji → `404`, a nie pusty checkpoint: pusty artefakt
+nauczyłby następnego agenta ufać pustce.
+
+**Świadomie pominięte:** scrollback (ConPTY to historia zapisów, nie ekran — bez
+`@xterm/headless` nie da się z tego odczytać prawdy), adapter freebuff (brak headless
+i exportu), zapis do cudzych store'ów.
+
+**Bramki (`dev`):** `npm run typecheck` (oba projekty) i `npm run test:unit`
+(**230/230**, 9 suit, +12 testów: render/provenance, append-only, zepsuty root,
+mapowanie opencode/omp/codebuddy, quota-death, `schemaUnknown`). E2E na realnej sesji
+`ses_e6235…`: 1 event + `error: Free usage limit reached…` → checkpoint zapisany.
+
 ## RESUME: naprawa martwego wznawiania opencode + ochrona uchwytów sesji (2026-11-02, `dev`)
 
 **Zgłoszenie:** po restarcie pqTERM panele opencode startowały od zera mimo zapisanego

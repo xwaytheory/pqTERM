@@ -64,6 +64,8 @@ import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
 import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag, shouldClearHandle } from './resume'
+import { checkpointRoot, mintSessionId, writeCheckpoint } from './ledger'
+import { readTranscript } from './session-adapters'
 import { shutdownVoiceHost } from './voice-host'
 import { adoptAutoTitle, updatePaneTitle } from './pane-title'
 import { queryActiveOpenCodeTitle } from './opencode-title'
@@ -214,6 +216,58 @@ function validPanePatch(patch: PanePatch): boolean {
   return patch.titleLocked === undefined || typeof patch.titleLocked === 'boolean'
 }
 
+function ledgerRoot(): string {
+  return checkpointRoot(process.env.LOCALAPPDATA || app.getPath('userData'), profileDirName())
+}
+
+/** Repo-wide porcelain lines, capped. Never throws — the pane is already dying. */
+async function repoChanges(cwd: string): Promise<string[]> {
+  try {
+    const stdout = await new Promise<string>((resolve, reject) => {
+      execFile(
+        'git',
+        ['status', '--porcelain', '--untracked-files=no'],
+        { cwd, timeout: 5000, windowsHide: true, maxBuffer: 1024 * 1024 },
+        (err, out) => (err ? reject(err) : resolve(String(out)))
+      )
+    })
+    return stdout
+      .split('\n')
+      .map((l) => l.trimEnd())
+      .filter(Boolean)
+      .slice(0, 40)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Derive a checkpoint from the engine's own transcript plus repo state.
+ * It runs when the pane is already gone, so it never throws and never blocks boot.
+ */
+async function writePaneCheckpoint(paneId: string): Promise<string | null> {
+  const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId))
+  const pane = ws?.panes.find((p) => p.id === paneId)
+  if (!ws || !pane?.engine || !pane.sessionId) return null
+  // No captured handle means we cannot read the conversation at all — an empty
+  // checkpoint would look like context and teach the next agent to trust nothing.
+  if (!pane.sessionHandle) return null
+  const provider = state.providers.find((p) => p.id === pane.engine)
+  const transcript = await readTranscript(pane.engine, {
+    cwd: ws.cwd,
+    handle: pane.sessionHandle,
+    target: provider?.resolvedPath
+  })
+  return writeCheckpoint(ledgerRoot(), {
+    sessionId: pane.sessionId,
+    engine: pane.engine,
+    handle: pane.sessionHandle,
+    cwd: ws.cwd,
+    transcript,
+    changes: await repoChanges(ws.cwd)
+  })
+}
+
 function requireRenderer(event: IpcMainInvokeEvent | IpcMainEvent): void {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed() ||
     event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame) {
@@ -247,6 +301,9 @@ const ptys = new PtyManager(() => mainWindow, {
     activity.exit(paneId, code, intentional)
     board.paneEnd(paneId)
     remote?.pushExit(paneId, code)
+    // A crash is the one handoff trigger nobody can forget. Engine switches and
+    // quit are intentional — those keep their checkpoints on the manual path.
+    if (!intentional) void writePaneCheckpoint(paneId)
   },
   onNotice: (paneId, notice) => {
     // The CLI itself said "notify the user" (OSC 9 / 99 / 777) — trust it over
@@ -304,6 +361,7 @@ function restoreSession(ws: Workspace, pane: PaneState): void {
       // the store was read and no longer holds this handle — let the pane pick again next boot
       pane.sessionHandle = undefined
     }
+    if (!pane.sessionId) pane.sessionId = mintSessionId()
     ptys.spawn({
       paneId: pane.id,
       workspaceId: ws.id,
@@ -463,6 +521,11 @@ bridge = new PaneBridge({
       engine: p.engine,
       title: p.title
     }))
+  },
+  checkpoint: async (slot) => {
+    const ws = activeWs()
+    const pane = ws?.panes[slot - 1]
+    return pane ? writePaneCheckpoint(pane.id) : null
   },
   spawn: async (slot, engineRaw) => {
     const ws = activeWs()
@@ -1536,7 +1599,9 @@ function registerIpc(): void {
               engine: input.engine,
               title: p.titleLocked ? p.title : spec.name,
               model,
-              sessionHandle: resumeHandle
+              sessionHandle: resumeHandle,
+              // a different engine is a different conversation — never reuse its artifacts
+              sessionId: p.engine === input.engine ? (p.sessionId ?? mintSessionId()) : mintSessionId()
             }
           })
         })

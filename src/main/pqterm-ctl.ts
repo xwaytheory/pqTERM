@@ -42,6 +42,7 @@ function help() {
   pqterm fill grok --send Siemanko  fill + ten sam prompt w nowych oknach
   pqterm spawn <slot> [engine]      slot 1..N
   pqterm send <slot> <tekst...>     wyślij prompt + Enter
+  pqterm checkpoint [slot]          zapisz checkpoint sesji (domyślnie ten panel)
   pqterm update [--check]         aktualizacja kopii (main/dev/test)
 \`)
 }
@@ -89,6 +90,13 @@ async function main() {
     if (!slot || !text) { console.error('pqterm send <slot> <tekst>'); process.exit(1) }
     await call('POST', '/v1/panes/' + slot + '/write', { text })
     console.log('ok')
+    return
+  }
+  if (cmd === 'checkpoint') {
+    const slot = Number(argv[1]) || (process.env.PQ_SLOT ? Number(process.env.PQ_SLOT) : 0)
+    if (!slot) { console.error('pqterm checkpoint [slot]'); process.exit(1) }
+    const data = await call('POST', '/v1/session/checkpoint', { slot })
+    console.log(data.path)
     return
   }
   if (cmd === 'update' || cmd === '--check') {
