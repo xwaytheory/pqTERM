@@ -1,5 +1,30 @@
 # pq workbench (gauntlet live board)
 
+## PUBLIC RELEASE: higiena repo przed upublicznieniem (2026-11-02, `dev`)
+
+**Cel:** repo ma iść na GitHub jako publiczne, więc nie może nieść niczego, czego nie
+chcemy oddać na zawsze.
+
+**Skan (dowód):**
+- **Pliki śledzone:** 837 — brak `.env*`, `pq-state.json`, `*.jsonl` (transkrypty),
+  `bridge.json`, `*.pem`/`*.key`, `id_rsa`, `.npmrc`, `.netrc`. `host/`, `out/`,
+  `crates/target/`, `.pq/` są ignorowane i nieśledzone.
+- **Treść plików:** 13 reguł (klucze OpenAI/Anthropic, GitHub PAT, AWS, Slack, Google,
+  JWT, npm, Bearer, przypisania `api_key|secret|password|token`, bloki `PRIVATE KEY`)
+  → 2 trafienia, oba fałszywe: `password='NEO4J_PASSWORD'` (nazwa zmiennej środowiskowej)
+  w vendorowanych skillach graphify.
+- **Historia:** 279 commitów × te same reguły → jedyne trafienie to
+  `task-based-asynchronous-programming` w CSV skilla ui-ux-pro-max (podciąg `sk-based-…`).
+- **Token mostka** nie jest stałą: `randomBytes(16)` w runtime, zapisywany do profilu
+  (`bridge.json`), nigdy do repo. `google-oauth.example.json` zawiera placeholdery.
+- **Ścieżki i nazwy:** `C:\Users\<user>` (29×) → `%USERPROFILE%` w `AGENTS.md`,
+  `JAK-ZACZAC.md`, boardzie; nazwa projektu klienckiego w boardzie i w fixture
+  `folder-check.tsx` → neutralna. Historia nadal je zawiera (decyzja właściciela:
+  czyścić pliki, nie przepisywać 279 commitów).
+
+**Bramki (`dev` → `test` → `main`):** `npm run test:unit` **246/246**, `npm run typecheck`
+(oba projekty), `npm run check:version` OK (1.9.0).
+
 ## SESSION HUB: przełączenie CLI w działającym panelu (pomysł, 2026-11-02, `dev`)
 
 **Pomysł właściciela:** zamiast komendy — wizualna zmiana CLI w **trwającej** sesji:
@@ -209,7 +234,7 @@ id przy spawnie.
 **Bramki (`dev`):** `npm run typecheck` (oba projekty) i `npm run test:unit`
 (**218/218**, 9 suit, +4 testy: mapowanie wierszy opencode, brak `id`, zachowanie uchwytu
 przy nieczytelnym store, tytuł z worktree). Realny smoke: `opencode session list --format json`
-z `instances/dev` → 2 sesje, `directory: C:\Users\pq\pqTERM`, `updated` w ms.
+z `instances/dev` → 2 sesje, `directory: %USERPROFILE%\pqTERM`, `updated` w ms.
 
 ## SPAWN ENGINE: serca i pasek ulubionych (2026-11-01, `dev`, wydane w 1.9.0)
 
@@ -997,7 +1022,7 @@ kolejność na pulpicie); stare `Oficjalna` / `DEV` / `TEST` oraz duplikat
    duplikat „Oficjalna (START-pr)” przeżywał czyszczenie. Poprawione.
 
 **Dowód:** odczyt `.lnk` przez `WScript.Shell` po uruchomieniu skryptu — trzy skróty,
-`target` z pojedynczymi separatorami, `icon=C:\Users\pq\pqTERM\resources\brand\pq.ico,0`,
+`target` z pojedynczymi separatorami, `icon=%USERPROFILE%\pqTERM\resources\brand\pq.ico,0`,
 `Test-Path` tej ikony `True`. Skrypt odpalony na `main` po promocji.
 
 **Otwarte (wymaga zamknięcia aplikacji):** `host\pqterm.exe` w stable **nie** został
@@ -1137,7 +1162,7 @@ kazano mu bezsensu.
 - `host\pqterm.exe` **nie został zestampowany**: plik zwraca `EBUSY`, bo trzyma go
   działająca instancja pqTERM. Po jej zamknięciu: `node scripts/stamp-host.cjs`
   (ProductVersion → 1.3.5; FileVersion zostaje 1.1.7 z założenia).
-- Oficjalne `out/` przebudowane w `C:\Users\pq\pqTERM` (`npm run build`) — build z 1.3.5.
+- Oficjalne `out/` przebudowane w `%USERPROFILE%\pqTERM` (`npm run build`) — build z 1.3.5.
 - `instances/wip` (gałąź `main`, cudzy staged index) i `instances/feat/engine-lifecycle`
   nietknięte; `wip` widzi teraz nowy HEAD `main`, jego bajty w indexie zostały nienaruszone.
 
@@ -1518,7 +1543,7 @@ Cudza niezacommitowana praca **nie zginęła** — jest w stashach (wspólny sto
 
 Podgląd/powrót: `git -C <worktree> stash show -p stash@{N}` → `git stash pop stash@{N}` **w tym samym worktree, z którego pochodzi**. Pułapka: `stash@{0}` i `{1}` zawierają też moje `AGENTS.md`/`.gitignore`/`.agents/` z chwili pakowania — po kaskadzie te pliki są w gicie, więc `pop` może się zderzyć; bezpieczniej obejrzeć `stash show -p` i wyłuskać tylko potrzebne pliki.
 
-Notka historyczna (2026-09-15): nazwa `pq-work` poniżej oznacza obecną lokalizację `C:\Users\pq\pqTERM\instances\wip`; liczby i stan opisują tamtą sesję.
+Notka historyczna (2026-09-15): nazwa `pq-work` poniżej oznacza obecną lokalizację `%USERPROFILE%\pqTERM\instances\wip`; liczby i stan opisują tamtą sesję.
 
 ## ⚠️ Ryzyko w `pq-work`: staged zmiany **kasują** OSC pane-titles
 
@@ -1527,8 +1552,8 @@ Notka historyczna (2026-09-15): nazwa `pq-work` poniżej oznacza obecną lokaliz
 To nie jest praca do „dokończenia”: to gałąź stanu **sprzed** fali OSC. Jeśli ktoś w `pq-work` zrobi `git commit` bez czytania `git status`, funkcja adopcji tytułów zniknie z `main` przy najbliższym mergu, a bramka tego nie złapie (usunięcie pliku to nie błąd typów).
 
 - **Nie ruszałem** tego (cudza niezacommitowana praca).
-- Przed jakimkolwiek mergem `test`→`main`: `git -C C:\Users\pq\pqTERM\instances\wip diff --cached --stat` i decyzja człowieka — `git restore --staged .` albo świadomy commit.
-- To samo dotyczy `C:\Users\pq\pqTERM`, gdzie `src/main/resume.ts` jest **całkowicie rozjechany** z `HEAD` (201 vs 189 linii) — inna, niezacommitowana wersja pliku.
+- Przed jakimkolwiek mergem `test`→`main`: `git -C %USERPROFILE%\pqTERM\instances\wip diff --cached --stat` i decyzja człowieka — `git restore --staged .` albo świadomy commit.
+- To samo dotyczy `%USERPROFILE%\pqTERM`, gdzie `src/main/resume.ts` jest **całkowicie rozjechany** z `HEAD` (201 vs 189 linii) — inna, niezacommitowana wersja pliku.
 
 ## Korekta: „martwa kopia” to **katalog metadanych gita** (nie śmieć)
 
@@ -1639,9 +1664,9 @@ Pułapka, którą znowu obsadził `check:version` — tym razem w bezpieczną st
 
 **Czego nie zrobiłem celowo, bo to nie moje:**
 
-- `instances\wip` ma na gałęzi `main` **staged rollback całej tej pracy** (`588 plików, −204 707 linii` w indeksie: usunięte skille, wycofane `pane-activity.ts` / `pty-manager.ts` / `NotificationsPanel.tsx`). To cudza, niekommitowana praca z innej sesji — zgodnie z notką z 2026-09-15 **jej nie ruszałem**. `main` jest bezpieczny tylko dlatego, że merge szedł w głównym worktree (worktree ma własny indeks). Do rozstrzygnięcia przez człowieka: `git -C C:\Users\pq\pqTERM\instances\wip diff --cached --stat`, potem `git restore --staged .` albo commit. Dopóki to leży, **żaden commit zrobiony w `wip` nie może wejść na `main`**.
+- `instances\wip` ma na gałęzi `main` **staged rollback całej tej pracy** (`588 plików, −204 707 linii` w indeksie: usunięte skille, wycofane `pane-activity.ts` / `pty-manager.ts` / `NotificationsPanel.tsx`). To cudza, niekommitowana praca z innej sesji — zgodnie z notką z 2026-09-15 **jej nie ruszałem**. `main` jest bezpieczny tylko dlatego, że merge szedł w głównym worktree (worktree ma własny indeks). Do rozstrzygnięcia przez człowieka: `git -C %USERPROFILE%\pqTERM\instances\wip diff --cached --stat`, potem `git restore --staged .` albo commit. Dopóki to leży, **żaden commit zrobiony w `wip` nie może wejść na `main`**.
 - `instances\feat\engine-lifecycle` nie jest przodkiem `main` (94 commity do przodu, real merge z ryzykiem konfliktów) — gałąź izolowana, poza kaskadą dev → test → main, więc jej nie scalałem. Skille i tak są globalne.
-- `main\host\pqterm.exe` i `main\out\` **nie odświeżone**: oficjalna aplikacja z `main` trzymała pliki pod rygą, a przy okazji okazało się, że siedzę w pane'ie **tej samej** aplikacji — jej zamknięcie ubija moją sesję (stąd dwa przerwane polecenia w tej sesji). Do domknięcia po zamknięciu pqTERM: `node scripts/stamp-host.cjs` + `npm run build` w `C:\Users\pq\pqTERM`. Stan `main` w gicie i na GitHubie jest kompletny; brakuje tylko lokalnych artefaktów skompilowanych.
+- `main\host\pqterm.exe` i `main\out\` **nie odświeżone**: oficjalna aplikacja z `main` trzymała pliki pod rygą, a przy okazji okazało się, że siedzę w pane'ie **tej samej** aplikacji — jej zamknięcie ubija moją sesję (stąd dwa przerwane polecenia w tej sesji). Do domknięcia po zamknięciu pqTERM: `node scripts/stamp-host.cjs` + `npm run build` w `%USERPROFILE%\pqTERM`. Stan `main` w gicie i na GitHubie jest kompletny; brakuje tylko lokalnych artefaktów skompilowanych.
 - `AGENTS.md` w `main` miał niezacommitowaną pustą linię dorzuconą przez wstrzykiwacz `<!-- pq:defaults -->` (narzędzie zewnętrzne). Zostawiłem nietknięte, żeby nie mieszać się z narzędziem; to szum, nie zmiana treści.
 
 ## Fix 1.5.1: fałszywy alert w trakcie pracy (zrzut z 2026-09-30)
@@ -1675,7 +1700,7 @@ Prośba: widać w `workspaces`, że dany workspace właśnie coś wykonuje, a po
 
 - tylko `opacity` (kompozytor, zero repaintu), pętla 1500 ms (limit z `motion.csv` #16), easing `cubic-bezier(.37,0,.63,1)`, amplituda nigdy nie spada poniżej 0.35 (próg „nie migać”).
 - **8 faz** (`--phase: index % 8`, 180 ms offsetu) — lista pracujących wierszy czyta się jako jedno przesuwające się pole, nie N niezależnych miganek; limit ~8 dzieci z `motion.csv` #8. Faza to stała z renderu, **nie** timer.
-- **Rampa anty-hałas na `.ws-list`:** `busy-1`/`busy-2` zwężają amplitudę, a `busy-3` (7+ pracujących pane'ów) **wyłącza animację** — gdy wszystko pracuje, shimmer nie niesie informacji, a 13 pulsujących kropek to szum. Zostają kształty + tekst. To jest ten zawór, który chroni przed najgorszym przypadkiem zgłoszonym wprost (`Pine2cTrader 13/13`).
+- **Rampa anty-hałas na `.ws-list`:** `busy-1`/`busy-2` zwężają amplitudę, a `busy-3` (7+ pracujących pane'ów) **wyłącza animację** — gdy wszystko pracuje, shimmer nie niesie informacji, a 13 pulsujących kropek to szum. Zostają kształty + tekst. To jest ten zawór, który chroni przed najgorszym przypadkiem zgłoszonym wprost (`projekt klienta 13/13`).
 - **Odrzucone po researchu:** trójkąt „typing pulse” (3×13 = 39 niezależnych węzłów, wyciera 12 px z 18 px guttera) i pasek „sweep” (sugerowałby postęp/ETA, których pqTERM nie zna — mylący ruch).
 - **`@media (prefers-reduced-motion: reduce)`** — pierwszy blok `@media` w repo: pętla pada, kształty i tekst zostają. Accessibility jest na liście „nigdy nie okrój” w `AGENTS.md`, więc wchodzi w tym samym diffie.
 
