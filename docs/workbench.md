@@ -1,5 +1,34 @@
 # pq workbench (gauntlet live board)
 
+## HANDOFF: przejęcie zadania w innym CLI (2026-11-02, `dev`)
+
+**Zgłoszenie:** limit w jednym CLI pada w środku zadania — jedno polecenie ma przenieść
+zadanie do innego silnika, w tym samym katalogu, z kontekstem.
+
+**Polecenie:** `pqterm handoff <slot> <engine>` → `POST /v1/session/handoff`.
+Kolejność jest istotna: **najpierw checkpoint, potem zabicie starego CLI** — to ostatni
+moment, w którym transkrypt źródłowy jest kompletny.
+
+**Nowa rozmowa, nie ta sama:** handoff mintuje świeży `sessionId`, zapisuje
+`parentSessionId` (linia przejęcia) i **czyści `sessionHandle`**. Bez tego wyczyszczenia
+uchwyt opencode trafiłby do argumentów `--resume` CodeBuddy przy następnym boocie —
+cichy błąd, który wygląda jak wznowienie.
+
+**Seed:** jedna linia, bez znaków nowej linii. Każde z tych CLI to pełnoekranowy TUI,
+a wielolinijkowy paste zatwierdza każdą linię jako osobną turę. Dlatego checkpoint zostaje
+plikiem, który agent otwiera sam — dokładnie to, co robi ręcznie, tylko deterministycznie
+i z absolutną ścieżką.
+
+**Bez cichego sukcesu:** brak uchwytu → `reason: "start bez kontekstu"`; CLI nie
+odpowiedziało w 12 s → `reason: "wklej seed ręcznie"`. `pqterm` drukuje powód na stderr,
+zamiast udawać, że kontekst dotarł.
+
+**Bramki (`dev`):** `npm run typecheck` (oba projekty) i `npm run test:unit`
+(**235/235**, 9 suit, +5 testów: seed jednolinijkowy, ścieżka + silnik źródłowy,
+ostrzeżenie o niepełnym transkrypcie, CTL wysyła `{slot, engine}` na trasę i drukuje
+ścieżkę checkpointu, brak argumentów = exit 1). Test CTL używa własnego mostka, bo
+powłoka w panelu pqTERM eksportuje `PQ_BRIDGE`/`PQ_TOKEN` i przechwyciłaby wywołanie.
+
 ## SESSION LEDGER: tożsamość sesji + derywowany checkpoint (2026-11-02, `dev`)
 
 **Zgłoszenie:** fundament pod handoff między CLI — każda rozmowa ma dostać stabilną

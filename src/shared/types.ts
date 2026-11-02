@@ -114,6 +114,8 @@ export interface PaneState {
   sessionHandle?: string
   /** pqTERM-minted lineage id; names the checkpoint directory for this conversation */
   sessionId?: string
+  /** session this pane took over from, set by handoff */
+  parentSessionId?: string
   /** normalized rectangle [0..1] this pane occupies in the workspace grid. */
   area?: PaneArea
 }

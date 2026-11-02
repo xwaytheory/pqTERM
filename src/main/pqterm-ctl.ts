@@ -43,6 +43,7 @@ function help() {
   pqterm spawn <slot> [engine]      slot 1..N
   pqterm send <slot> <tekst...>     wyślij prompt + Enter
   pqterm checkpoint [slot]          zapisz checkpoint sesji (domyślnie ten panel)
+  pqterm handoff <slot> <engine>    przejmij zadanie w innym CLI (ten sam katalog)
   pqterm update [--check]         aktualizacja kopii (main/dev/test)
 \`)
 }
@@ -90,6 +91,15 @@ async function main() {
     if (!slot || !text) { console.error('pqterm send <slot> <tekst>'); process.exit(1) }
     await call('POST', '/v1/panes/' + slot + '/write', { text })
     console.log('ok')
+    return
+  }
+  if (cmd === 'handoff') {
+    const slot = Number(argv[1])
+    const engine = argv[2]
+    if (!slot || !engine) { console.error('pqterm handoff <slot> <engine>'); process.exit(1) }
+    const data = await call('POST', '/v1/session/handoff', { slot, engine })
+    console.log(data.checkpoint || 'ok (bez checkpointu)')
+    if (data.reason) console.error('uwaga: ' + data.reason)
     return
   }
   if (cmd === 'checkpoint') {

@@ -66,6 +66,7 @@ import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag, shouldClearHandle } from './resume'
 import { checkpointRoot, mintSessionId, writeCheckpoint } from './ledger'
 import { readTranscript } from './session-adapters'
+import { handoffSeed } from './handoff'
 import { shutdownVoiceHost } from './voice-host'
 import { adoptAutoTitle, updatePaneTitle } from './pane-title'
 import { queryActiveOpenCodeTitle } from './opencode-title'
@@ -266,6 +267,79 @@ async function writePaneCheckpoint(paneId: string): Promise<string | null> {
     transcript,
     changes: await repoChanges(ws.cwd)
   })
+}
+
+/** Wait until a freshly spawned TUI has painted something, so the seed is not swallowed. */
+async function waitForOutput(paneId: string, ms = 12000): Promise<boolean> {
+  const t0 = Date.now()
+  while (Date.now() - t0 < ms) {
+    if (!ptys.alive(paneId)) return false
+    if (ptys.buffer(paneId).seq > 0) return true
+    await sleep(150)
+  }
+  return false
+}
+
+/**
+ * Move one pane's task to another engine in the same cwd.
+ * The checkpoint is written *before* the old CLI is killed — that is the last
+ * moment its transcript is complete.
+ */
+async function handoffPane(
+  paneId: string,
+  engine: EngineId
+): Promise<{ ok: boolean; checkpoint: string | null; reason?: string }> {
+  const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId))
+  const pane = ws?.panes.find((p) => p.id === paneId)
+  if (!ws || !pane) return { ok: false, checkpoint: null, reason: 'nie ma takiego pane' }
+  const provider = state.providers.find((p) => p.id === engine)
+  if (!provider?.installed) return { ok: false, checkpoint: null, reason: 'silnik niezainstalowany' }
+  const checkpoint = await writePaneCheckpoint(paneId)
+  const sourceEngine = pane.engine
+  const spec = specById(engine)
+  // ptys.spawn kills the current process itself — no separate kill needed
+  ptys.spawn({
+    paneId,
+    workspaceId: ws.id,
+    engine,
+    cwd: ws.cwd,
+    cols: 80,
+    rows: 24,
+    resolvedPath: provider.resolvedPath,
+    extraArgs: [...(spec.args ?? [])]
+  })
+  state.workspaces = state.workspaces.map((w) => {
+    if (w.id !== ws.id) return w
+    return touchWorkspace({
+      ...w,
+      panes: w.panes.map((p) =>
+        p.id === paneId
+          ? {
+              ...p,
+              engine,
+              // a handoff is a new conversation: fresh lineage, and the previous
+              // engine's handle must never reach this one's resume args
+              sessionId: mintSessionId(),
+              parentSessionId: p.sessionId,
+              sessionHandle: undefined,
+              model: undefined,
+              title: p.titleLocked ? p.title : spec.name
+            }
+          : p
+      )
+    })
+  })
+  persist()
+  if (!checkpoint) {
+    return { ok: true, checkpoint, reason: 'brak uchwytu sesji — nowy silnik startuje bez kontekstu' }
+  }
+  if (!(await waitForOutput(paneId))) {
+    return { ok: true, checkpoint, reason: 'checkpoint zapisany, ale CLI nie odpowiedział — wklej seed ręcznie' }
+  }
+  await sleep(350)
+  const seed = handoffSeed({ checkpointPath: checkpoint, sourceEngine, targetEngine: engine })
+  ptys.write(paneId, `${seed}\r`)
+  return { ok: true, checkpoint }
 }
 
 function requireRenderer(event: IpcMainInvokeEvent | IpcMainEvent): void {
@@ -526,6 +600,14 @@ bridge = new PaneBridge({
     const ws = activeWs()
     const pane = ws?.panes[slot - 1]
     return pane ? writePaneCheckpoint(pane.id) : null
+  },
+  handoff: async (slot, engineRaw) => {
+    const ws = activeWs()
+    const engine = parseEngine(engineRaw)
+    const pane = ws?.panes[slot - 1]
+    if (!pane) return { ok: false, checkpoint: null, reason: 'nie ma takiego slotu' }
+    if (!engine) return { ok: false, checkpoint: null, reason: 'nieznany silnik' }
+    return handoffPane(pane.id, engine)
   },
   spawn: async (slot, engineRaw) => {
     const ws = activeWs()
