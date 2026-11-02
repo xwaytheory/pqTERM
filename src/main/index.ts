@@ -67,7 +67,7 @@ import { pickResume, primeResume, resumeFlag, shouldClearHandle } from './resume
 import { checkpointRoot, mintSessionId, writeCheckpoint } from './ledger'
 import { readTranscript } from './session-adapters'
 import { handoffSeed } from './handoff'
-import { captureCodebuddyHandle } from './handle-capture'
+import { captureCodebuddyHandle, codebuddyTraceHandle } from './handle-capture'
 import { shutdownVoiceHost } from './voice-host'
 import { adoptAutoTitle, updatePaneTitle } from './pane-title'
 import { queryActiveOpenCodeTitle } from './opencode-title'
@@ -251,19 +251,24 @@ async function writePaneCheckpoint(paneId: string): Promise<string | null> {
   const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId))
   const pane = ws?.panes.find((p) => p.id === paneId)
   if (!ws || !pane?.engine || !pane.sessionId) return null
-  // No captured handle means we cannot read the conversation at all — an empty
-  // checkpoint would look like context and teach the next agent to trust nothing.
-  if (!pane.sessionHandle) return null
+  // A pane spawned before CodeBuddy wrote its trace header has no handle yet; by the
+  // time anyone hands off it does, and the pid keeps the binding exact.
+  const pid = ptys.pidOf(paneId)
+  const handle =
+    pane.sessionHandle ?? (pane.engine === 'codebuddy' && pid ? codebuddyTraceHandle(pid) : null)
+  // No handle means we cannot read the conversation at all — an empty checkpoint would
+  // look like context and teach the next agent to trust nothing.
+  if (!handle) return null
   const provider = state.providers.find((p) => p.id === pane.engine)
   const transcript = await readTranscript(pane.engine, {
     cwd: ws.cwd,
-    handle: pane.sessionHandle,
+    handle,
     target: provider?.resolvedPath
   })
   return writeCheckpoint(ledgerRoot(), {
     sessionId: pane.sessionId,
     engine: pane.engine,
-    handle: pane.sessionHandle,
+    handle,
     cwd: ws.cwd,
     transcript,
     changes: await repoChanges(ws.cwd)
