@@ -14,7 +14,9 @@ register(`data:text/javascript,${encodeURIComponent(`
   }
 `)}`, import.meta.url)
 // Dynamic import is required so this test's Node resolution hook is installed first.
-const { opencodeRefs, pickResume, primeResume, shouldClearHandle } = await import('./resume.ts')
+const { opencodeRefs, pickResume, primeResume, resumeFlag, shouldClearHandle } = await import(
+  './resume.ts'
+)
 
 test('native session claims reserve persisted handles and remain owned across repeated starts', async (t) => {
   const home = mkdtempSync(join(os.tmpdir(), 'pq-resume-'))
@@ -70,7 +72,7 @@ test('opencode rows without an id are dropped, missing directory is trusted', ()
   assert.deepEqual(opencodeRefs([{ id: 'ses_x', updated: 1 }], 'C:/p').map((r) => r.handle), ['ses_x'])
 })
 
-test('an engine without a readable store keeps its persisted handle', async (t) => {
+test('an engine without a readable store still resumes from its persisted handle', async (t) => {
   const home = mkdtempSync(join(os.tmpdir(), 'pq-resume-'))
   t.mock.method(os, 'homedir', () => home)
   syncBuiltinESMExports()
@@ -84,6 +86,19 @@ test('an engine without a readable store keeps its persisted handle', async (t) 
     panes: [{ id: 'pane', engine: 'codebuddy', title: '', sessionHandle: 'abc' }]
   }
   await primeResume([ws], [])
-  assert.equal(pickResume(ws.id, 'codebuddy', 'pane', 'abc'), null)
+  // no listing to pick from, but the captured handle is a real conversation — resume it
+  assert.equal(pickResume(ws.id, 'codebuddy', 'pane', 'abc')?.handle, 'abc')
   assert.equal(shouldClearHandle(ws.id, 'codebuddy', 'abc'), false)
+})
+test('codebuddy resumes by the handle captured at spawn', () => {
+  assert.deepEqual(resumeFlag('codebuddy', 'uuid-1'), ['--resume', 'uuid-1'])
+  assert.deepEqual(resumeFlag('opencode', 'ses_1'), ['--session', 'ses_1'])
+  assert.equal(resumeFlag('shell', 'x'), null)
+})
+
+test('without a listing, only codebuddy resumes from its stored handle', () => {
+  // never primed: CodeBuddy publishes no store listing, so the handle is all we have
+  assert.equal(pickResume('ws-nolisting', 'codebuddy', 'p1', 'uuid-1')?.handle, 'uuid-1')
+  // an engine whose store we merely failed to read must not get a stale flag
+  assert.equal(pickResume('ws-nolisting', 'opencode', 'p1', 'ses_x'), null)
 })
