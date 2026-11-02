@@ -297,15 +297,31 @@ async function captureHandleLater(paneId: string, since = Date.now()): Promise<v
   }
 }
 
-/** Wait until a freshly spawned TUI has painted something, so the seed is not swallowed. */
-async function waitForOutput(paneId: string, ms = 12000): Promise<boolean> {
+/**
+ * Wait until a freshly spawned TUI has painted and then gone quiet. Writing as soon
+ * as the first byte appears lands mid-initialisation and the text is swallowed
+ * (measured: CodeBuddy creates its session but never receives the seed).
+ * Bounded so a blinking cursor cannot hold the handoff forever.
+ */
+async function waitForPrompt(paneId: string, timeoutMs = 25000): Promise<boolean> {
   const t0 = Date.now()
-  while (Date.now() - t0 < ms) {
+  let firstAt = 0
+  let last = -1
+  let quietSince = 0
+  while (Date.now() - t0 < timeoutMs) {
     if (!ptys.alive(paneId)) return false
-    if (ptys.buffer(paneId).seq > 0) return true
-    await sleep(150)
+    const now = Date.now()
+    const seq = ptys.buffer(paneId).seq
+    if (seq !== last) {
+      last = seq
+      if (!firstAt) firstAt = now
+      quietSince = now
+    }
+    // a splash screen can go quiet for a moment while the CLI is still booting
+    if (firstAt && now - firstAt >= 4000 && now - quietSince >= 1500) return true
+    await sleep(120)
   }
-  return false
+  return firstAt > 0
 }
 
 /**
@@ -362,10 +378,9 @@ async function handoffPane(
   if (!checkpoint) {
     return { ok: true, checkpoint, reason: 'brak uchwytu sesji — nowy silnik startuje bez kontekstu' }
   }
-  if (!(await waitForOutput(paneId))) {
+  if (!(await waitForPrompt(paneId))) {
     return { ok: true, checkpoint, reason: 'checkpoint zapisany, ale CLI nie odpowiedział — wklej seed ręcznie' }
   }
-  await sleep(350)
   const seed = handoffSeed({ checkpointPath: checkpoint, sourceEngine, targetEngine: engine })
   ptys.write(paneId, `${seed}\r`)
   return { ok: true, checkpoint }
