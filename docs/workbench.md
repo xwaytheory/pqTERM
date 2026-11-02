@@ -1,5 +1,31 @@
 # pq workbench (gauntlet live board)
 
+## HANDOFF: uuid zamiast uchwytu CLI + adapter opencode (2026-11-02, `dev`)
+
+**Zgłoszenie:** test na żywych danych pokazał, że łańcuch urywa się już na pierwszym hoppie,
+mimo zielonych bramek — unit testy nie widziały ani jednego z tych dwóch kształtów.
+
+**Błąd 1 — rejestr CodeBuddy nie zawiera uuid transkryptu.** Publikuje
+`sessionId: "interactive-<pid>"`, czyli uchwyt CLI. `captureCodebuddyHandle` zapisywał go bez
+weryfikacji, `findByHandle` nie znajdował pliku, więc handoff *z* CodeBuddy kończył się
+`empty` → „start bez kontekstu". Prawdziwy uuid jest w `~/.codebuddy/traces/<pid>/trace_*.jsonl`
+(`trace_start.trace.agent.sessionId`), a katalog jest kluczowany po pid — wiązanie zostaje
+dokładne, bez zgadywania po czasie. Trace subagenta dzieli pid, ale nie rozmowę: wygrywa
+`kind: "main"`, reszta jest tylko fallbackiem. Rejestr zostaje jako fallback dla wersji bez traces.
+
+**Błąd 2 — opencode ogłaszał `degraded` na każdej zdrowej sesji.** Tury asystenta bez prozy
+(tylko `reasoning`/`tool`) oraz wiersz `compaction` liczyły się jako „nieznane wpisy":
+143 wiadomości → 127 „nieznanych". To ten sam błąd, który naprawiono wcześniej dla CodeBuddy —
+opencode został pominięty. Teraz bookkeeping nie degraduje, a nieznany typ wiersza nadal tak.
+
+**Dowód na żywej sesji (przed → po):** `capture(pid 31344)` → `interactive-31344` vs
+`01a19deb-…`; `opencodeTranscript(session export)` → `degraded (127)` vs `ok`, 11 eventów.
+Checkpoint opencode zawiera ostatnią prośbę użytkownika i ostatnią odpowiedź.
+
+**Bramki (`dev`):** `npm run typecheck` (oba projekty) i `npm run test:unit`
+(**243/243**, 9 suit, +4 testy: uuid z trace wygrywa z uchwytem rejestru, subagent nie
+przejmuje rozmowy, tury tool-only i `compaction` to bookkeeping, nieznany wiersz nadal degraduje).
+
 ## HANDOFF Z CODEBUDDY: przechwycenie uchwytu sesji (2026-11-02, `dev`)
 
 **Zgłoszenie:** handoff *z* CodeBuddy startował bez kontekstu, bo nic nie zapisywało jego
