@@ -1,5 +1,29 @@
 # pq workbench (gauntlet live board)
 
+## SESSION HUB: przełączenie CLI w działającym panelu (pomysł, 2026-11-02, `dev`)
+
+**Pomysł właściciela:** zamiast komendy — wizualna zmiana CLI w **trwającej** sesji:
+wybierasz inny silnik w panelu, a nowe CLI samo ładuje zadanie. Bez dialogu, bez
+przepisywania promptu.
+
+**Zapisany stan rzeczy:** `docs/SESSION-HUB.md` (ang., bo repo idzie public) — co już
+działa (resume, `sessionId`/`parentSessionId`, derywowany checkpoint, `pqterm handoff`,
+`POST /v1/session/*`), dlaczego checkpoint jest pqTERM-owy a nie kopią store'u innego
+CLI (prywatne i wersjozależne formaty, brak cross-vendor formatu w ACP, cwd-scoping,
+silent-success), oraz **trzy realne braki**:
+
+1. `setPane(…, { engine })` nadal robi zimny restart — nie jest podpięty pod `handoffPane`.
+2. Seed nie zawsze dociera: zapis do TUI w trakcie inicjalizacji jest połykany
+   (zmierzone: CodeBuddy tworzy sesję i nie dostaje linii). Kierunek: flagi
+   initial-prompt (`opencode --prompt`, `hermes -z`, `kilo run`) zamiast zapisu do PTY.
+3. Brak widocznego werdyktu „kontekst wczytany / pusty prompt" — badge musi pochodzić
+   z tego, co zaobserwował main, nie z deklaracji agenta.
+
+**Bramki (`dev`):** `npm run typecheck` (oba projekty) i `npm run test:unit`
+(**246/246**, 9 suit). Zmiana w `waitForPrompt` (czekanie na wyciszenie ekranu zamiast
+pierwszego bajtu) jest w tym commicie — poprawia zachowanie, ale **nie odblokowuje
+CodeBuddy**; to dług, nie fix, i tak jest opisane w docs.
+
 ## RESUME: CodeBuddy wraca do rozmowy po restarcie (2026-11-02, `dev`)
 
 **Zgłoszenie:** pytanie właściciela „jak w ogóle odpala się historię w CodeBuddy? `/session`
