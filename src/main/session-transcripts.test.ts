@@ -55,7 +55,7 @@ test('omp jsonl ignores session headers and maps turns', () => {
     JSON.stringify({ type: 'message', message: { role: 'toolResult', toolName: 'bash', isError: true, content: [] } })
   ].join('\n')
   const out = ompTranscript(jsonl)
-  assert.equal(out.status, 'degraded')
+  assert.equal(out.status, 'ok')
   assert.deepEqual(out.events.map((e) => e.role), ['user', 'assistant', 'tool'])
   assert.equal(out.events[2].failed, true)
 })
@@ -69,7 +69,8 @@ test('codebuddy jsonl maps messages and tool results, skips bookkeeping rows', (
     JSON.stringify({ type: 'ai-title', aiTitle: 'tytuł' })
   ].join('\n')
   const out = codebuddyTranscript(jsonl)
-  assert.equal(out.status, 'degraded')
+  // session-meta and ai-title are bookkeeping — a healthy session must read as ok
+  assert.equal(out.status, 'ok')
   assert.deepEqual(out.events.map((e) => e.role), ['user', 'assistant', 'tool'])
 })
 

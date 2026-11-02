@@ -1,5 +1,34 @@
 # pq workbench (gauntlet live board)
 
+## HANDOFF Z CODEBUDDY: przechwycenie uchwytu sesji (2026-11-02, `dev`)
+
+**Zgłoszenie:** handoff *z* CodeBuddy startował bez kontekstu, bo nic nie zapisywało jego
+`sessionHandle` — łańcuch opencode → codebuddy → freebuff urywał się na drugim hoppie.
+
+**Mechanizm:** CodeBuddy publikuje `~/.codebuddy/sessions/<pid>.json` z
+`{pid, sessionId, cwd, startedAt}`. pqTERM zna pid procesu w panelu (`PtyManager.pidOf`),
+więc wiązanie jest dokładne, a nie zgadywane po „najnowszej sesji w katalogu".
+Po spawnie main odpytuje rejestr przez 10 s (20 × 500 ms) i zapisuje uchwyt; przy braku
+wpisu pod pidem jest fallback po `cwd` + `startedAt`, ale tylko dla sesji rozpoczętych
+po starcie panelu — stara sesja nigdy nie zostanie adoptowana.
+
+**Trzy błędy w adapterach, które to ujawniło** (wszystkie na realnym pliku, nie na fixture):
+1. CodeBuddy zapisuje bloki tekstu jako `input_text`/`output_text`, nie `text` — mapper
+   widział 0 tur. Teraz `TEXT_BLOCKS` obejmuje oba warianty.
+2. Wpisy porządkowe (`session-meta`, `reasoning`, `ai-title`, `turn-metrics`,
+   `file-history-snapshot`) liczyły się jako „nieznane", więc **każda zdrowa sesja**
+   wychodziła `degraded`. Ostrzeżenie, które zawsze świeci, przestaje cokolwiek znaczyć.
+3. `function_call_result` był emitowany dla każdego wywołania — 148 zdarzeń na 22 tury.
+   Do checkpointu trafiają wyłącznie błędy narzędzi; render i tak pokazywał tylko je.
+
+**Dowód na żywej sesji:** `readTranscript('codebuddy', …)` → `ok`, 22 zdarzenia,
+checkpoint z ostatnią prośbą użytkownika („kontynuuj"). Przechwycenie: pid 2988 →
+`01a19daf-…`, niezależnie od `cwd`.
+
+**Bramki (`dev`):** `npm run typecheck` (oba projekty) i `npm run test:unit`
+(**239/239**, 9 suit, +4 testy: pid wygrywa nad nowszą obcą sesją, fallback po cwd
+i czasie, obcy katalog odrzucony, odczyt rejestru z pid).
+
 ## HANDOFF: przejęcie zadania w innym CLI (2026-11-02, `dev`)
 
 **Zgłoszenie:** limit w jednym CLI pada w środku zadania — jedno polecenie ma przenieść

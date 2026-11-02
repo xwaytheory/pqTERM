@@ -1,5 +1,17 @@
 import type { Transcript, TranscriptEvent } from './ledger'
 
+/** Bookkeeping rows every healthy session carries — not missing context. */
+const OMP_IGNORED = new Set(['title', 'session', 'model_change', 'thinking_level_change', 'custom'])
+const CODEBUDDY_IGNORED = new Set([
+  'session-meta',
+  'reasoning',
+  'file-history-snapshot',
+  'ai-title',
+  'summary',
+  'turn-metrics',
+  'function_call'
+])
+
 /** A single event longer than this is noise for the next agent, not context. */
 const MAX_EVENT = 4000
 
@@ -8,12 +20,15 @@ function clip(text: string): string {
   return t.length > MAX_EVENT ? `${t.slice(0, MAX_EVENT)}…` : t
 }
 
+/** CodeBuddy uses input_text/output_text; opencode and omp use text. */
+const TEXT_BLOCKS = new Set(['text', 'input_text', 'output_text'])
+
 function textOf(blocks: unknown): string {
   if (!Array.isArray(blocks)) return ''
   return blocks
     .map((b) => {
       const block = b as { type?: string; text?: unknown }
-      return block && block.type === 'text' && typeof block.text === 'string' ? block.text : ''
+      return block && TEXT_BLOCKS.has(block.type ?? '') && typeof block.text === 'string' ? block.text : ''
     })
     .filter(Boolean)
     .join('\n')
@@ -61,9 +76,11 @@ export function opencodeTranscript(raw: unknown): Transcript {
         error = m.error.message
       } else skipped++
     } else if (m.type === 'tool') {
-      const name = typeof m.name === 'string' ? m.name : 'tool'
-      const failed = m.state?.status === 'error'
-      events.push({ role: 'tool', text: `${name}${failed ? ' — błąd' : ''}`, failed })
+      // only failures earn a line in the checkpoint; 150 successful calls are noise
+      if (m.state?.status === 'error') {
+        const name = typeof m.name === 'string' ? m.name : 'tool'
+        events.push({ role: 'tool', text: `${name} — błąd`, failed: true })
+      }
     } else {
       skipped++
     }
@@ -89,7 +106,9 @@ export function ompTranscript(jsonl: string): Transcript {
       continue
     }
     if (entry.type !== 'message' || !entry.message) {
-      skipped++
+      // headers, model switches and UI markers are not turns — counting them as
+      // "unknown" would flag every healthy omp session as degraded
+      if (!OMP_IGNORED.has(entry.type ?? '')) skipped++
       continue
     }
     const msg = entry.message
@@ -97,12 +116,10 @@ export function ompTranscript(jsonl: string): Transcript {
     if (msg.role === 'user' && text.trim()) events.push({ role: 'user', text: clip(text) })
     else if (msg.role === 'assistant' && text.trim()) events.push({ role: 'assistant', text: clip(text) })
     else if (msg.role === 'toolResult') {
-      events.push({
-        role: 'tool',
-        text: `${msg.toolName ?? 'tool'}${msg.isError ? ' — błąd' : ''}`,
-        failed: Boolean(msg.isError)
-      })
-    } else skipped++
+      if (msg.isError) {
+        events.push({ role: 'tool', text: `${msg.toolName ?? 'tool'} — błąd`, failed: true })
+      }
+    } else if (msg.role !== 'user' && msg.role !== 'assistant') skipped++
   }
   return finish(events, skipped)
 }
@@ -130,15 +147,15 @@ export function codebuddyTranscript(jsonl: string): Transcript {
     }
     if (entry.type === 'message') {
       const text = typeof entry.content === 'string' ? entry.content : textOf(entry.content)
+      // a tool-only turn has no prose — that is normal, not an unknown row
       if (entry.role === 'user' && text.trim()) events.push({ role: 'user', text: clip(text) })
       else if (entry.role === 'assistant' && text.trim())
         events.push({ role: 'assistant', text: clip(text) })
-      else skipped++
     } else if (entry.type === 'function_call_result') {
-      const failed = Boolean(entry.isError ?? entry.output?.isError)
-      events.push({ role: 'tool', text: `${entry.name ?? 'tool'}${failed ? ' — błąd' : ''}`, failed })
-    } else {
-      // reasoning / file-history-snapshot / ai-title / turn-metrics are not turns
+      if (entry.isError ?? entry.output?.isError) {
+        events.push({ role: 'tool', text: `${entry.name ?? 'tool'} — błąd`, failed: true })
+      }
+    } else if (!CODEBUDDY_IGNORED.has(entry.type ?? '')) {
       skipped++
     }
   }
