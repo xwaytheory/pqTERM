@@ -78,3 +78,22 @@ test('empty or unparseable input reports empty, not ok', () => {
   assert.equal(ompTranscript('').status, 'empty')
   assert.equal(codebuddyTranscript('{not json}').status, 'empty')
 })
+test('opencode tool-only turns and compaction rows are bookkeeping, not unknown', () => {
+  const raw = {
+    info: { id: 'ses_2' },
+    messages: [
+      { type: 'user', text: 'dokończ', time: { created: 1 } },
+      { type: 'assistant', content: [{ type: 'reasoning', text: 'hmm' }, { type: 'tool', name: 'bash' }] },
+      { type: 'compaction' },
+      { type: 'idle' }
+    ]
+  }
+  const out = opencodeTranscript(raw)
+  assert.equal(out.status, 'ok')
+  assert.deepEqual(out.events.map((e) => e.role), ['user'])
+})
+
+test('an unknown opencode row still degrades the transcript', () => {
+  const out = opencodeTranscript({ messages: [{ type: 'user', text: 'x' }, { type: 'mystery' }] })
+  assert.equal(out.status, 'degraded')
+})

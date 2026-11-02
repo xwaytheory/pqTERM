@@ -63,8 +63,8 @@ export function opencodeTranscript(raw: unknown): Transcript {
       skipped++
       continue
     }
-    // idle / synthetic are terminators and compaction markers, not turns
-    if (m.type === 'idle' || m.type === 'synthetic') continue
+    // idle / synthetic / compaction are terminators and compaction markers, not turns
+    if (m.type === 'idle' || m.type === 'synthetic' || m.type === 'compaction') continue
     if (m.type === 'user') {
       if (typeof m.text === 'string' && m.text.trim()) events.push({ role: 'user', text: clip(m.text) })
       else skipped++
@@ -74,7 +74,8 @@ export function opencodeTranscript(raw: unknown): Transcript {
       else if (typeof m.error?.message === 'string' && m.error.message.trim()) {
         // the turn died mid-flight (free-tier limit, provider 429) — that IS the handoff reason
         error = m.error.message
-      } else skipped++
+      } else if (!Array.isArray(m.content)) skipped++
+      // a turn with only reasoning/tool parts carries no prose — normal, not an unknown row
     } else if (m.type === 'tool') {
       // only failures earn a line in the checkpoint; 150 successful calls are noise
       if (m.state?.status === 'error') {
