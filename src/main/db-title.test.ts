@@ -21,6 +21,15 @@ test('pickActiveTitle returns null when no rows match', () => {
   assert.equal(pickActiveTitle([{ directory: 'C:/other', title: 'T', time_updated: 1 }], 'C:/Users/pq/pq'), null)
 })
 
+test('pickActiveTitle reads opencode session-list rows and worktree cwds', () => {
+  const rows = [
+    { directory: 'C:/Users/pq/pqTERM', title: 'stary', updated: 100 },
+    { directory: 'C:/Users/pq/pqTERM', title: 'nowy', updated: 400 }
+  ]
+  assert.equal(pickActiveTitle(rows, 'C:/Users/pq/pqTERM/instances/dev'), 'nowy')
+  assert.equal(pickActiveTitle(rows, 'C:/Users/pq/other'), null)
+})
+
 test('pickActiveTitle skips rows with empty or missing title', () => {
   const rows = [
     { directory: 'C:/d', title: '', time_updated: 100 },

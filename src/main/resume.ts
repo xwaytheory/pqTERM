@@ -4,6 +4,7 @@ import { closeSync, existsSync, openSync, readSync, readdirSync, statSync } from
 import { homedir } from 'os'
 import { join } from 'path'
 import type { EngineId, ProviderInfo, Workspace } from '../shared/types'
+import { sameProject } from './db-title'
 import { resolveLaunch } from './resolve-launch'
 
 const execFileP = promisify(execFile)
@@ -30,31 +31,43 @@ function norm(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
 }
 
-async function opencodeSessions(cwd: string, target: string): Promise<SessionRef[]> {
-  const { spawnFile, args } = resolveLaunch(
-    'opencode',
-    target,
-    ['db', 'select id, directory, title, time_updated from session where time_archived is null', '--format', 'json']
-  )
+/** One row of `opencode session list --format json` (verified on opencode 2.2.5). */
+export interface OpenCodeRow {
+  id?: string
+  title?: string
+  /** epoch ms */
+  updated?: number
+  /** project root the session belongs to — not necessarily the pane cwd */
+  directory?: string
+}
+
+/**
+ * The CLI is the only supported reader of opencode's store: it owns a sqlite file
+ * with two parallel schemas (`session` vs `session_v2`), so we never open it directly.
+ * `session list` is scoped by the process cwd, hence `cwd` is passed to execFile.
+ */
+export async function opencodeSessionRows(cwd: string, target: string): Promise<OpenCodeRow[]> {
+  const { spawnFile, args } = resolveLaunch('opencode', target, ['session', 'list', '--format', 'json'])
   const { stdout } = await execFileP(spawnFile, args, {
+    cwd,
     timeout: 20000,
     windowsHide: true,
     env: { ...process.env, NO_COLOR: '1' }
   })
-  const rows = JSON.parse(stdout) as Array<{
-    id?: string
-    directory?: string
-    title?: string
-    time_updated?: number
-  }>
+  const rows: unknown = JSON.parse(stdout)
+  return Array.isArray(rows) ? (rows as OpenCodeRow[]) : []
+}
+
+/** Pure: rows -> resumable sessions for this project, newest first. */
+export function opencodeRefs(rows: OpenCodeRow[], cwd: string): SessionRef[] {
   return rows
-    .filter((r) => r.id && typeof r.directory === 'string' && norm(r.directory) === norm(cwd))
-    .map((r) => ({
-      handle: r.id as string,
-      title: r.title ?? '',
-      updatedAt: r.time_updated ?? 0
-    }))
+    .filter((r) => typeof r.id === 'string' && r.id && sameProject(r.directory, cwd))
+    .map((r) => ({ handle: r.id as string, title: r.title ?? '', updatedAt: r.updated ?? 0 }))
     .sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+async function opencodeSessions(cwd: string, target: string): Promise<SessionRef[]> {
+  return opencodeRefs(await opencodeSessionRows(cwd, target), cwd)
 }
 
 function ompRoot(): string {
@@ -121,14 +134,18 @@ function readSessionLine(file: string): string {
   }
 }
 
-async function listSessions(engine: EngineId, cwd: string, target: string): Promise<SessionRef[]> {
+/**
+ * `null` means "this store could not be read" — distinct from "read and empty".
+ * That difference decides whether a pane's persisted handle may be dropped.
+ */
+async function listSessions(engine: EngineId, cwd: string, target: string): Promise<SessionRef[] | null> {
   try {
     if (engine === 'opencode') return await opencodeSessions(cwd, target)
     if (engine === 'omp') return await ompSessions(cwd)
   } catch {
     /* offline storage should never break startup */
   }
-  return []
+  return null
 }
 
 interface Slot {
@@ -154,6 +171,8 @@ export async function primeResume(workspaces: Workspace[], providers: ProviderIn
       const target = provider?.resolvedPath || engine
       jobs.push(
         listSessions(engine as EngineId, ws.cwd, target).then((list) => {
+          // unreadable or unsupported store: leave the key absent so handles survive
+          if (!list) return
           cache.set(
             keyOf(ws.id, engine as EngineId),
             list.map((ref) => ({
@@ -197,4 +216,17 @@ export function pickResume(
     return s.ref
   }
   return null
+}
+
+/**
+ * Drop a pane's handle only when this engine's store was actually read and no
+ * longer holds it. A store that could not be read (CLI missing, DB locked,
+ * engine without a listing) must not erase the only pointer to a conversation.
+ */
+export function shouldClearHandle(
+  workspaceId: string,
+  engine: EngineId,
+  sessionHandle?: string | null
+): boolean {
+  return !!sessionHandle && cache.has(keyOf(workspaceId, engine))
 }

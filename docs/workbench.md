@@ -1,5 +1,39 @@
 # pq workbench (gauntlet live board)
 
+## RESUME: naprawa martwego wznawiania opencode + ochrona uchwytów sesji (2026-11-02, `dev`)
+
+**Zgłoszenie:** po restarcie pqTERM panele opencode startowały od zera mimo zapisanego
+`sessionHandle`, a tytuły sesji opencode nigdy się nie odświeżały. Przy okazji: panele
+silników bez listingu (CodeBuddy, Kilo, Hermes) traciły zapisany uchwyt przy każdym boocie.
+
+**Przyczyna (jeden root cause, dwa objawy):** `resume.ts` i `opencode-title.ts` wołały
+`opencode db select … --format json`. Zainstalowany opencode **2.2.5 nie ma subkomendy
+`db`** — CLI drukuje wtedy top-level help i kończy z kodem 0, więc `JSON.parse` rzucał,
+a `catch` w `listSessions` połykał błąd i zwracał `[]` (czyli „brak sesji"). Efekt: puste
+`cache`, `pickResume → null`, wyczyszczony `sessionHandle`, świeży start. Ten sam błąd
+karmił 5-sekundowy poller tytułów.
+
+**Poprawka:** jedno źródło odczytu `opencodeSessionRows()` (`session list --format json`,
+`cwd` przekazane do `execFile`, bo komenda jest projektowo-scoped), z niej korzystają
+resume i tytuły. Wiersze mają pole `updated` (nie `time_updated`), a `directory` to
+**root projektu**, nie cwd panelu — dlatego `sameProject()` w `db-title.ts` dopuszcza
+cwd wewnątrz katalogu projektu (worktree `instances/dev` → `…\pqTERM`).
+
+**Ochrona uchwytów:** `listSessions()` zwraca teraz `null` („nie udało się odczytać")
+zamiast `[]` („przeczytane, puste"). `primeResume()` nie zakłada wpisu w cache dla
+`null`, a nowe `shouldClearHandle()` pozwala wyczyścić `sessionHandle` **tylko** gdy
+store danego silnika został faktycznie odczytany. Brak CLI / zablokowana baza / silnik
+bez listingu nie kasuje już jedynego wskaźnika do rozmowy.
+
+**Świadomie pominięte:** flagi `--resume` dla CodeBuddy/Kilo/Hermes. Bez źródła uchwytu
+(nic ich dziś nie zapisuje) byłyby nieosiągalne — martwy kod. Wejdą razem z przechwytywaniem
+id przy spawnie.
+
+**Bramki (`dev`):** `npm run typecheck` (oba projekty) i `npm run test:unit`
+(**218/218**, 9 suit, +4 testy: mapowanie wierszy opencode, brak `id`, zachowanie uchwytu
+przy nieczytelnym store, tytuł z worktree). Realny smoke: `opencode session list --format json`
+z `instances/dev` → 2 sesje, `directory: C:\Users\pq\pqTERM`, `updated` w ms.
+
 ## SPAWN ENGINE: serca i pasek ulubionych (2026-11-01, `dev`, wydane w 1.9.0)
 
 **Zgłoszenie:** w prawym górnym rogu każdego kafelka SPAWN ENGINE ma być serce;
