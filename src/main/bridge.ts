@@ -40,6 +40,8 @@ type PaneBridgeHooks = {
   spawn: (slot: number, engine: string) => Promise<string | null>
   write: (slot: number, text: string) => Promise<boolean>
   fill: (engine: string, prompt: string, skipSlot: number) => Promise<number[]>
+  /** Derive a handoff checkpoint for one slot; returns the file path or null. */
+  checkpoint?: (slot: number) => Promise<string | null>
   updaterSource?: string
 }
 
@@ -191,6 +193,12 @@ export class PaneBridge {
         }
         const ok = await this.hooks.write(slot, body.text)
         return send(ok ? 200 : 404, { ok })
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/session/checkpoint') {
+        const slot = typeof body.slot === 'number' ? body.slot : Number.NaN
+        if (!Number.isSafeInteger(slot) || slot < 1) return send(400, { error: 'invalid slot' })
+        const path = (await this.hooks.checkpoint?.(slot)) ?? null
+        return send(path ? 200 : 404, path ? { ok: true, path } : { error: 'no session' })
       }
       if (req.method === 'POST' && url.pathname === '/v1/fill') {
         if ((body.prompt !== undefined && typeof body.prompt !== 'string') ||

@@ -112,6 +112,8 @@ export interface PaneState {
   model?: string
   /** engine-native id of the agent conversation this pane should resume */
   sessionHandle?: string
+  /** pqTERM-minted lineage id; names the checkpoint directory for this conversation */
+  sessionId?: string
   /** normalized rectangle [0..1] this pane occupies in the workspace grid. */
   area?: PaneArea
 }
