@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'child_process'
+import { randomBytes } from 'crypto'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, session, shell } from './host'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { dirname, join, relative } from 'path'
@@ -64,9 +65,11 @@ import { UsageHub } from './usage'
 import { PaneBridge } from './bridge'
 import { RemoteHub, type RemoteCommand } from './remote'
 import { pickResume, primeResume, resumeFlag, shouldClearHandle } from './resume'
-import { checkpointRoot, mintSessionId, writeCheckpoint } from './ledger'
+import { checkpointRoot, mintSessionId, writeCheckpoint, type Transcript } from './ledger'
 import { readTranscript } from './session-adapters'
 import { handoffSeed } from './handoff'
+import { deleteOpencodeSession, importOpencodeSession, resolveOpencodeModel } from './session-import'
+import { renderOpencodeSession } from './opencode-session'
 import { captureCodebuddyHandle, codebuddyTraceHandle } from './handle-capture'
 import { shutdownVoiceHost } from './voice-host'
 import { adoptAutoTitle, updatePaneTitle } from './pane-title'
@@ -247,7 +250,12 @@ async function repoChanges(cwd: string): Promise<string[]> {
  * Derive a checkpoint from the engine's own transcript plus repo state.
  * It runs when the pane is already gone, so it never throws and never blocks boot.
  */
-async function writePaneCheckpoint(paneId: string): Promise<string | null> {
+interface PaneCheckpoint {
+  path: string
+  transcript: Transcript
+}
+
+async function writePaneCheckpoint(paneId: string): Promise<PaneCheckpoint | null> {
   const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId))
   const pane = ws?.panes.find((p) => p.id === paneId)
   if (!ws || !pane?.engine || !pane.sessionId) return null
@@ -265,7 +273,7 @@ async function writePaneCheckpoint(paneId: string): Promise<string | null> {
     handle,
     target: provider?.resolvedPath
   })
-  return writeCheckpoint(ledgerRoot(), {
+  const path = writeCheckpoint(ledgerRoot(), {
     sessionId: pane.sessionId,
     engine: pane.engine,
     handle,
@@ -273,6 +281,7 @@ async function writePaneCheckpoint(paneId: string): Promise<string | null> {
     transcript,
     changes: await repoChanges(ws.cwd)
   })
+  return path ? { path, transcript } : null
 }
 
 /**
@@ -369,7 +378,8 @@ async function handoffPane(
   switchingPanes.add(paneId)
   try {
     const sourceEngine = first.pane.engine
-    const checkpoint = withContext ? await writePaneCheckpoint(paneId) : null
+    const cp = withContext ? await writePaneCheckpoint(paneId) : null
+    const checkpoint = cp?.path ?? null
 
     // the pane may have been closed while the checkpoint was being written
     const { ws, pane } = find()
@@ -384,7 +394,7 @@ async function handoffPane(
     }
     // "z kontekstem" without a transcript is a lie told after the old CLI is
     // dead. Refuse while the pane is still alive and let the owner pick again.
-    if (withContext && !checkpoint) {
+    if (withContext && (!cp || cp.transcript.events.length === 0)) {
       return { ok: false, checkpoint: null, reason: 'brak transkryptu do checkpointu — wybierz czystą sesję' }
     }
 
@@ -394,6 +404,64 @@ async function handoffPane(
       pane.titleLocked || (pane.title && pane.title !== specById(sourceEngine).name)
         ? pane.title
         : spec.name
+
+    // OpenCode can display another CLI's conversation: render the transcript in
+    // its export format and import it through opencode's own command. This runs
+    // before the old CLI dies, so a failure costs nothing and falls back to the
+    // checkpoint + seed path below.
+    let importedHandle: string | null = null
+    if (
+      withContext &&
+      engine === 'opencode' &&
+      cp &&
+      cp.transcript.status === 'ok' &&
+      cp.transcript.events.some(
+        (e) => (e.role === 'user' || e.role === 'assistant') && e.text.trim()
+      )
+    ) {
+      // import accepts any model string, but a session stamped with a model the
+      // vendor does not know refuses every turn — resolve a real one first
+      const model = await resolveOpencodeModel(target.resolvedPath)
+      if (model) {
+        const id = `ses_${randomBytes(13).toString('hex')}`
+        const file = join(dirname(cp.path), 'opencode-import.json')
+        try {
+          writeFileSync(
+            file,
+            renderOpencodeSession({
+              id,
+              title: nextTitle,
+              cwd: ws.cwd,
+              events: cp.transcript.events,
+              model
+            })
+          )
+          importedHandle = await importOpencodeSession({ target: target.resolvedPath, cwd: ws.cwd, file })
+          if (importedHandle !== id) {
+            if (importedHandle) {
+              void deleteOpencodeSession({ target: target.resolvedPath, cwd: ws.cwd, sessionId: importedHandle })
+            }
+            importedHandle = null
+          }
+        } catch {
+          importedHandle = null
+        } finally {
+          try {
+            unlinkSync(file)
+          } catch {
+            /* best effort */
+          }
+        }
+      }
+      const again = find().pane
+      if (!again || again.engine !== sourceEngine) {
+        if (importedHandle) {
+          void deleteOpencodeSession({ target: target.resolvedPath, cwd: ws.cwd, sessionId: importedHandle })
+        }
+        return { ok: false, checkpoint, reason: 'silnik zmienił się w trakcie importu' }
+      }
+    }
+
     const nextSessionId = mintSessionId()
     const spawnAt = Date.now()
     // ptys.spawn kills the current process itself — no separate kill needed
@@ -405,12 +473,18 @@ async function handoffPane(
       cols: 80,
       rows: 24,
       resolvedPath: target.resolvedPath,
-      extraArgs: [...(spec.args ?? [])]
+      extraArgs: [
+        ...(spec.args ?? []),
+        ...(importedHandle ? ['--session', importedHandle] : [])
+      ]
     })
     // spawn() reports a failed ConPTY launch by writing to the pane and
     // returning. The old CLI is already dead at this point, so show the truth
     // (idle) instead of a ghost row claiming the engine that no longer runs.
     if (!ptys.alive(paneId)) {
+      if (importedHandle) {
+        void deleteOpencodeSession({ target: target.resolvedPath, cwd: ws.cwd, sessionId: importedHandle })
+      }
       state.workspaces = state.workspaces.map((w) =>
         w.id === ws.id
           ? touchWorkspace({
@@ -439,7 +513,9 @@ async function handoffPane(
                 // engine's handle must never reach this one's resume args
                 sessionId: nextSessionId,
                 parentSessionId: p.sessionId,
-                sessionHandle: undefined,
+                // the imported opencode session is this pane's native handle:
+                // a later handoff can export it instead of starting blind
+                sessionHandle: importedHandle ?? undefined,
                 model: undefined,
                 title: nextTitle
               }
@@ -451,6 +527,11 @@ async function handoffPane(
     if (ws.id === state.activeWorkspaceId) board.paneStart(paneId, engine, nextTitle)
     void captureHandleLater(paneId)
 
+    // the imported conversation is already in the new CLI; a seed would add a
+    // second, redundant turn on top of it
+    if (importedHandle) {
+      return { ok: true, checkpoint, reason: 'rozmowa zaimportowana do OpenCode' }
+    }
     if (!withContext) return { ok: true, checkpoint: null }
     if (!checkpoint) return { ok: true, checkpoint: null }
     if (isRawShell(engine)) {
@@ -468,9 +549,24 @@ async function handoffPane(
     if ((lastInputAt.get(paneId) ?? 0) > spawnAt) {
       return { ok: true, checkpoint, reason: `wpisałeś już tekst — seed pominięty, kontekst: ${checkpoint}` }
     }
-    const seed = handoffSeed({ checkpointPath: checkpoint, sourceEngine, targetEngine: engine })
+    const seed = handoffSeed({
+      checkpointPath: checkpoint,
+      sourceEngine,
+      targetEngine: engine,
+      degraded:
+        cp && cp.transcript.status !== 'ok'
+          ? cp.transcript.reason ?? cp.transcript.status
+          : undefined
+    })
     ptys.write(paneId, `${seed}\r`)
-    return { ok: true, checkpoint }
+    return {
+      ok: true,
+      checkpoint,
+      reason:
+        engine === 'opencode' && withContext
+          ? 'nie udało się zaimportować rozmowy — nowy CLI dostał seed'
+          : undefined
+    }
   } finally {
     switchingPanes.delete(paneId)
   }
@@ -740,7 +836,7 @@ bridge = new PaneBridge({
   checkpoint: async (slot) => {
     const ws = activeWs()
     const pane = ws?.panes[slot - 1]
-    return pane ? writePaneCheckpoint(pane.id) : null
+    return pane ? (await writePaneCheckpoint(pane.id))?.path ?? null : null
   },
   handoff: async (slot, engineRaw) => {
     const ws = activeWs()

@@ -403,6 +403,7 @@ export default function Sidebar({
                 providers={snap.providers}
                 favorites={snap.ui.favoriteEngines}
                 current={pane.engine}
+                hasHandle={Boolean(pane.sessionHandle)}
                 onPick={(engine, withContext) =>
                   void switchEngine(menu.workspaceId, menu.paneId, engine, withContext)
                 }

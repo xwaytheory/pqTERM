@@ -19,6 +19,7 @@ export default function EngineSwitchMenu({
   providers,
   favorites,
   current,
+  hasHandle,
   onPick,
   onClose
 }: {
@@ -28,13 +29,20 @@ export default function EngineSwitchMenu({
   providers: ProviderInfo[]
   favorites: readonly EngineId[]
   current: EngineId | null
+  /** pane already bound a native conversation handle (CodeBuddy can derive one) */
+  hasHandle: boolean
   onPick: (engine: EngineId, withContext: boolean) => void
   onClose: (focusAnchor?: boolean) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
-  const canContext = canSwitchWithContext(current)
-  const [withContext, setWithContext] = useState(false)
+  // a readable engine without a bound handle cannot produce a checkpoint; do
+  // not preselect a mode that main will refuse after the menu closes
+  const canContext =
+    canSwitchWithContext(current) && (current === 'codebuddy' || hasHandle)
+  // continuity is the reason people switch mid-task: default to it when the
+  // source transcript is readable, and let the clean swap be the explicit choice
+  const [withContext, setWithContext] = useState(canContext)
   const items = useMemo(
     () => switchTargets(providers, favorites, current),
     [providers, favorites, current]
@@ -144,7 +152,7 @@ export default function EngineSwitchMenu({
       </div>
       <div className="engine-menu-hint">
         {withContext && canContext
-          ? 'checkpoint rozmowy + seed; bieżący proces CLI zostanie zatrzymany'
+          ? 'OpenCode: tekst rozmowy; inne CLI: checkpoint + seed. Proces zostanie zatrzymany.'
           : 'czysta sesja — nowa rozmowa w tym katalogu; bieżący proces CLI zostanie zatrzymany'}
       </div>
       {items.length === 0 ? <div className="engine-menu-empty">brak innych silników</div> : null}
@@ -158,7 +166,9 @@ export default function EngineSwitchMenu({
             disabled={!usable}
             title={
               usable
-                ? `przełącz na ${p.name}`
+                ? p.id === 'opencode' && withContext && canContext
+                  ? `przełącz na ${p.name} — rozmowa zostanie zaimportowana`
+                  : `przełącz na ${p.name}`
                 : `${p.name} — nie zainstalowano (kafelek w SPAWN ENGINE)`
             }
             onClick={() => onPick(p.id, withContext && canContext)}

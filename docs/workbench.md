@@ -1,5 +1,33 @@
 # pq workbench (gauntlet live board)
 
+## SESSION HUB: rozmowa widoczna w OpenCode po przełączeniu (2026-11-03, `dev`)
+
+**Zgłoszenie:** po zmianie CLI nowe CLI ma pokazać tę samą rozmowę, a nie pusty prompt.
+
+**Co:** gdy celem jest OpenCode i źródłowy transkrypt jest czytelny, pqTERM renderuje
+prozę rozmowy do formatu `opencode session export` (`src/main/opencode-session.ts`),
+importuje ją **komendą opencode** (`session import`, `src/main/session-import.ts`) i
+spawnuje `opencode --session <id>`. Tytuł zadania zostaje, a `sessionHandle` =
+zaimportowane id, więc kolejny handoff z OpenCode też ma kontekst. Model jest
+rozwiązywany z `opencode models` — sentinel `opencode-default` importuje się, ale
+opencode odrzuca każdą turę („Model unavailable”). Import biegnie **przed** ubiciem
+starego CLI; nieudany = checkpoint + seed, a osierocona sesja jest usuwana.
+
+**Dowód:** ręczny round-trip na tym profilu (eksport → syntetyczny JSON →
+`session import --directory %TEMP%` → `session export` zwrócił oba komunikaty;
+sesja testowa usunięta przez `session delete`). Krytyk potwierdził, że
+`opencode-default` daje „Model unavailable”, a realny
+`opencode/deepseek-v4.1-flash-free` przechodzi import i wykonuje turę (TURN-OK).
+Zdegradowany transkrypt nie jest importowany — idzie ścieżką checkpoint + seed z
+ostrzeżeniem.
+
+**Bramki (`dev`):** `npm run test:unit` **253/253**, 12 suit; `typecheck` oba
+projekty; `check:version` 1.9.0.
+
+**Ograniczenia:** tylko OpenCode ma import; Kilo odrzucił ten sam JSON; pozostałe
+silniki = checkpoint + seed. Przenoszona jest proza (user/assistant), bez reasoning
+i udanych tool calls; pojedynczy wpis jest ucinany do 4000 znaków przez adapter.
+
 ## SESSION HUB: wizualna zmiana CLI w wierszu sesji (wdrożone, 2026-11-03, `dev`)
 
 **Co:** logo silnika w wierszu sesji jest przyciskiem. Otwiera menu (portal, `fixed`,
