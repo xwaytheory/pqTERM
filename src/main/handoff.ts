@@ -17,7 +17,9 @@ export function handoffSeed(input: HandoffSeedInput): string {
   const from = input.sourceEngine ?? 'poprzednie CLI'
   const parts = [
     `Przejmujesz zadanie po ${from} w tym samym katalogu.`,
-    `Kontekst: ${input.checkpointPath}`,
+    // backticks: a Windows profile path may contain spaces, and a bare path
+    // would be split by the TUI's prompt parser
+    `Kontekst: \`${input.checkpointPath}\``,
     'Przeczytaj ten plik w całości, sprawdź `git status` i kontynuuj od ostatniej prośby użytkownika.',
     'Nie powtarzaj pracy, która jest już zrobiona.'
   ]

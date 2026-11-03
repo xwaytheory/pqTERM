@@ -108,7 +108,8 @@ export class PtyManager {
     private getWin: () => BrowserWindow | null,
     private hooks?: {
       extraEnv?: (paneId: string) => NodeJS.ProcessEnv
-      onStart?: (paneId: string) => void
+      /** engine is passed explicitly: state may not reflect a just-spawned switch yet */
+      onStart?: (paneId: string, engine: EngineId) => void
       onOutput?: (paneId: string, data: string) => void
       onExit?: (paneId: string, exitCode: number, intentional: boolean) => void
       /** CLI set its own window title via OSC — expose it so a pane can adopt it */
@@ -177,7 +178,7 @@ export class PtyManager {
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      this.hooks?.onStart?.(opts.paneId)
+      this.hooks?.onStart?.(opts.paneId, opts.engine)
       this.hooks?.onExit?.(opts.paneId, 1, false)
       win0?.webContents.send(
         'term:data',
@@ -208,7 +209,7 @@ export class PtyManager {
     }
     this.sessions.set(opts.paneId, session)
     this.lastBuf.set(opts.paneId, { data: session.buf, seq: session.seq, cols: capCols, rows: capRows })
-    this.hooks?.onStart?.(opts.paneId)
+    this.hooks?.onStart?.(opts.paneId, opts.engine)
 
     proc.onData((data) => {
       if (!session.alive) return

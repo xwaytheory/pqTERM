@@ -189,7 +189,19 @@ const pq = {
   },
   panes: {
     fill: (input: { engine: string; prompt?: string; skipPaneId?: string }) =>
-      invoke('panes:fill', input) as Promise<number[]>
+      invoke('panes:fill', input) as Promise<number[]>,
+    /** Swap the CLI inside one live pane; `withContext` seeds it from a checkpoint. */
+    switchEngine: (input: {
+      workspaceId: string
+      paneId: string
+      engine: EngineId
+      withContext: boolean
+    }) =>
+      invoke('panes:switchEngine', input) as Promise<{
+        ok: boolean
+        checkpoint: string | null
+        reason?: string
+      }>
   },
   engines: {
     lifecycle: (id: EngineId, action: EngineAction) =>

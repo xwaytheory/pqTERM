@@ -314,8 +314,13 @@ async function waitForPrompt(paneId: string, timeoutMs = 25000): Promise<boolean
     const seq = ptys.buffer(paneId).seq
     if (seq !== last) {
       last = seq
-      if (!firstAt) firstAt = now
-      quietSince = now
+      // A fresh session reports seq 0 before it has printed anything. Counting
+      // that as a paint starts the 4 s clock at spawn, so the seed lands on a
+      // still-blank TUI — the exact failure this wait exists to prevent.
+      if (seq > 0) {
+        if (!firstAt) firstAt = now
+        quietSince = now
+      }
     }
     // a splash screen can go quiet for a moment while the CLI is still booting
     if (firstAt && now - firstAt >= 4000 && now - quietSince >= 1500) return true
@@ -324,66 +329,151 @@ async function waitForPrompt(paneId: string, timeoutMs = 25000): Promise<boolean
   return firstAt > 0
 }
 
+/** One switch per pane at a time — a double click must not spawn twice. */
+const switchingPanes = new Set<string>()
+/** Last keystroke per pane: the context seed must not merge into the owner's typing. */
+const lastInputAt = new Map<string, number>()
+
 /**
  * Move one pane's task to another engine in the same cwd.
  * The checkpoint is written *before* the old CLI is killed — that is the last
- * moment its transcript is complete.
+ * moment its transcript is complete. `withContext: false` swaps the CLI alone:
+ * no checkpoint, no seed, the new CLI starts a fresh conversation.
  */
 async function handoffPane(
   paneId: string,
-  engine: EngineId
+  engine: EngineId,
+  opts: { withContext?: boolean } = {}
 ): Promise<{ ok: boolean; checkpoint: string | null; reason?: string }> {
-  const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId))
-  const pane = ws?.panes.find((p) => p.id === paneId)
-  if (!ws || !pane) return { ok: false, checkpoint: null, reason: 'nie ma takiego pane' }
+  const withContext = opts.withContext !== false
+  const find = () => {
+    const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId))
+    return { ws, pane: ws?.panes.find((p) => p.id === paneId) }
+  }
+  const first = find()
+  if (!first.ws || !first.pane) return { ok: false, checkpoint: null, reason: 'nie ma takiego pane' }
+  if (first.pane.engine === engine) {
+    return { ok: false, checkpoint: null, reason: 'to CLI już działa w tym oknie' }
+  }
+  if (switchingPanes.has(paneId)) {
+    return { ok: false, checkpoint: null, reason: 'przełączanie tego okna już trwa' }
+  }
+  if (!first.pane.engine) {
+    return { ok: false, checkpoint: null, reason: 'okno jest puste — uruchom silnik z pickera' }
+  }
   const provider = state.providers.find((p) => p.id === engine)
-  if (!provider?.installed) return { ok: false, checkpoint: null, reason: 'silnik niezainstalowany' }
-  const checkpoint = await writePaneCheckpoint(paneId)
-  const sourceEngine = pane.engine
-  const spec = specById(engine)
-  // ptys.spawn kills the current process itself — no separate kill needed
-  ptys.spawn({
-    paneId,
-    workspaceId: ws.id,
-    engine,
-    cwd: ws.cwd,
-    cols: 80,
-    rows: 24,
-    resolvedPath: provider.resolvedPath,
-    extraArgs: [...(spec.args ?? [])]
-  })
-  state.workspaces = state.workspaces.map((w) => {
-    if (w.id !== ws.id) return w
-    return touchWorkspace({
-      ...w,
-      panes: w.panes.map((p) =>
-        p.id === paneId
-          ? {
-              ...p,
-              engine,
-              // a handoff is a new conversation: fresh lineage, and the previous
-              // engine's handle must never reach this one's resume args
-              sessionId: mintSessionId(),
-              parentSessionId: p.sessionId,
-              sessionHandle: undefined,
-              model: undefined,
-              title: p.titleLocked ? p.title : spec.name
-            }
-          : p
-      )
+  if (!provider || !provider.installed) {
+    return { ok: false, checkpoint: null, reason: 'silnik niezainstalowany' }
+  }
+
+  switchingPanes.add(paneId)
+  try {
+    const sourceEngine = first.pane.engine
+    const checkpoint = withContext ? await writePaneCheckpoint(paneId) : null
+
+    // the pane may have been closed while the checkpoint was being written
+    const { ws, pane } = find()
+    if (!ws || !pane) return { ok: false, checkpoint, reason: 'okno zostało zamknięte w trakcie' }
+    // ...or switched by someone else, or its binary removed mid-await
+    if (pane.engine !== sourceEngine) {
+      return { ok: false, checkpoint, reason: 'silnik zmienił się w trakcie przełączania' }
+    }
+    const target = state.providers.find((p) => p.id === engine)
+    if (!target?.installed) {
+      return { ok: false, checkpoint, reason: 'silnik przestał być dostępny' }
+    }
+    // "z kontekstem" without a transcript is a lie told after the old CLI is
+    // dead. Refuse while the pane is still alive and let the owner pick again.
+    if (withContext && !checkpoint) {
+      return { ok: false, checkpoint: null, reason: 'brak transkryptu do checkpointu — wybierz czystą sesję' }
+    }
+
+    const spec = specById(engine)
+    // keep a title that carries the task; replace only the engine's own default
+    const nextTitle =
+      pane.titleLocked || (pane.title && pane.title !== specById(sourceEngine).name)
+        ? pane.title
+        : spec.name
+    const nextSessionId = mintSessionId()
+    const spawnAt = Date.now()
+    // ptys.spawn kills the current process itself — no separate kill needed
+    ptys.spawn({
+      paneId,
+      workspaceId: ws.id,
+      engine,
+      cwd: ws.cwd,
+      cols: 80,
+      rows: 24,
+      resolvedPath: target.resolvedPath,
+      extraArgs: [...(spec.args ?? [])]
     })
-  })
-  persist()
-  void captureHandleLater(paneId)
-  if (!checkpoint) {
-    return { ok: true, checkpoint, reason: 'brak uchwytu sesji — nowy silnik startuje bez kontekstu' }
+    // spawn() reports a failed ConPTY launch by writing to the pane and
+    // returning. The old CLI is already dead at this point, so show the truth
+    // (idle) instead of a ghost row claiming the engine that no longer runs.
+    if (!ptys.alive(paneId)) {
+      state.workspaces = state.workspaces.map((w) =>
+        w.id === ws.id
+          ? touchWorkspace({
+              ...w,
+              panes: w.panes.map((p) =>
+                p.id === paneId
+                  ? { ...p, engine: null, title: 'idle', sessionHandle: undefined, model: undefined }
+                  : p
+              )
+            })
+          : w
+      )
+      persist()
+      return { ok: false, checkpoint, reason: 'nowy CLI nie wystartował — stare CLI zostało zatrzymane' }
+    }
+    state.workspaces = state.workspaces.map((w) => {
+      if (w.id !== ws.id) return w
+      return touchWorkspace({
+        ...w,
+        panes: w.panes.map((p) =>
+          p.id === paneId
+            ? {
+                ...p,
+                engine,
+                // a handoff is a new conversation: fresh lineage, and the previous
+                // engine's handle must never reach this one's resume args
+                sessionId: nextSessionId,
+                parentSessionId: p.sessionId,
+                sessionHandle: undefined,
+                model: undefined,
+                title: nextTitle
+              }
+            : p
+        )
+      })
+    })
+    persist()
+    if (ws.id === state.activeWorkspaceId) board.paneStart(paneId, engine, nextTitle)
+    void captureHandleLater(paneId)
+
+    if (!withContext) return { ok: true, checkpoint: null }
+    if (!checkpoint) return { ok: true, checkpoint: null }
+    if (isRawShell(engine)) {
+      return { ok: true, checkpoint, reason: `powłoka nie przyjmuje seeda — kontekst: ${checkpoint}` }
+    }
+    if (!(await waitForPrompt(paneId))) {
+      return { ok: true, checkpoint, reason: `checkpoint zapisany, ale CLI nie odpowiedział — wklej seed ręcznie: ${checkpoint}` }
+    }
+    // The lock is held through the wait, but setPane/term:spawn could still
+    // replace the session under us. Never type this seed into another CLI.
+    const after = find().pane
+    if (!after || after.engine !== engine || after.sessionId !== nextSessionId) {
+      return { ok: true, checkpoint, reason: 'pane zmienił się w trakcie — seed pominięty' }
+    }
+    if ((lastInputAt.get(paneId) ?? 0) > spawnAt) {
+      return { ok: true, checkpoint, reason: `wpisałeś już tekst — seed pominięty, kontekst: ${checkpoint}` }
+    }
+    const seed = handoffSeed({ checkpointPath: checkpoint, sourceEngine, targetEngine: engine })
+    ptys.write(paneId, `${seed}\r`)
+    return { ok: true, checkpoint }
+  } finally {
+    switchingPanes.delete(paneId)
   }
-  if (!(await waitForPrompt(paneId))) {
-    return { ok: true, checkpoint, reason: 'checkpoint zapisany, ale CLI nie odpowiedział — wklej seed ręcznie' }
-  }
-  const seed = handoffSeed({ checkpointPath: checkpoint, sourceEngine, targetEngine: engine })
-  ptys.write(paneId, `${seed}\r`)
-  return { ok: true, checkpoint }
 }
 
 function requireRenderer(event: IpcMainInvokeEvent | IpcMainEvent): void {
@@ -394,22 +484,28 @@ function requireRenderer(event: IpcMainInvokeEvent | IpcMainEvent): void {
 }
 const ptys = new PtyManager(() => mainWindow, {
   extraEnv: (paneId) => {
-    const ws = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
+    // Resolve the slot from the pane's own workspace: a switch can spawn a pane
+    // in a workspace the UI has not opened yet, and the active workspace would
+    // hand it PQ_SLOT=0 (every `pqterm` call in that pane then 400s).
+    const ws = state.workspaces.find((w) => w.panes.some((p) => p.id === paneId))
     const slot = (ws?.panes.findIndex((p) => p.id === paneId) ?? -1) + 1
     return {
       ...board.extraEnv(paneId),
       ...(bridge ? bridge.envFor(paneId, slot) : {})
     }
   },
-  onStart: (paneId) => {
-    const pane = state.workspaces.flatMap((w) => w.panes).find((p) => p.id === paneId)
-    const engine = pane?.engine
-    activity.start(paneId, { agent: engine ? !isRawShell(engine) : false })
+  onStart: (paneId, engine) => {
+    // engine comes from the spawn call, not from state: handoffPane spawns
+    // before it rewrites the pane, so state still holds the outgoing engine
+    activity.start(paneId, { agent: !isRawShell(engine) })
   },
   // Type into a pane and the silence heuristic is armed for it; a pane nobody
   // has asked anything never escalates to "waiting for you" (that was the
   // false alert on freshly spawned, still-empty CLIs).
-  onInput: (paneId) => activity.input(paneId),
+  onInput: (paneId) => {
+    lastInputAt.set(paneId, Date.now())
+    activity.input(paneId)
+  },
   onOutput: (paneId, data) => {
     activity.output(paneId, data)
     board.onOutput(paneId, data)
@@ -1291,6 +1387,25 @@ function registerIpc(): void {
     state.ui = sanitizeUi(patch, state.ui)
     persist()
   })
+  // Sidebar logo → swap the CLI inside one live pane. Same engine is refused
+  // (it would restart the CLI for nothing); withContext:false skips the
+  // checkpoint and the seed, so the new CLI starts a clean conversation.
+  ipcMain.handle('panes:switchEngine', async (event, input: unknown) => {
+    requireRenderer(event)
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new Error('Invalid switch request')
+    }
+    const { workspaceId, paneId, engine, withContext } = input as Record<string, unknown>
+    if (
+      typeof workspaceId !== 'string' || workspaceId.length > 128 ||
+      typeof paneId !== 'string' || paneId.length > 128 ||
+      typeof engine !== 'string' || typeof withContext !== 'boolean' ||
+      !ENGINE_SPECS.some((s) => s.id === engine)
+    ) throw new Error('Invalid switch request')
+    const ws = state.workspaces.find((w) => w.id === workspaceId)
+    if (!ws?.panes.some((p) => p.id === paneId)) throw new Error('Invalid switch request')
+    return handoffPane(paneId, engine as EngineId, { withContext })
+  })
 
   ipcMain.handle('auth:saveGoogleConfig', (_e, cfg: GoogleOAuthConfig) => {
     state.google = {
@@ -1697,8 +1812,11 @@ function registerIpc(): void {
         ...(spec.args ?? []),
         ...(model && spec.modelFlag ? spec.modelFlag(model) : [])
       ]
-      let resumeHandle = paneInWs?.sessionHandle
-  const session = pickResume(input.workspaceId, input.engine, input.paneId, paneInWs?.sessionHandle)
+      // a handle belongs to the engine that minted it: resuming the outgoing
+      // engine's conversation in the new one is silent nonsense
+      const prevHandle = paneInWs?.engine === input.engine ? paneInWs.sessionHandle : undefined
+      let resumeHandle = prevHandle
+      const session = pickResume(input.workspaceId, input.engine, input.paneId, prevHandle)
       if (session) {
         const flag = resumeFlag(input.engine, session.handle)
         if (flag) extraArgs.push(...flag)

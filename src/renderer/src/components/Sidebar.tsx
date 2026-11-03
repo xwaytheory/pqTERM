@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ACTIVITY_LABELS, isPaneWorking, type AppSnapshot, type BoardSnapshot, type PaneActivity, type Workspace } from '../../../shared/types'
+import { ACTIVITY_LABELS, isPaneWorking, type AppSnapshot, type BoardSnapshot, type EngineId, type PaneActivity, type Workspace } from '../../../shared/types'
 import { moveId } from '../../../shared/order'
 import EngineMark from './EngineMark'
+import EngineSwitchMenu from './EngineSwitchMenu'
 
 /** Motion phase per row: eight evenly spaced steps inside one 1.5 s loop, so a
  *  list of busy rows reads as one travelling shimmer instead of N blinkers. */
@@ -29,6 +30,9 @@ export default function Sidebar({
   const [folderError, setFolderError] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [drop, setDrop] = useState<{ id: string; place: 'before' | 'after' } | null>(null)
+  const [menu, setMenu] = useState<{ workspaceId: string; paneId: string; el: HTMLButtonElement } | null>(null)
+  const [switching, setSwitching] = useState<Record<string, true>>({})
+  const [switchNote, setSwitchNote] = useState('')
   const draggedRef = useRef(false)
   const searching = q.trim().length > 0
 
@@ -80,6 +84,57 @@ export default function Sidebar({
     } catch (error) {
       console.error('[pqTERM] workspace folder failed', error)
       setFolderError(`Nie udało się otworzyć folderu projektu „${w.title}”. Sprawdź, czy katalog istnieje i jest dostępny.`)
+    }
+  }
+
+  function closeMenu(focusAnchor = false): void {
+    const el = menu?.el
+    setMenu(null)
+    // preventScroll: closing on a list scroll must not yank the list back
+    if (focusAnchor) el?.focus({ preventScroll: true })
+  }
+
+  async function switchEngine(
+    workspaceId: string,
+    paneId: string,
+    engine: EngineId,
+    withContext: boolean
+  ): Promise<void> {
+    const pane = snap.workspaces
+      .find((w) => w.id === workspaceId)
+      ?.panes.find((p) => p.id === paneId)
+    if (!pane) return
+    // ponytail: only a "running" agent gets a confirm — the tracker demotes a
+    // silent pane to `quiet` after 30 s (pane-activity IDLE_MS), so a long tool
+    // call is not covered. Upgrade to a live-process check if a swap ever kills
+    // someone's in-flight work.
+    if (
+      isPaneWorking(pane, activity) &&
+      !window.confirm('To CLI pracuje teraz. Przełączenie zakończy jego proces. Kontynuować?')
+    ) return
+    // keyboard users lose the anchor if focus is left on an unmounted item
+    closeMenu(true)
+    setSwitchNote('')
+    setSwitching((s) => ({ ...s, [paneId]: true }))
+    try {
+      const res = await window.pq.panes.switchEngine({ workspaceId, paneId, engine, withContext })
+      if (!res.ok) setSwitchNote(`Nie zmieniono CLI: ${res.reason ?? 'nieznany błąd'}`)
+      else {
+        if (res.reason) setSwitchNote(res.reason)
+        // the menu closed onto the sidebar logo; without this the next
+        // keystrokes go to the sidebar instead of the fresh CLI. Only for the
+        // visible workspace — a foreign pane id would steal focus from it.
+        if (workspaceId === snap.activeWorkspaceId) focusPane(workspaceId, paneId)
+      }
+    } catch (error) {
+      console.error('[pqTERM] engine switch failed', error)
+      setSwitchNote('Nie udało się zmienić CLI.')
+    } finally {
+      setSwitching((s) => {
+        const next = { ...s }
+        delete next[paneId]
+        return next
+      })
     }
   }
 
@@ -233,18 +288,11 @@ export default function Sidebar({
                         w.zoomedPaneId === p.id ? ' zoomed' : ''
                       }${activity[p.id]?.unread ? ' unread' : ''}${isPaneWorking(p, activity) ? ' busy' : ''}`}
                       style={phase(pi)}
-                      role="button"
-                      tabIndex={0}
                       onClick={() => void select(w, p.id)}
-                      onKeyDown={(e) => {
-                        if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
-                        e.preventDefault()
-                        void select(w, p.id)
-                      }}
                     >
                       {(() => {
                         const prov = providerFor(p.engine)
-                        return (
+                        const mark = (
                           <EngineMark
                             id={p.engine ?? undefined}
                             name={prov?.name ?? (p.engine ? p.title : 'idle')}
@@ -255,10 +303,45 @@ export default function Sidebar({
                             size={16}
                           />
                         )
+                        if (!p.engine) return mark
+                        const busy = Boolean(switching[p.id])
+                        return (
+                          <button
+                            type="button"
+                            className="engine-switch"
+                            title="zmień CLI w tej sesji"
+                            aria-label={`${p.title}: ${prov?.name ?? p.engine} — zmień CLI`}
+                            aria-haspopup="dialog"
+                            aria-expanded={menu?.paneId === p.id}
+                            aria-disabled={busy}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (busy) return
+                              setSwitchNote('')
+                              if (menu?.paneId === p.id) {
+                                closeMenu(true)
+                                return
+                              }
+                              setMenu({ workspaceId: w.id, paneId: p.id, el: e.currentTarget })
+                            }}
+                          >
+                            {mark}
+                          </button>
+                        )
                       })()}
-                      <span className="pane-label">
+                      <span
+                        className="pane-label"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter' && e.key !== ' ') return
+                          e.preventDefault()
+                          void select(w, p.id)
+                        }}
+                      >
                         {p.engine ? p.title : 'idle'}
                         {p.model ? ` · ${p.model}` : ''}
+                        {switching[p.id] ? <span className="engine-switching"> · przełączam…</span> : null}
                       {activity[p.id] ? (
                         <span
                           className={`activity-badge activity-${activity[p.id].kind}${activity[p.id].unread ? ' unread' : ''}`}
@@ -304,6 +387,30 @@ export default function Sidebar({
           ))}
         </div>
       ) : null}
+      {/* live region exists before it has text, otherwise screen readers drop it */}
+      <div role="status">{switchNote ? <div className="empty-side">{switchNote}</div> : null}</div>
+      {menu
+        ? (() => {
+            const pane = snap.workspaces
+              .find((w) => w.id === menu.workspaceId)
+              ?.panes.find((p) => p.id === menu.paneId)
+            if (!pane) return null
+            return (
+              <EngineSwitchMenu
+                key={menu.paneId}
+                anchor={menu.el}
+                title={pane.title}
+                providers={snap.providers}
+                favorites={snap.ui.favoriteEngines}
+                current={pane.engine}
+                onPick={(engine, withContext) =>
+                  void switchEngine(menu.workspaceId, menu.paneId, engine, withContext)
+                }
+                onClose={closeMenu}
+              />
+            )
+          })()
+        : null}
     </aside>
   )
 }

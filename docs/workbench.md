@@ -1,5 +1,36 @@
 # pq workbench (gauntlet live board)
 
+## SESSION HUB: wizualna zmiana CLI w wierszu sesji (wdrożone, 2026-11-03, `dev`)
+
+**Co:** logo silnika w wierszu sesji jest przyciskiem. Otwiera menu (portal, `fixed`,
+bo `.ws-list` się przewija) z dwoma trybami: **czysta sesja** (domyślnie — tylko
+podmiana CLI, ten sam pane i cwd) oraz **z kontekstem** (checkpoint + seed). Wybór
+idzie przez nowy kanał `panes:switchEngine` → `handoffPane`; menu nie oferuje
+silnika, który już działa, a lista jest filtrowana jak picker (ulubione pierwsze,
+niezainstalowane pominięte).
+
+**Pliki:** `src/main/index.ts` (handoffPane, IPC, onStart, term:spawn),
+`src/main/pty-manager.ts` (engine w `onStart`), `src/main/handoff.ts` (ścieżka w
+backtickach), `src/preload/index.ts`, `src/renderer/src/components/Sidebar.tsx`,
+`src/renderer/src/components/EngineSwitchMenu.tsx` (nowy),
+`src/shared/engineSwitch.ts` + test, `src/renderer/src/styles.css`,
+`docs/SESSION-HUB.md`.
+
+**Zachowanie i bezpieczeństwo:** podmiana jest odmawiana, gdy wybrano „z kontekstem”
+bez czytelnego transkryptu — **przed** ubiciem starego CLI; nieudany spawn pokazuje
+pane jako idle zamiast wiersza-widma; seed nie trafia do innego CLI (blokada + re-check
+`engine`/`sessionId`) ani nie miesza się z tekstem wpisanym w trakcie oczekiwania;
+stary `sessionHandle` nie jest już przekazywany jako `--resume` nowemu silnikowi;
+tytuł zadania zostaje, gdy nie był domyślną nazwą silnika.
+
+**Bramki (`dev`):** `npm run typecheck` (oba projekty) i `npm run test:unit`
+**250/250**, 11 suit.
+
+**Świadomy dług:** seed nadal jest wklejany do PTY (docelowo flaga initial-prompt),
+brak badge'a werdyktu „kontekst wczytany / pusty prompt”, a drugi hop w łańcuchu
+quota-hoppingu nie ma kontekstu (uchwyt nowego silnika nie jest wiązany po spawnie).
+Opis w `docs/SESSION-HUB.md`.
+
 ## PUBLIC RELEASE: higiena repo przed upublicznieniem (2026-11-02, `dev`)
 
 **Cel:** repo ma iść na GitHub jako publiczne, więc nie może nieść niczego, czego nie

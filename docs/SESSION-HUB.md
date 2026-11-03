@@ -23,6 +23,7 @@ context, a badge says whether it actually did.
 | Derived checkpoint | `src/main/ledger.ts` + `session-adapters.ts` + `session-transcripts.ts` | Main reads the *source* CLI's transcript read-only and writes an append-only `checkpoint.<n>.md` outside the repo. |
 | Handoff | `src/main/index.ts`, `handoff.ts` | Checkpoint first, then kill, then spawn the target, then one seed line pointing at the file. |
 | Entry points | `pqterm checkpoint [slot]`, `pqterm handoff <slot> <engine>`, `POST /v1/session/*` | The same flow from the command line and the bridge. |
+| Sidebar switch | `src/renderer/src/components/EngineSwitchMenu.tsx`, `panes:switchEngine` | Click the engine logo in a session row to swap the CLI in place. Clean swap by default; "z kontekstem" writes a checkpoint first. |
 
 ## Why the checkpoint is pqTERM's, not a copy of another CLI's store
 
@@ -45,19 +46,34 @@ The checkpoint lives under the profile dir, never in the repository: transcripts
 carry tokens and environment dumps, and a file inside the repo is a prompt-injection
 channel for every agent that greps the tree.
 
-## What is missing
+## What shipped in the sidebar (2026-11-03, `dev`)
 
-1. **The switch is not wired to the handoff.** `setPane(workspaceId, paneId, { engine })`
-   still does a cold restart. Wiring it means routing through `handoffPane` when the
-   outgoing pane has a handle, and keeping the cold path when it does not.
-2. **The seed does not always land.** Writing into a TUI mid-initialisation is
+The engine logo in a session row is a button. It opens a portal menu that names the
+row and offers two modes:
+
+- **czysta sesja** (default) — kill, spawn, same pane and cwd; no checkpoint, no seed.
+- **z kontekstem** — checkpoint from the outgoing CLI, then spawn, then one seed
+  line. If the transcript cannot be read, the switch is refused *before* the old
+  process is killed, so the owner can pick the clean mode instead.
+
+The menu lists enabled engines (favourites first) and never offers the engine that is
+already running. `panes:switchEngine` validates the workspace/pane pair and the
+engine allowlist; the bridge and `pqterm handoff` keep their existing entry points.
+
+## What is still missing
+
+1. **The seed does not always land.** Writing into a TUI mid-initialisation is
    swallowed: CodeBuddy creates its session and never receives the line. The fix is
    to stop writing into the PTY and pass the seed through the CLI's own
    initial-prompt flag where one exists (`opencode --prompt`, `hermes -z`,
    `kilo run`), falling back to the paste for the rest.
-3. **No visible verdict.** The user cannot tell "context loaded" from "empty prompt".
+2. **No visible verdict.** The user cannot tell "context loaded" from "empty prompt".
    The pane needs one badge driven by what main observed, not by what the agent
    claims.
+3. **The second hop loses context.** `captureHandleLater` binds a handle only for
+   CodeBuddy, so a pane handed to another engine has no readable transcript until the
+   app restarts and native resume rebinds it. A quota chain of three CLIs therefore
+   carries context on the first hop only.
 
 ## Non-goals
 
