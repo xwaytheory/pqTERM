@@ -427,7 +427,9 @@ async function handoffPane(
     // as its own session (same transcript, same title). This runs before the old
     // CLI dies, so a failure costs nothing and falls back to checkpoint + seed.
     let carried: CarryResult | null = null
-    if (withContext && cp && cp.transcript.events.length > 0) {
+    // a degraded transcript is a partial conversation; importing it would look
+    // complete, so it keeps the checkpoint + seed path that carries the warning
+    if (withContext && cp && cp.transcript.status === 'ok' && cp.transcript.events.length > 0) {
       carried = await carrySession({
         engine,
         target: target.resolvedPath,
