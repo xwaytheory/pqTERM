@@ -1,5 +1,49 @@
 # pq workbench (gauntlet live board)
 
+## SESSION HUB: rozmowa przenoszona do CodeBuddy i omp + naprawa „brak transkryptu" (2026-11-04, `dev`)
+
+**Zgłoszenie:** po udanym CodeBuddy → OpenCode właściciel dostał „Nie zmieniono CLI:
+brak transkryptu do checkpointu — wybierz czystą sesję", choć rozmowa była na dysku.
+Prośba: naprawić i przenieść mechanizm na wszystkie inne CLI.
+
+**Przyczyna (zmierzona, nie zgadywana):** CodeBuddy przy starcie tworzy **pusty**
+plik sesji (`projects/c-Users-pq-Desktop-test/01a1a87c-3a17-…jsonl`, 0 B, 22:34:36),
+a prawdziwą rozmowę zapisuje pod **innym** id (`…-4dc5-…`, 9 KB, 22:35:45). Rejestr
+`sessions/<pid>.json` publikuje `interactive-<pid>`, więc `captureCodebuddyHandle`
+związał stub; `writePaneCheckpoint` brał `pane.sessionHandle` **przed** żywym trace
+i czytał 0 wpisów. Stąd odmowa, mimo kompletnego transkryptu.
+
+**Co:**
+1. `handle-capture.ts` — `transcriptExists` wymaga pliku **niepustego**; stub nigdy
+   nie zostaje uchwytem.
+2. `writePaneCheckpoint` — pyta o oba uchwyty (zapisany + `codebuddyTraceHandle(pid)`)
+   i zostawia ten, który ma tury; lepszy uchwyt jest zapisywany z powrotem.
+3. Nowy `session-carry.ts` + `session-native.ts`: przenoszenie rozmowy do
+   **OpenCode** (jak dotąd), **CodeBuddy** (plik `<uuid>.jsonl` w układzie Claude Code
+   → `--resume <uuid>`) i **omp** (jsonl w `~/.omp/agent/sessions/<projekt>/` →
+   `-r <uuid>`). omp wymaga modelu z `modelRoles.default`; bez czytelnego configu
+   nie ma importu, tylko seed.
+4. `handoffSeed` dostaje `digest` — 1200 znaków ostatnich tur w jednej linii, więc
+   silniki bez importu (Hermes, Freebuff, Grok, Kilo) dostają treść, nie tylko ścieżkę.
+
+**Dowód (ręczny, ten profil):**
+- CodeBuddy: syntetyczna sesja z kodem 4815 → `codebuddy --resume <id> -p "Jaki kod?"`
+  → **4815**.
+- omp: ten sam test przez renderer → sesja wczytana (omp przenosi plik do swojego
+  katalogu projektu i dopisuje tury); odpowiedź zależy od modelu, format działa.
+- Kilo: `kilo import` przyjmuje dokument kilo-format, ale `kilo run -s <id>` kończy
+  się `UnknownError` (7.8.18) — zostaje seed, świadomie.
+- OpenCode: ścieżka bez zmian (wcześniejszy round-trip), przeniesiona do
+  `session-carry.ts`.
+
+**Bramki (`dev`):** `npm run typecheck` oba projekty zielone; `npm run test:unit`
+**262/262**, 13 suit (nowe: `session-native.test.ts` 5 testów, przebudowany
+`handle-capture.test.ts`); `check:version` 1.9.0.
+
+**Ograniczenia:** przenoszona jest proza (bez reasoning i udanych tool calls), jeden
+wpis do 4000 znaków; Kilo/Hermes/Freebuff/Grok dostają digest w seedzie, nie własną
+sesję; drugi hop przez te silniki nadal gubi kontekst.
+
 ## ENGINE HINT: prawdziwy limit YOLO w CodeBuddy (2026-11-04, `dev`)
 
 **Zgłoszenie:** „dlaczego w CodeBuddy nie ma 100% YOLO?" — podpowiedź silnika obiecywała

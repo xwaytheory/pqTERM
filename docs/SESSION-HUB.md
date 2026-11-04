@@ -24,7 +24,7 @@ context, a badge says whether it actually did.
 | Handoff | `src/main/index.ts`, `handoff.ts` | Checkpoint first, then kill, then spawn the target, then one seed line pointing at the file. |
 | Entry points | `pqterm checkpoint [slot]`, `pqterm handoff <slot> <engine>`, `POST /v1/session/*` | The same flow from the command line and the bridge. |
 | Sidebar switch | `src/renderer/src/components/EngineSwitchMenu.tsx`, `panes:switchEngine` | Click the engine logo in a session row to swap the CLI in place. "z kontekstem" is the default when the source is readable; clean swap stays available. |
-| Conversation import | `src/main/opencode-session.ts`, `session-import.ts` | For an OpenCode target, the source transcript's prose turns are rendered into OpenCode's export JSON and imported with `opencode session import`; the pane then launches `opencode --session <id>`, so the conversation is visible in OpenCode. The model is resolved from `opencode models` — the `opencode-default` sentinel imports but refuses every turn. |
+| Conversation import | `src/main/session-carry.ts`, `session-native.ts`, `opencode-session.ts`, `session-import.ts` | Turns the source transcript into a session the target opens itself: `opencode session import` + `--session`, CodeBuddy `--resume`, omp `-r`. The conversation is visible in the new CLI, not just referenced. OpenCode's model comes from `opencode models` (the `opencode-default` sentinel refuses every turn); omp's comes from `modelRoles.default`. |
 
 ## Why the checkpoint is pqTERM's, not a copy of another CLI's store
 
@@ -54,25 +54,47 @@ row and offers two modes:
 
 - **z kontekstem** (default when the source transcript is readable) — checkpoint
   from the outgoing CLI, then spawn. For an OpenCode target the transcript is also
-  imported into OpenCode, so the new TUI shows the old conversation instead of an
-  empty prompt. Other targets get one seed line pointing at the checkpoint. If the
-  transcript cannot be read, the switch is refused *before* the old process is
-  killed, so the owner can pick the clean mode instead.
+  imported into OpenCode, CodeBuddy or omp, so the new TUI shows the old
+  conversation instead of an empty prompt. Other targets get one seed line with a
+  digest of the last turns. If the transcript cannot be read, the switch is refused
+  *before* the old process is killed, so the owner can pick the clean mode instead.
 - **czysta sesja** — kill, spawn, same pane and cwd; no checkpoint, no seed.
 
-### Why OpenCode can show the old conversation and others cannot
+### Which targets show the old conversation (2026-11-04, `dev`)
 
-OpenCode exposes `session export` and `session import` as public commands, so
-pqTERM can render the source transcript into OpenCode's own JSON and let OpenCode
-import it — the vendor's command writes its own store, pqTERM never does. A
-degraded transcript is not imported — it falls back to the checkpoint + seed so the
-next agent sees the warning. The imported session keeps the task title and becomes
-the pane's native handle, which also makes a second handoff (OpenCode → anything)
-readable. Only prose turns are
-carried: reasoning and successful tool calls are not the visible conversation, and
-the adapter clips one turn to 4000 characters. Kilo's importer rejected the same
-document, and CodeBuddy, Hermes and Freebuff have no import command at all; for those
-the checkpoint plus seed is the honest ceiling.
+`carrySession` (`src/main/session-carry.ts`) runs before the old CLI dies and
+turns the source transcript into a session the target owns. Only prose turns are
+carried (reasoning and successful tool calls are not the visible conversation, and
+one turn is clipped to 4000 characters). A degraded transcript is never carried —
+it falls back to checkpoint + seed so the next agent sees the warning. The imported
+session keeps the task title and becomes the pane's native handle, which is what
+makes a second hop readable.
+
+| Target | Mechanism | Verified |
+|---|---|---|
+| OpenCode | render the export JSON, `opencode session import`, launch `--session <id>` | yes — model answered a fact from the imported history |
+| CodeBuddy | write `~/.codebuddy/projects/<slug>/<uuid>.jsonl` (Claude-Code layout), launch `--resume <uuid>` | yes — same fact test |
+| omp | write `~/.omp/agent/sessions/<project>/<ts>_<uuid>.jsonl`, launch `-r <uuid>` | yes — session loads; the answer depends on the model |
+| Kilo | `kilo import <json>` accepts a kilo-format document, but resuming it fails server-side in 7.8.18 | no — falls back to the seed |
+| Hermes, Freebuff, Grok, the rest | checkpoint + one seed line that now embeds a 1200-char digest of the last turns | n/a |
+
+The CodeBuddy and omp writers touch only a *new* session file in the folder the CLI
+already uses; no database, index or existing session is modified, and a failed
+spawn deletes the file it created. The seed digest is the honest ceiling for engines
+with no verified import path: the model gets the last turns inline instead of a path
+it may never open.
+
+Two constraints learned the hard way, both encoded in the renderers:
+
+- omp restores the model from the last assistant row and aborts the whole resume on
+  an unknown one (`Could not restore model imported/imported`), so the row carries
+  `modelRoles.default` from `~/.omp/agent/config.yml`. With no readable config
+  there is no native import, only the seed.
+- CodeBuddy opens a zero-byte session stub at launch and then writes the real
+  conversation under a *different* id. Binding that stub is why a handoff used to
+  report "brak transkryptu" while the transcript sat on disk. `transcriptExists`
+  now requires a non-empty file, and `writePaneCheckpoint` re-asks the live trace
+  and keeps whichever handle has turns behind it.
 
 The menu lists enabled engines (favourites first) and never offers the engine that is
 already running. `panes:switchEngine` validates the workspace/pane pair and the
@@ -88,17 +110,17 @@ engine allowlist; the bridge and `pqterm handoff` keep their existing entry poin
 2. **No visible verdict.** The user cannot tell "context loaded" from "empty prompt".
    The pane needs one badge driven by what main observed, not by what the agent
    claims.
-3. **The second hop loses context outside OpenCode.** A pane handed to OpenCode
-   keeps the imported session as its handle, so the next handoff can export it. A
-   pane handed to any other engine still has no readable transcript until the app
-   restarts and native resume rebinds it; a quota chain through those engines carries
-   context on the first hop only.
+3. **The second hop loses context outside the three import targets.** A pane handed
+   to OpenCode, CodeBuddy or omp keeps the imported session as its handle, so the
+   next handoff can export it. A pane handed to Hermes, Freebuff or Grok still has no
+   readable transcript until the app restarts and native resume rebinds it; a quota
+   chain through those engines carries context on the first hop only.
 
 ## Non-goals
 
-- Editing or re-indexing another CLI's session store directly. Import goes through
-  the vendor's own command (`opencode session import`), never through pqTERM file
-  writes.
+- Editing or re-indexing another CLI's existing sessions. OpenCode is imported
+  through its own command; CodeBuddy and omp get one *new* file in the folder they
+  already read, and a failed spawn deletes it.
 - A shared conversation format across vendors — the checkpoint is a briefing, and
-  the OpenCode document is OpenCode's format, not a universal one.
+  each carried document is that vendor's own format, not a universal one.
 - Resuming across a different working directory.

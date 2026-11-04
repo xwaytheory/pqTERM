@@ -1,4 +1,4 @@
-import { closeSync, existsSync, openSync, readFileSync, readdirSync, readSync } from 'fs'
+import { closeSync, existsSync, openSync, readFileSync, readdirSync, readSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 
@@ -91,13 +91,25 @@ function registryDir(): string {
   return join(homedir(), '.codebuddy', 'sessions')
 }
 
-/** A stored handle is only useful if a transcript is actually named after it. */
+/**
+ * A stored handle is only useful if a transcript is actually named after it AND
+ * that file has content. CodeBuddy writes a zero-byte session stub at startup and
+ * then runs the real conversation under a different id — binding the stub is how
+ * a handoff ended up with "brak transkryptu" while the conversation was on disk.
+ */
 function transcriptExists(handle: string): boolean {
   const root = join(homedir(), '.codebuddy', 'projects')
   try {
     return readdirSync(root, { withFileTypes: true })
       .filter((d) => d.isDirectory())
-      .some((d) => existsSync(join(root, d.name, `${handle}.jsonl`)))
+      .some((d) => {
+        const file = join(root, d.name, `${handle}.jsonl`)
+        try {
+          return existsSync(file) && statSync(file).size > 0
+        } catch {
+          return false
+        }
+      })
   } catch {
     return false
   }
