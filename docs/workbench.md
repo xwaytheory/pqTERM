@@ -21,6 +21,9 @@ fixture zapisujący pusty JSONL w linii 48 testu). Ten sam test na czystym `inst
 
 **Ograniczenia:** brak — zmiana to wyłącznie tekst podpowiedzi; zachowanie flag bez zmian.
 
+**Bramki (`test`):** po fast-forward merge `aed309a` — `npm run test:unit` **256/256**,
+13 suit (czerwony test z `dev` zostawiłem w WIP autora); `check:version` 1.9.0 OK.
+
 ## SESSION HUB: rozmowa widoczna w OpenCode po przełączeniu (2026-11-03, `dev`)
 
 **Zgłoszenie:** po zmianie CLI nowe CLI ma pokazać tę samą rozmowę, a nie pusty prompt.
