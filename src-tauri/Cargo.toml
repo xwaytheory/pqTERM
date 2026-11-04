@@ -1,6 +1,6 @@
 [package]
 name = "pq"
-version = "1.9.0"
+version = "1.9.1"
 description = "pq - nerd terminal grid for AI coding agents"
 authors = ["pq"]
 edition = "2021"

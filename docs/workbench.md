@@ -1,5 +1,19 @@
 # pq workbench (gauntlet live board)
 
+## RELEASE: 1.9.1 (2026-11-04, `dev` → `test` → `main`)
+
+**Co:** bump produktu 1.9.0 → 1.9.1 we wszystkich miejscach pilnowanych przez
+`check-version-sync`: `package.json`, `package-lock.json` (root + `packages[""]`),
+`crates/Cargo.toml`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`,
+`WORKSPACE_VERSION` w `crates/pq-core/src/version.rs`, README (+ sekcja „Nowości 1.9.1").
+W lockach ruszają wyłącznie lokalne crates (`pq`, `pq-core`, `pq-work`, `pq-voice`);
+`zeroize@1.9.0` w `src-tauri/Cargo.lock` zostaje nietknięty. Wersja zbiera 6 commitów
+z `dev`: handoff kontekstu do OpenCode / CodeBuddy / omp, przełączanie CLI z logo sesji
+i podpowiedź CodeBuddy o realnym limicie YOLO.
+
+**Bramki (`dev`):** `npm run test:unit` **262/262**, 13 suit; `npm run check:version`
+OK (product 1.9.1; `cargo metadata --locked` przechodzi w obu trackach).
+
 ## SESSION HUB: rozmowa przenoszona do CodeBuddy i omp + naprawa „brak transkryptu" (2026-11-04, `dev`)
 
 **Zgłoszenie:** po udanym CodeBuddy → OpenCode właściciel dostał „Nie zmieniono CLI:

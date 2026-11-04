@@ -2,7 +2,12 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.9.0** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.9.1** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.9.1
+
+- **Handoff z kontekstem do CodeBuddy i omp.** Przełączenie CLI przenosi rozmowę do natywnego formatu sesji obu silników, a uszkodzony transkrypt nie trafia do importu.
+- **Podpowiedź CodeBuddy mówi prawdę o YOLO.** `--dangerously-skip-permissions` nadal przepuszcza HIGH/CRITICAL (`rm -rf`, `git reset --hard`, force-push na main); pełny pass tylko w sandboxie (`CODEBUDDY_IS_SANDBOX=1`), a `trustAll` to wyłącznie zaufanie katalogu.
 
 ## Nowości 1.9.0
 
