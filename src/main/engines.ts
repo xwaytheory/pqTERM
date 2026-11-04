@@ -390,7 +390,7 @@ export const ENGINE_SPECS: EngineSpec[] = [
     // npm exposes both names (`codebuddy` and `cbc`) for the same shim.
     binaries: ['codebuddy', 'codebuddy.cmd', 'cbc', 'cbc.cmd'],
     args: ['--dangerously-skip-permissions'],
-    hint: 'CodeBuddy Code (Tencent Cloud) — TUI. npm install -g @tencent-ai/codebuddy-code (komendy: codebuddy / cbc). YOLO: --dangerously-skip-permissions + trustAll w ~/.codebuddy/settings.json.',
+    hint: 'CodeBuddy Code (Tencent Cloud) — TUI. npm install -g @tencent-ai/codebuddy-code (komendy: codebuddy / cbc). Start z --dangerously-skip-permissions; HIGH/CRITICAL (rm -rf, git reset --hard, DROP TABLE, force-push na main) pytają zawsze — pełny pass tylko w sandboxie: CODEBUDDY_IS_SANDBOX=1 + -y. trustAll = tylko zaufanie katalogu.',
     extraPathDirs: ['%APPDATA%\\npm'],
     npmPackage: '@tencent-ai/codebuddy-code',
     selfUpdate: ['update'],

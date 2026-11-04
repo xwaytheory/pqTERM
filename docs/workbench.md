@@ -1,5 +1,26 @@
 # pq workbench (gauntlet live board)
 
+## ENGINE HINT: prawdziwy limit YOLO w CodeBuddy (2026-11-04, `dev`)
+
+**Zgłoszenie:** „dlaczego w CodeBuddy nie ma 100% YOLO?" — podpowiedź silnika obiecywała
+pełny pass (`--dangerously-skip-permissions + trustAll`), a HIGH/CRITICAL i tak pytają.
+
+**Co:** flaga `--dangerously-skip-permissions` była już w `args` od commita 356a7ee, więc
+launch-args nie wymagały zmiany. Poprawiona wyłącznie podpowiedź w `src/main/engines.ts`:
+HIGH/CRITICAL (`rm -rf`, `git reset --hard`, `DROP TABLE`, force-push na main) pytają
+zawsze, pełny pass to `CODEBUDDY_IS_SANDBOX=1` + `-y` (tylko izolowany sandbox), a
+`trustAll` to wyłącznie zaufanie katalogu. Źródło: `@tencent-ai/codebuddy-code@2.180.0`,
+`dist/web-ui/docs/en/cli/permission-modes.md` (`bypassPermissions`, `fullAccess`) oraz
+`isUnrestrictedPermissionMode()` w `dist/codebuddy.js`.
+
+**Dowód / bramki (`dev`):** `npm run typecheck` zielony. `npm run test:unit` = 255 pass,
+1 fail: `handle-capture.test.ts` „capture reads the registry file for the pid", spowodowany
+**niezacommitowanym** WIP w `src/main/handle-capture.ts` (`statSync(file).size > 0` vs.
+fixture zapisujący pusty JSONL w linii 48 testu). Ten sam test na czystym `instances\test`
+(ten sam commit) = 7/7 zielony, więc czerwony test nie pochodzi z tej zmiany.
+
+**Ograniczenia:** brak — zmiana to wyłącznie tekst podpowiedzi; zachowanie flag bez zmian.
+
 ## SESSION HUB: rozmowa widoczna w OpenCode po przełączeniu (2026-11-03, `dev`)
 
 **Zgłoszenie:** po zmianie CLI nowe CLI ma pokazać tę samą rozmowę, a nie pusty prompt.
