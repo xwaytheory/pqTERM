@@ -116,8 +116,25 @@ export function codebuddyProjectSlug(cwd: string): string {
 
 /** omp folder name: the cwd relative to home, separators as dashes, leading dash. */
 export function ompProjectSlug(cwd: string, home: string): string {
-  const rel = cwd.toLowerCase().startsWith(home.toLowerCase() + '\\')
-    ? cwd.slice(home.length + 1)
-    : cwd
-  return '-' + rel.split(/[\\/]+/).filter(Boolean).join('-')
+  // normalise both sides first: the app hands out `C:\…`, tests and the bridge
+  // may hand out `C:/…`, and a leftover `C:` in a folder name is illegal on Windows
+  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
+  const dir = norm(cwd)
+  const base = norm(home)
+  // omp keeps the original case in its folder names, so only the *comparison*
+  // is case-insensitive
+  const rel =
+    dir.toLowerCase().startsWith(base.toLowerCase() + '/')
+      ? dir.slice(base.length + 1)
+      : dir.replace(/^[a-z]:\//i, '')
+  return (
+    '-' +
+    rel
+      .split('/')
+      .filter(Boolean)
+      // keep the case (omp's folders are `-Desktop-test`) and only strip the
+      // characters Windows forbids in a folder name
+      .map((part) => part.replace(/[<>:"/\\|?*]+/g, '-'))
+      .join('-')
+  )
 }

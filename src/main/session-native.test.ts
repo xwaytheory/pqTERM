@@ -73,6 +73,11 @@ test('project slugs match what the CLIs already write on disk', () => {
     ompProjectSlug('C:\\Users\\pq\\Desktop\\test', 'C:\\Users\\pq'),
     '-Desktop-test'
   )
+  // the bridge and tests hand out forward slashes; a leftover `C:` in a folder
+  // name makes mkdir fail on Windows, which silently disabled the omp import
+  assert.equal(ompProjectSlug('C:/Users/pq/Desktop/test', 'C:\\Users\\pq'), '-Desktop-test')
+  // outside home the drive is dropped: a `:` would make the folder invalid
+  assert.equal(ompProjectSlug('D:\\work\\x', 'C:\\Users\\pq'), '-work-x')
 })
 
 test('digest keeps the newest turns, one line, within the cap', () => {
