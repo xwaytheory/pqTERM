@@ -42,6 +42,12 @@ export default function Sidebar({
     off = window.pq.board.onChange(setBoard)
     return () => off?.()
   }, [])
+  // a switch verdict is a moment, not a permanent label on the sidebar
+  useEffect(() => {
+    if (!switchNote) return
+    const timer = setTimeout(() => setSwitchNote(''), 8000)
+    return () => clearTimeout(timer)
+  }, [switchNote])
   const list = useMemo(() => {
     const s = q.trim().toLowerCase()
     if (!s) return snap.workspaces
