@@ -109,6 +109,56 @@ export function renderOmpSession(input: NativeSessionInput & { model?: OmpModel 
   return rows.map((r) => JSON.stringify(r)).join('\n') + '\n'
 }
 
+/**
+ * Grok keeps one folder per cwd (URL-encoded) with a summary.json and a
+ * chat_history.jsonl; `grok -r <id>` replays it.
+ */
+export function grokSessionDir(cwd: string): string {
+  // grok encodes the forward-slash form; a backslash-encoded folder is still
+  // found by id but gets moved on first resume
+  return encodeURIComponent(cwd.replace(/\\/g, '/'))
+}
+
+export interface GrokSession {
+  summary: string
+  history: string
+}
+
+export function renderGrokSession(
+  input: NativeSessionInput & { model: string; home: string }
+): GrokSession {
+  const now = new Date().toISOString()
+  const turns = prose(input.events)
+  const summary = {
+    info: { id: input.id, cwd: input.cwd },
+    agent_id: `ag1.${randomUUID().replace(/-/g, '')}`,
+    attempt_id: `at1.${randomUUID().replace(/-/g, '')}`,
+    session_summary: input.title,
+    created_at: now,
+    updated_at: now,
+    num_messages: turns.length,
+    num_chat_messages: turns.length,
+    current_model_id: input.model,
+    next_trace_turn: 1,
+    chat_format_version: 1,
+    request_id: randomUUID(),
+    grok_home: `${input.home}\\.grok`,
+    last_active_at: now,
+    generated_title: input.title,
+    agent_name: 'grok-build-plan',
+    sandbox_profile: 'off',
+    reasoning_effort: 'high'
+  }
+  const history = turns.map((event) =>
+    JSON.stringify(
+      event.role === 'user'
+        ? { type: 'user', content: [{ type: 'text', text: event.text }] }
+        : { type: 'assistant', content: event.text, model_id: input.model }
+    )
+  )
+  return { summary: JSON.stringify(summary, null, 2), history: history.join('\n') + '\n' }
+}
+
 /** CodeBuddy project folder name: every non-alphanumeric run becomes one dash. */
 export function codebuddyProjectSlug(cwd: string): string {
   return cwd.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')

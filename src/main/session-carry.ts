@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
+import { mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import type { EngineId } from '../shared/types'
@@ -8,9 +8,11 @@ import { renderOpencodeSession } from './opencode-session'
 import { deleteOpencodeSession, importOpencodeSession, resolveOpencodeModel } from './session-import'
 import {
   codebuddyProjectSlug,
+  grokSessionDir,
   ompProjectSlug,
   parseOmpDefaultModel,
   renderCodebuddySession,
+  renderGrokSession,
   renderOmpSession,
   type OmpModel
 } from './session-native'
@@ -59,6 +61,7 @@ export async function carrySession(req: CarryRequest): Promise<CarryResult | nul
     if (req.engine === 'opencode') return await carryOpencode(req)
     if (req.engine === 'codebuddy') return carryCodebuddy(req)
     if (req.engine === 'omp') return carryOmp(req)
+    if (req.engine === 'grok') return carryGrok(req)
     return null
   } catch {
     return null
@@ -110,6 +113,45 @@ function carryOmp(req: CarryRequest): CarryResult | null {
   const file = join(dir, `${stamp}_${id}.jsonl`)
   writeFileSync(file, renderOmpSession({ id, title: req.title, cwd: req.cwd, events: req.events, model }))
   return { args: ['-r', id], handle: id, discard: rmFile(file) }
+}
+
+function carryGrok(req: CarryRequest): CarryResult | null {
+  const model = readGrokModel()
+  if (!model) return null
+  const id = randomUUID()
+  const dir = join(homedir(), '.grok', 'sessions', grokSessionDir(req.cwd), id)
+  mkdirSync(dir, { recursive: true })
+  const { summary, history } = renderGrokSession({
+    id,
+    title: req.title,
+    cwd: req.cwd,
+    events: req.events,
+    model,
+    home: homedir()
+  })
+  writeFileSync(join(dir, 'summary.json'), summary)
+  writeFileSync(join(dir, 'chat_history.jsonl'), history)
+  return {
+    args: ['-r', id],
+    handle: id,
+    discard: () => {
+      try {
+        rmSync(dir, { recursive: true, force: true })
+      } catch {
+        /* already gone */
+      }
+    }
+  }
+}
+
+/** `default = "grok-4.7"` in ~/.grok/config.toml — the model a resumed session expects. */
+function readGrokModel(): string | null {
+  try {
+    const config = readFileSync(join(homedir(), '.grok', 'config.toml'), 'utf8')
+    return config.match(/^\s*default\s*=\s*"([^"]+)"/m)?.[1] ?? null
+  } catch {
+    return null
+  }
 }
 
 function readOmpModel(): OmpModel | null {

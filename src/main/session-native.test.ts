@@ -2,8 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   codebuddyProjectSlug,
+  grokSessionDir,
   ompProjectSlug,
   renderCodebuddySession,
+  renderGrokSession,
   renderOmpSession
 } from './session-native.ts'
 import { handoffSeed, transcriptDigest } from './handoff.ts'
@@ -62,6 +64,31 @@ test('omp: header rows first, then a parent chain of prose messages', () => {
   assert.equal(second.role, 'assistant')
   assert.equal(second.content[0].text, 'ok')
   assert.equal(messages[2].parentId, messages[1].id)
+})
+
+test('grok: summary + history carry the prose and the configured model', () => {
+  const out = renderGrokSession({
+    id: '33333333-3333-3333-3333-333333333333',
+    title: 'pq carry',
+    cwd: 'C:\\Users\\pq\\Desktop\\test',
+    events: EVENTS,
+    model: 'grok-4.7',
+    home: 'C:\\Users\\pq'
+  })
+  const summary = JSON.parse(out.summary) as Record<string, unknown>
+  assert.equal(summary.current_model_id, 'grok-4.7')
+  assert.equal(summary.session_summary, 'pq carry')
+  assert.equal(summary.num_chat_messages, 3)
+  const rows = out.history
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+  assert.equal(rows.length, 3)
+  assert.equal(rows[0].type, 'user')
+  assert.equal(rows[1].type, 'assistant')
+  assert.equal(rows[1].model_id, 'grok-4.7')
+  // grok encodes the forward-slash form of the cwd
+  assert.equal(grokSessionDir('C:\\Users\\pq\\Desktop\\test'), 'C%3A%2FUsers%2Fpq%2FDesktop%2Ftest')
 })
 
 test('project slugs match what the CLIs already write on disk', () => {

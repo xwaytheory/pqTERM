@@ -19,6 +19,14 @@ które buduje aplikacja**:
   export`), tura modelu odbita przez „Free usage limit reached" — limit konta, nie
   format.
 
+**Grok — dodany po tym samym teście:** `~/.grok/sessions/<url-encoded cwd>/<uuid>/`
+z `summary.json` + `chat_history.jsonl`, start `-r <uuid>`. Grok odpowiada
+`Session <id> found locally` i dopisuje tury do historii, więc sesja jest jego
+własna; modelu nie udało się przepytać, bo API xAI zwracało 500 (`retrying`,
+`attempt 9`). Model bierzemy z `default = "grok-4.7"` w `~/.grok/config.toml`, a
+katalog kodujemy po forward-slashach — wersja z backslashami też jest znajdowana,
+ale grok przenosi ją przy pierwszym resume.
+
 **Hermes — sprawdzone i odrzucone:** `hermes sessions import --from claude <plik>`
 przyjmuje syntetyczny jsonl i sesja pojawia się w `hermes sessions list`, ale
 `hermes --resume <id>` (także `--cli`, także po tytule) idzie przez lokalny gateway

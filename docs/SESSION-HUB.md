@@ -53,8 +53,8 @@ The engine logo in a session row is a button. It opens a portal menu that names 
 row and offers two modes:
 
 - **z kontekstem** (default when the source transcript is readable) — checkpoint
-  from the outgoing CLI, then spawn. For an OpenCode target the transcript is also
-  imported into OpenCode, CodeBuddy or omp, so the new TUI shows the old
+  from the outgoing CLI, then spawn. The transcript is also imported into
+  OpenCode, CodeBuddy, omp or Grok, so the new TUI shows the old
   conversation instead of an empty prompt. Other targets get one seed line with a
   digest of the last turns. If the transcript cannot be read, the switch is refused
   *before* the old process is killed, so the owner can pick the clean mode instead.
@@ -74,14 +74,15 @@ makes a second hop readable.
 |---|---|---|
 | OpenCode | render the export JSON, `opencode session import`, launch `--session <id>` | yes — model answered a fact from the imported history |
 | CodeBuddy | write `~/.codebuddy/projects/<slug>/<uuid>.jsonl` (Claude-Code layout), launch `--resume <uuid>` | yes — same fact test |
-| omp | write `~/.omp/agent/sessions/<project>/<ts>_<uuid>.jsonl`, launch `-r <uuid>` | yes — session loads; the answer depends on the model |
+| omp | write `~/.omp/agent/sessions/<project>/<ts>_<uuid>.jsonl`, launch `-r <uuid>` | yes — model answered the fact test |
+| Grok | write `~/.grok/sessions/<url-encoded cwd>/<uuid>/{summary.json,chat_history.jsonl}`, launch `-r <uuid>` | session recognised and replayed (`found locally`, history grows); recall unverified — the xAI API answered 500 during the test |
 | Kilo | `kilo import <json>` accepts a kilo-format document, but resuming it fails server-side in 7.8.18 | no — falls back to the seed |
-| Hermes | \`hermes sessions import --from claude <file>\` imports a Claude-shaped jsonl and lists the session, but \`hermes --resume <id>\` goes through the local gateway and answers "No session found" | no — seed |
-| Freebuff, Grok, the rest | checkpoint + one seed line that now embeds a 1200-char digest of the last turns | n/a |
+| Hermes | `hermes sessions import --from claude <file>` imports a Claude-shaped jsonl and lists the session, but `hermes --resume <id>` goes through the local gateway and answers "No session found" | no — seed |
+| Freebuff, the rest | checkpoint + one seed line that now embeds a 1200-char digest of the last turns | n/a |
 
-The CodeBuddy and omp writers touch only a *new* session file in the folder the CLI
-already uses; no database, index or existing session is modified, and a failed
-spawn deletes the file it created. The seed digest is the honest ceiling for engines
+The CodeBuddy, omp and Grok writers touch only a *new* session folder in the store
+the CLI already reads; no database, index or existing session is modified, and a
+failed spawn deletes what it created. The seed digest is the honest ceiling for engines
 with no verified import path: the model gets the last turns inline instead of a path
 it may never open.
 
@@ -111,11 +112,11 @@ engine allowlist; the bridge and `pqterm handoff` keep their existing entry poin
 2. **No visible verdict.** The user cannot tell "context loaded" from "empty prompt".
    The pane needs one badge driven by what main observed, not by what the agent
    claims.
-3. **The second hop loses context outside the three import targets.** A pane handed
-   to OpenCode, CodeBuddy or omp keeps the imported session as its handle, so the
-   next handoff can export it. A pane handed to Hermes, Freebuff or Grok still has no
-   readable transcript until the app restarts and native resume rebinds it; a quota
-   chain through those engines carries context on the first hop only.
+3. **The second hop loses context outside the four import targets.** A pane handed
+   to OpenCode, CodeBuddy, omp or Grok keeps the imported session as its handle, so
+   the next handoff can export it. A pane handed to Hermes, Freebuff or Kilo still
+   has no readable transcript until the app restarts and native resume rebinds it; a
+   quota chain through those engines carries context on the first hop only.
 
 ## Non-goals
 
