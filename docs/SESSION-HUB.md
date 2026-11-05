@@ -76,7 +76,8 @@ makes a second hop readable.
 | CodeBuddy | write `~/.codebuddy/projects/<slug>/<uuid>.jsonl` (Claude-Code layout), launch `--resume <uuid>` | yes — same fact test |
 | omp | write `~/.omp/agent/sessions/<project>/<ts>_<uuid>.jsonl`, launch `-r <uuid>` | yes — session loads; the answer depends on the model |
 | Kilo | `kilo import <json>` accepts a kilo-format document, but resuming it fails server-side in 7.8.18 | no — falls back to the seed |
-| Hermes, Freebuff, Grok, the rest | checkpoint + one seed line that now embeds a 1200-char digest of the last turns | n/a |
+| Hermes | \`hermes sessions import --from claude <file>\` imports a Claude-shaped jsonl and lists the session, but \`hermes --resume <id>\` goes through the local gateway and answers "No session found" | no — seed |
+| Freebuff, Grok, the rest | checkpoint + one seed line that now embeds a 1200-char digest of the last turns | n/a |
 
 The CodeBuddy and omp writers touch only a *new* session file in the folder the CLI
 already uses; no database, index or existing session is modified, and a failed

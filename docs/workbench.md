@@ -1,5 +1,32 @@
 # pq workbench (gauntlet live board)
 
+## SESSION HUB: samodzielny test wykrył zepsuty slug omp (2026-11-05, `dev`)
+
+**Co:** 1.9.1 wyszło z przenoszeniem rozmowy do omp, którego **nie dało się użyć**:
+sanitizer folderu traktował każdą wielką literę jako znak nielegalny
+(`[^a-z0-9._-]`), więc `Desktop/test` dawało `--esktop-test` zamiast `-Desktop-test`,
+a `omp -r` nie znajdował pliku. Naprawione w `ompProjectSlug`: porównanie ścieżek bez
+względu na wielkość liter, ale nazwa folderu zachowuje oryginał; usuwane są tylko
+znaki zakazane w Windows (`<>:"/\|?*`), a dysk poza `$HOME` jest odcinany.
+
+**Jak testowałem bez klikania:** `session-carry.ts` zbundlowany esbuildem do CJS
+(`node_modules/.bin/esbuild --bundle --platform=node`) + harness, który woła
+`carrySession()` dokładnie tak jak `handoffPane`, a potem uruchamia CLI z **argv,
+które buduje aplikacja**:
+- CodeBuddy: `--dangerously-skip-permissions --resume <id>` → odpowiedź **4815**;
+- omp: `--yolo -r <id>` → **4815**;
+- OpenCode: import przechodzi (sesja z tytułem i oboma komunikatami w `session
+  export`), tura modelu odbita przez „Free usage limit reached" — limit konta, nie
+  format.
+
+**Hermes — sprawdzone i odrzucone:** `hermes sessions import --from claude <plik>`
+przyjmuje syntetyczny jsonl i sesja pojawia się w `hermes sessions list`, ale
+`hermes --resume <id>` (także `--cli`, także po tytule) idzie przez lokalny gateway
+i odpowiada „No session found matching …”. Wpięcie tego dałoby pane z błędem zamiast
+rozmowy, więc Hermes zostaje na checkpoint + digest.
+
+**Bramki (`dev`):** `test:unit` 262/262, 13 suit; typecheck oba projekty.
+
 ## RELEASE: 1.9.1 (2026-11-04, `dev` → `test` → `main`)
 
 **Co:** bump produktu 1.9.0 → 1.9.1 we wszystkich miejscach pilnowanych przez
