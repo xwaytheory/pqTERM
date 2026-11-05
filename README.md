@@ -2,7 +2,13 @@
 
 Siatka terminali dla agentów AI na Windows. Workspace'y po lewej, 1–20 żywych TUI po prawej.
 
-**Wersja: 1.9.1** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+**Wersja: 1.9.2** (edycje: `pqTERM-pr` produkcja, `pqTERM-dev` testy)
+
+## Nowości 1.9.2
+
+- **Rozmowa przenosi się też do Groka.** Czwarty silnik z natywnym importem, obok OpenCode, CodeBuddy i omp: sesja z poprzedniego CLI otwiera się przez `grok -r <id>`, z modelem z `~/.grok/config.toml`.
+- **omp naprawdę dostaje rozmowę.** Nazwa folderu projektu zachowuje wielkość liter — wcześniej `Desktop` zamieniało się w `--esktop`, a `omp -r` nie znajdował sesji i zostawał tylko seed.
+- **Werdykt po przełączeniu znika.** Komunikat w sidebarze („rozmowa przeniesiona do…”, „nie zmieniono CLI…”) nie wisi już na stałe.
 
 ## Nowości 1.9.1
 

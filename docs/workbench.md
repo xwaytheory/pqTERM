@@ -1,5 +1,17 @@
 # pq workbench (gauntlet live board)
 
+## RELEASE: 1.9.2 (2026-11-05, `dev` → `test` → `main`)
+
+**Co:** bump 1.9.1 → 1.9.2 w `package.json`, `package-lock.json` (root + `packages[""]`),
+`crates/Cargo.toml`, `crates/Cargo.lock` (tylko `pq-core`/`pq-voice`/`pq-work`),
+`src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` (tylko `pq`), `src-tauri/tauri.conf.json`,
+`WORKSPACE_VERSION` w `crates/pq-core/src/version.rs`, README (+ „Nowości 1.9.2”).
+Wersja zbiera trzy commity z `dev`: naprawę sluga omp (1.9.1 miało zepsute przenoszenie
+rozmowy do omp), przenoszenie rozmowy do Groka i znikający werdykt w sidebarze.
+
+**Bramki (`dev`):** `npm run test:unit` **263/263**, 13 suit; `npm run check:version`
+OK (product 1.9.2); typecheck oba projekty.
+
 ## SESSION HUB: samodzielny test wykrył zepsuty slug omp (2026-11-05, `dev`)
 
 **Co:** 1.9.1 wyszło z przenoszeniem rozmowy do omp, którego **nie dało się użyć**:
