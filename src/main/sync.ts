@@ -107,18 +107,19 @@ export class EngineSync {
     const order = [...new Set([...priority.filter((id) => !isRawShell(id) && installed(specById(id))), ...jobs])]
     this.emit({ running: true, done: 0, total: order.length, line: 'pq · update CLIs…' })
 
+    // All engines update at once: each self-update/npm/pip is its own child
+    // process, so the wall clock is the slowest engine instead of the sum.
+    // ponytail: parallel npm/pip installs share one global prefix (its lock file
+    // is read-modify-written), cap concurrency or serialise npm if that ever bites.
     let done = 0
-    for (const id of order) {
-      this.emit({
-        current: id,
-        line: `pq · ${id} · update`,
-        done,
-        total: order.length
+    await Promise.all(
+      order.map(async (id) => {
+        this.emit({ current: id, line: `pq · ${id} · update`, done, total: order.length })
+        await this.ensure(id)
+        done += 1
+        this.emit({ done, total: order.length })
       })
-      await this.ensure(id)
-      done += 1
-      this.emit({ done, total: order.length })
-    }
+    )
 
     this.running = false
     this.emit({

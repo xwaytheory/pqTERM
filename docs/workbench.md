@@ -2018,3 +2018,23 @@ Rekomendacje MAJOR — świadomie niewdrożone: P1 noticeTail stale; P2 resume-c
 
 - **1.5.2** — pqterm update działa (jawne refspecy fetch, untracked nie blokuje fast-forward, pending rebuild odżywa, .cmd przez shell przy Node >= 21).
 - **1.5.3** — `pqterm update` / `--check` z zainstalowanej komendy (bin/pqterm; ścieżka updatera z bridge.json).
+
+## Update CLIs równolegle (2026-11-23)
+
+- **Problem (zgłoszenie użytkownika):** ↻ odpalał silniki jeden po drugim
+  (`for (const id of order) await this.ensure(id)`), więc czas = suma czasów
+  wszystkich CLI, nie najwolniejszy z nich.
+- **Fix** (`src/main/sync.ts`, `start()`): pętla sekwencyjna → `Promise.all` po
+  `order`; każde `ensure(id)` to własny proces potomny (self-update / npm / pip),
+  więc zegar = najwolniejszy silnik. `done` rośnie po każdym zakończeniu; kształt
+  `SyncEvent` i status bar bez zmian (`pq · <id> · update`, `pq · update done N/N`),
+  `current` = ostatnio startujący silnik.
+- **Marker:** `// ponytail:` — równoległe npm/pip współdzielą jeden globalny prefix
+  (read-modify-write jego locka); gdyby zaczęło sypać: cap concurrency albo
+  serializacja npm.
+- **Dowód (harness esbuild, 4 stub silniki × 1,2 s self-update):** `elapsed_ms=1261`,
+  `start_events=4` (wszystkie starty w pierwszym ticku), `done=4/4`, `running=false`
+  → PASS. Sekwencyjnie byłoby ≥4800 ms. Harness poza repo (stub `./host`,
+  `./engines`, `./resolve-launch`).
+- **Bramki (dev):** `npm run test:unit` **263/263** + oba typechecki,
+  `npm run check:version` OK (1.9.2).
