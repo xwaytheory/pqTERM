@@ -62,23 +62,47 @@ test('pip CLI runs in PowerShell and uninstalls cleanly', () => {
   assert.match(lifecycleScript(pipSpec, 'update')?.body ?? '', /pip install -U aider-chat/)
 })
 
-test('native installs expose only the subcommands that really exist', () => {
-  assert.deepEqual(lifecycleActions(nativeSpec), ['update'])
+test('native installs expose the subcommands that really exist', () => {
+  assert.deepEqual(lifecycleActions(nativeSpec), ['update', 'uninstall'])
   assert.match(lifecycleScript(nativeSpec, 'update')?.body ?? '', /grok update/)
-  assert.equal(lifecycleScript(nativeSpec, 'uninstall'), null)
 
   assert.deepEqual(lifecycleActions(hermesSpec), ['update', 'uninstall'])
   assert.match(lifecycleScript(hermesSpec, 'uninstall')?.body ?? '', /hermes uninstall/)
   assert.match(lifecycleScript(hermesSpec, 'update')?.body ?? '', /hermes update/)
 })
 
+test('engine without a deinstaller uninstalls by removing its install dir', () => {
+  // grok/qoder/antigravity/cursor/baicode/baicode ship no `uninstall`
+  // subcommand, so the installer's own directory is the unit of removal.
+  assert.match(
+    lifecycleScript(nativeSpec, 'uninstall')?.body ?? '',
+    /rmdir \/s \/q "%USERPROFILE%\\\.grok\\bin"/
+  )
+
+  const qoder = { id: 'qoder', binaries: ['qodercli', 'qodercli.exe'], selfUpdate: ['install', '--force'] } as const
+  assert.deepEqual(lifecycleActions(qoder), ['install', 'update', 'uninstall'])
+  assert.match(lifecycleScript(qoder, 'uninstall')?.body ?? '', /%USERPROFILE%\\\.qoder\\bin\\qodercli/)
+
+  const antigravity = { id: 'antigravity', binaries: ['agy', 'agy.exe'] } as const
+  assert.match(lifecycleScript(antigravity, 'uninstall')?.body ?? '', /%LOCALAPPDATA%\\agy/)
+
+  const cursor = { id: 'cursor', binaries: ['cursor', 'cursor.exe'] } as const
+  const cursorUninstall = lifecycleScript(cursor, 'uninstall')?.body ?? ''
+  assert.match(cursorUninstall, /%LOCALAPPDATA%\\cursor-agent/)
+  // %LOCALAPPDATA%\Cursor belongs to the IDE, not to the CLI.
+  assert.doesNotMatch(cursorUninstall, /Cursor\\resources/)
+
+  const ori = { id: 'ori', binaries: ['ori', 'ori.exe'] } as const
+  assert.match(lifecycleScript(ori, 'uninstall')?.body ?? '', /del \/f \/q "%USERPROFILE%\\\.local\\bin\\ori\.exe"/)
+})
+
 test('engines that used to show no hover actions now have install + update', () => {
   const cursor = { id: 'cursor', binaries: ['cursor', 'cursor.exe', 'cursor-agent.cmd'] } as const
-  assert.deepEqual(lifecycleActions(cursor), ['install', 'update'])
+  assert.deepEqual(lifecycleActions(cursor), ['install', 'update', 'uninstall'])
   assert.match(lifecycleScript(cursor, 'install')?.body ?? '', /cursor\.com\/install\?win32=true/)
 
   const antigravity = { id: 'antigravity', binaries: ['agy', 'agy.exe'] } as const
-  assert.deepEqual(lifecycleActions(antigravity), ['install', 'update'])
+  assert.deepEqual(lifecycleActions(antigravity), ['install', 'update', 'uninstall'])
   const agy = lifecycleScript(antigravity, 'install')
   assert.equal(agy?.kind, 'cmd')
   assert.match(agy?.body ?? '', /antigravity\.google\/cli\/install\.cmd/)
@@ -87,7 +111,7 @@ test('engines that used to show no hover actions now have install + update', () 
   assert.match(agy?.body ?? '', /&& call "%TEMP%\\agy-install\.cmd"/)
 
   const ori = { id: 'ori', binaries: ['ori', 'ori.exe'] } as const
-  assert.deepEqual(lifecycleActions(ori), ['install', 'update'])
+  assert.deepEqual(lifecycleActions(ori), ['install', 'update', 'uninstall'])
   assert.match(lifecycleScript(ori, 'install')?.body ?? '', /openrouter\.ai\/labs\/ori\/install\.ps1/)
 })
 
@@ -97,13 +121,17 @@ test('CWD-relative installer runs inside the detectable install dir', () => {
     binaries: ['baicode', 'baicode.exe'],
     extraPathDirs: ['%USERPROFILE%\\.baicode\\.venv\\Scripts']
   } as const
-  assert.deepEqual(lifecycleActions(baicode), ['install', 'update'])
+  assert.deepEqual(lifecycleActions(baicode), ['install', 'update', 'uninstall'])
   const body = lifecycleScript(baicode, 'install')?.body ?? ''
   assert.match(body, /Set-Location '/)
   assert.ok(body.includes('.baicode\''), 'installer runs in ~/.baicode')
   assert.ok(
     body.includes('.baicode\\.venv\\Scripts;'),
     'that venv is on PATH, so the next scan detects baicode'
+  )
+  assert.match(
+    lifecycleScript(baicode, 'uninstall')?.body ?? '',
+    /rmdir \/s \/q "%USERPROFILE%\\\.baicode\\\.venv"/
   )
 })
 

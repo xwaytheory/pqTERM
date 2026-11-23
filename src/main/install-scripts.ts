@@ -45,9 +45,23 @@ const INSTALL: Partial<Record<EngineId, string>> = {
   ori: 'irm https://openrouter.ai/labs/ori/install.ps1 | iex'
 }
 
-/** Official self-uninstall subcommands for native installs (verified via --help). */
+/**
+ * Uninstall for engines with no package manager and no vendor deinstaller.
+ * `hermes uninstall` is a real subcommand (verified via --help). The rest ship
+ * no deinstaller at all (`grok --help`, `qodercli --help` list only update /
+ * rollback / wrap …), so the honest uninstall is removing the per-user
+ * directory their installer created — the same path detection reads in
+ * resolve-launch.ts. Config and credentials live beside it and stay.
+ */
 const NATIVE_UNINSTALL: Partial<Record<EngineId, string>> = {
-  hermes: 'hermes uninstall'
+  hermes: 'hermes uninstall',
+  grok: 'rmdir /s /q "%USERPROFILE%\\.grok\\bin"',
+  qoder: 'rmdir /s /q "%USERPROFILE%\\.qoder\\bin\\qodercli"',
+  antigravity: 'rmdir /s /q "%LOCALAPPDATA%\\agy"',
+  // NOT %LOCALAPPDATA%\Cursor: that is the IDE's bundled CLI, not ours to delete.
+  cursor: 'rmdir /s /q "%LOCALAPPDATA%\\cursor-agent"',
+  baicode: 'rmdir /s /q "%USERPROFILE%\\.baicode\\.venv"',
+  ori: 'if exist "%USERPROFILE%\\.local\\bin\\ori.exe" del /f /q "%USERPROFILE%\\.local\\bin\\ori.exe"'
 }
 
 /** Native updaters for engines that ship no selfUpdate args in their spec. */

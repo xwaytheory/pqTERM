@@ -2038,3 +2038,46 @@ Rekomendacje MAJOR — świadomie niewdrożone: P1 noticeTail stale; P2 resume-c
   `./engines`, `./resolve-launch`).
 - **Bramki (dev):** `npm run test:unit` **263/263** + oba typechecki,
   `npm run check:version` OK (1.9.2).
+
+## SPAWN ENGINE: „Odinstaluj" dla każdego CLI (2026-11-23, `dev`)
+
+- **Zgłoszenie użytkownika:** przy Qoder i Grok CLI brak ikonki „Odinstaluj";
+  sprawdzić wszystkie CLI, żeby każde miało tę możliwość.
+- **Root cause:** `lifecycleActions()` dodawało `uninstall` tylko przy
+  `npmPackage` / `pipPackage` / `NATIVE_UNINSTALL[id]`. Sześć silników instaluje
+  się skryptem do własnego katalogu i nie ma żadnego z tych pól → brak akcji:
+  grok, qoder, antigravity, cursor, ori, baicode. (hermes miał `hermes uninstall`.)
+- **Weryfikacja braku deinstalatora (na tej maszynie, 1.9.2):** `grok --help` →
+  komendy agent/clone/dashboard/doctor/du/export/…/update/wrap, **bez uninstall**;
+  `qodercli --help` → hooks/update/rollback/plugins/mcp/…, **bez uninstall**.
+  Antigravity, Ori, Cursor i BAI code nie są tu zainstalowane — brak binarki do
+  odpytywania, więc dla nich obowiązuje to samo podejście (ich instalatory też
+  tylko rozpakowują pliki).
+- **Fix** (`src/main/install-scripts.ts`, `NATIVE_UNINSTALL`): usunięcie katalogu,
+  który tworzy instalator — dokładnie tej ścieżki, której szuka
+  `resolve-launch.ts`:
+
+  | silnik | komenda |
+  |---|---|
+  | grok | `rmdir /s /q "%USERPROFILE%\.grok\bin"` |
+  | qoder | `rmdir /s /q "%USERPROFILE%\.qoder\bin\qodercli"` |
+  | antigravity | `rmdir /s /q "%LOCALAPPDATA%\agy"` |
+  | cursor | `rmdir /s /q "%LOCALAPPDATA%\cursor-agent"` |
+  | baicode | `rmdir /s /q "%USERPROFILE%\.baicode\.venv"` |
+  | ori | `if exist …\.local\bin\ori.exe del /f /q …\ori.exe` |
+
+  Konfiguracja/loginy (np. `~/.grok` poza `bin`, `~/.qoder` poza `bin\qodercli`)
+  zostają — usuwany jest program, nie dane użytkownika. `%LOCALAPPDATA%\Cursor`
+  (CLI dołączone do IDE) jest świadomie nietknięte — to nie nasza instalacja.
+- **Efekt:** 24 CLI (wszystkie poza `shell`/`cmd`, które są wbudowane) mają
+  `uninstall`; kafelek pokazuje akcję, bo renderer bierze `ProviderInfo.actions`.
+- **Dowód:** harness esbuild na **prawdziwych** `ENGINE_SPECS` — 24/24 `OK`,
+  `shell`/`cmd` `[]`; potem wykonanie **wygenerowanego** skryptu uninstall dla
+  każdego z 6 silników w piaskownicy (`USERPROFILE`/`LOCALAPPDATA` → katalog
+  tymczasowy): `target_gone=true`, `ide_decoy_kept=true` (6/6 PASS).
+- **Bramki (dev):** `npm run test:unit` **264/264** (nowy test: ścieżki
+  deinstalacji + brak ruszania `Cursor\resources`), oba typechecki,
+  `npm run check:version` OK (1.9.2).
+- **Znane ograniczenie:** po odinstalowaniu groka kafelek nie ma „Zainstaluj" —
+  nadal brak zweryfikowanego instalatora (patrz audyt 2026-10-25). Reszta sześciu
+  ma „Zainstaluj" z oficjalnego skryptu.
